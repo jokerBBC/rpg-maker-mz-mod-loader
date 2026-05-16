@@ -24,7 +24,7 @@
 
 ![软件主界面](js/mods/docs/img/主界面.png)
 
-![软件主界面](js/mods/docs/img/编辑界面-一般.png)
+![软件主界面](js/mods/docs/img/参数界面-一般.png)
 
 ![软件主界面](js/mods/docs/img/参数界面-多级套娃.png)
 
