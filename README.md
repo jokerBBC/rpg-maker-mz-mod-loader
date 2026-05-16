@@ -23,14 +23,19 @@
 ***
 主界面
 ![软件主界面](js/mods/docs/img/主界面.png)
+
 参数编辑界面
 ![软件主界面](js/mods/docs/img/参数界面-一般.png)
+
 参数编辑界面-多层套娃
 ![软件主界面](js/mods/docs/img/参数界面-多级套娃.png)
+
 参数编辑界面-表格
 ![软件主界面](js/mods/docs/img/参数界面-表格.png)
+
 安装界面
 ![软件主界面](js/mods/docs/img/安装.png)
+
 删除模式和排序模式
 ![软件主界面](js/mods/docs/img/排序与删除.png)
 
