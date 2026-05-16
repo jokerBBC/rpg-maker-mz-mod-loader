@@ -23,6 +23,18 @@
 ***
 
 ![软件主界面](js/mods/docs/img/主界面.png)
+
+![软件主界面](js/mods/docs/img/编辑界面-一般.png)
+
+![软件主界面](js/mods/docs/img/参数界面-多级套娃.png)
+
+![软件主界面](js/mods/docs/img/参数界面-表格.png)
+
+![软件主界面](js/mods/docs/img/安装.png)
+
+![软件主界面](js/mods/docs/img/排序与删除.png)
+
+
 ## 📥 安装方式
 
 ### 模式1：注入模式（推荐）
