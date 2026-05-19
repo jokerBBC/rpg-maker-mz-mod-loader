@@ -1,0 +1,15 @@
+# robots.txt - Allow all crawlers including AI
+User-agent: *
+Allow: /
+
+# 显式允许常见 AI 爬虫
+User-agent: GPTBot
+User-agent: ChatGPT-User
+User-agent: ClaudeBot
+User-agent: Claude-Web
+User-agent: PerplexityBot
+User-agent: Google-Extended
+Allow: /
+
+# 指向 sitemap
+Sitemap: https://jokerbbc.github.io/RPG-Maker-MZ-ModLoader/sitemap.xml
