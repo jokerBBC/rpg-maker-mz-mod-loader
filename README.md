@@ -1,29 +1,39 @@
-# RMMZ Mod Loader
+# RMMZ ModLoader
 
-> 游戏内模组管理器 v3.13.0
+> **[English README](README-en.md)**
 
-一款功能强大的 RPG Maker MZ 模组管理器，支持在游戏内管理 Mod 的开启/关闭、参数编辑、排序等功能。
+> 游戏内模组管理器 **v4.0.0**
+
+一款功能强大的 RPG Maker MZ 模组管理器，支持在游戏内管理 **本地 Mod** 与 **Steam 创意工坊 Mod** 的开启/关闭、参数编辑、排序与依赖检测。**现已支持多语言界面**（简体中文 / 繁體中文 / English）。
+
+> **运行环境**：V3.16.1 起仅支持 **Steam 正版** 安装路径（为接入创意工坊做准备）。Mod 配置保存在 `mod_config.json`，**不再写入** `plugins.js`，游戏更新官方插件后 Mod 开关与参数不会丢失。
 
 ***
 
 ## ✨ 功能特性
 
-| 功能              | 描述                                           |
-| --------------- | -------------------------------------------- |
-| 🎮 **游戏内管理**    | 无需开启额外程序或手动修改游戏的plugins.js文件，直接在游戏中管理 Mod    |
-| ⚙️ **参数编辑**     | 支持数值、开关、文本、单选、颜色、长文本、数据库引用、struct结构体、table表格 |
-| 📦 **拖放安装**     | 支持拖放 .js 文件或整个 mods 文件夹安装                    |
-| 🔀 **排序管理**     | 支持拖拽排序和手动输入序号调整加载顺序                          |
-| ⏸️ **一键全关**     | 可一次性关闭所有开启的 Mod                              |
-| 🛡️ **安全保护**    | 未保存修改提示，防止误操作                                |
-| 📊 **元数据显示**    | 显示 @version、@author、@base 等标签信息              |
-| 🏷️ **@text别名** | 参数支持 `@text` 中文别名，友好显示                       |
-| 📋 **Schema模板** | `@define-schema` 可复用模板系统，struct/table 通用定义   |
+| 功能 | 描述 |
+| --- | --- |
+| 🎮 **游戏内管理** | 无需额外程序，直接在游戏中管理 Mod 开关、参数与排序 |
+| 🛒 **Steam 创意工坊** | 扫描 `workshop/content/<AppID>/`（AppID 可配置）；筛选、刷新（仅开启时）；未开启时提示「游戏未开启创意工坊功能」 |
+| ⚙️ **参数编辑** | 数值、开关、文本、单选、颜色、长文本、数据库引用、struct、table |
+| 🔀 **排序与依赖** | 拖拽/序号排序；`@base` / `@orderAfter` 依赖检测（先查游戏原生插件，再查管理器内全部 Mod） |
+| 📦 **拖放安装** | 拖放 `.js` 或整个 `mods` 文件夹（仅**本地** Mod） |
+| ⏸️ **一键全关** | 一次性关闭所有已开启 Mod |
+| 🛡️ **安全保护** | 未保存修改提示；配置全量写入 `mod_config.json` |
+| 🌐 **多语言** | 简体中文 / 繁體中文 / English，语言包位于 `config/language/` |
+| ⚙️ **系统设置** | ⚙ 齿轮：语言 + 暗黑/暖色主题 |
+| 🎨 **双主题** | 暗黑 / 暖色，偏好写入 `modloader_config.json` |
+| 📊 **元数据** | `@version`、`@author`、`@base`、`@orderAfter` 等 |
+| 🏷️ **@text 别名** | 参数中文显示名 |
+| 📋 **Schema 模板** | `@define-schema` + struct/table |
 
 ***
-## ✨ UI截图
+
+## ✨ UI截图（暗黑/暖暖双主题色）
+
 <div align="center">
-    
+
 主界面
 
 ![软件主界面](js/mods/docs/img/主界面.png)
@@ -66,9 +76,11 @@
 
 删除模式和排序模式
 
-![软件主界面](js/mods/docs/img/排序与删除.png)
+![软件主界面](img/排序与删除.png)
 
 </div>
+
+***
 
 ## 📥 安装方式
 
@@ -89,17 +101,36 @@
 
 在 RMMZ 插件管理器中将 `ModLoader.js` 添加到插件列表。
 
-> ⚠️ 注意：修改 Mod 开关或排序后，需要 F5 刷新才能生效！
+> ⚠️ 修改 Mod 开关、参数或排序后，需要 **F5 刷新** 才能生效。  
+> ⚠️ 创意工坊 Mod 请在 **Steam 客户端** 订阅/取消订阅；管理器内仅开关、排序与改参。
 
 ***
 
 ## 🎯 使用说明
 
-1. 进入游戏后，点击屏幕左上角的 Mod 管理按钮
-2. 在左侧列表中选择 Mod，右侧查看详情
-3. 点击开关按钮启用/禁用 Mod
-4. 点击齿轮图标编辑 Mod 参数（仅支持带有 ⚙ 标志的 Mod）
-5. 修改完成后点击【保存配置】按钮
+1. 进入游戏后，点击屏幕左上角的 **模组管理器** 按钮  
+2. 使用 **全部 / 本地 / 创意工坊** 筛选列表；工坊已开启时，订阅变更后可点 **刷新工坊**  
+3. 选中 Mod，右侧查看详情（来源、工坊订阅、依赖、参数等）  
+4. 开关 Mod；有 ⚙ 的可编辑参数；改完点 **保存**  
+5. **F5** 重启游戏使开关与参数生效  
+
+**工坊 Mod 说明**：列表中每个 `.js` 占一行；`workshop.enabled: false` 时「创意工坊」筛选仍可用，列表提示「游戏未开启创意工坊功能」，且不显示刷新按钮。
+
+### 游戏作者：工坊配置（`modloader_config.json`）
+
+```json
+"workshop": {
+  "enabled": true,
+  "steamAppId": "你的游戏AppID",
+  "steamLibraryPath": ""
+}
+```
+
+- **`enabled`**：`true` 扫描并加载工坊 Mod；`false` 仅保留 UI 入口，不扫描  
+- **`steamAppId`**：须与 `steam_appid.txt`、Steamworks 一致（代码默认 `4379740` 仅为本仓库联调示例）  
+- **`steamLibraryPath`**：一般留空；Steam 非默认库盘时填库根，如 `D:/SteamLibrary`  
+
+工坊开通后，将 `enabled` 设为 `true` 并填入正确 AppID，**随游戏更新推送**给玩家即可。详见 `docs/V4_workshop_作者规范.md`。
 
 ***
 
@@ -107,180 +138,179 @@
 
 ```
 js/mods/
-├── ModLoader.js                    # Mod管理器主文件
-├── TestMod.js                      # 参数类型测试Mod
-├── TestSchemaMod.js                # struct/table 功能测试Mod
-├── mydrop.js                       # 实战Mod：怪物掉落物扩展
-├── docs/                           # 文档目录
-│   ├── README.md                   # 项目说明
-│   └── modloader_CHANGELOG.md      # ModLoader更新日志
-└── [你的Mod文件].js                # Mod插件
+├── ModLoader.js                    # Mod 管理器主文件
+├── mod_config.json                 # Mod 开关 / 参数 / 排序（唯一配置源）
+├── config/
+│   ├── modloader.css               # UI 样式（暗黑/暖色）
+│   ├── modloader_config.json       # 管理器配置（主题、语言、workshop）
+│   └── language/                   # 多语言包
+│       ├── zh_CN.json
+│       ├── zh_TW.json
+│       └── en.json
+├── _workshop/                      # 运行时 junction 桥接（自动生成，勿手改）
+│   └── <工坊FileId>/             # 指向 steamapps/workshop/content/<AppID>/...
+├── docs/
+│   ├── guide/
+│   │   ├── img/
+│   │   └── README.md               # 本说明
+│   ├── modloader_CHANGELOG.md
+│   ├── V4_workshop_作者规范.md      # 工坊 Mod 作者规范
+│   └── RMMZ_ModLoader_开发规范.md
+└── [本地Mod].js
+```
+
+Steam 工坊包目录（`<AppID>` 换为你的游戏 ID；本仓库联调示例为 `4379740`）：
+
+```
+<Steam库>/steamapps/workshop/content/<AppID>/<publishedFileId>/js/mods/*.js
 ```
 
 ***
 
 ## 📖 开发资源
 
-| 资源                            | 说明               |
-| ----------------------------- | ---------------- |
-| `docs/RMMZ_Mod开发规范.md`        | Mod 插件开发规范与流程    |
+| 资源 | 说明 |
+| --- | --- |
+| `docs/RMMZ_Mod开发规范.md` | 本地 Mod 插件开发规范 |
+| `docs/V4_workshop_作者规范.md` | **创意工坊 Mod** 包结构、配置键、`modloader.json` |
 | `docs/RMMZ_ModLoader_开发规范.md` | ModLoader 自身开发规范 |
-| `docs/modloader_CHANGELOG.md` | ModLoader 更新日志   |
+| `docs/modloader_CHANGELOG.md` | 完整更新日志 |
 
 ***
 
 ## 📝 支持的参数类型
 
-| 类型                                          | 说明        | 示例                        |
-| ------------------------------------------- | --------- | ------------------------- |
-| `number`                                    | 数值（支持滑动条） | `@min 0 @max 100 @step 1` |
-| `boolean`                                   | 开关        | `@default true`           |
-| `string`                                    | 文本        | `@default Hello`          |
-| `select`                                    | 单选下拉      | `@option A @option B`     |
-| `color`                                     | 颜色        | `@default #ff0000`        |
-| `note`                                      | 长文本       | 多行文本编辑                    |
-| `multiline_string`                          | 长文本       | 多行文本编辑                    |
-| `actor/skill/item/weapon/armor/enemy/state` | 数据库引用     | 下拉选择                      |
-| `struct`                                    | 结构体       | `@schema SchemaName`，折叠面板 |
-| `table`                                     | 表格列表      | `@schema SchemaName`，表格编辑 |
+| 类型 | 说明 | 示例 |
+| --- | --- | --- |
+| `number` | 数值（支持滑动条） | `@min 0 @max 100 @step 1` |
+| `boolean` | 开关 | `@default true` |
+| `string` | 文本 | `@default Hello` |
+| `select` | 单选下拉 | `@option A @option B` |
+| `color` | 颜色 | `@default #ff0000` |
+| `note` / `multiline_string` | 长文本 | 多行编辑 |
+| `actor/skill/item/...` | 数据库引用 | 下拉选择 |
+| `struct` | 结构体 | `@schema SchemaName` |
+| `table` | 表格列表 | `@schema SchemaName` |
 
-### 新增标签
+### 常用元数据标签
 
-| 标签               | 说明                       | 示例                                                                |
-| ---------------- | ------------------------ | ----------------------------------------------------------------- |
-| `@text`          | 参数的中文显示名称，覆盖参数名          | `@text 玩家名称`                                                      |
-| `@define-schema` | 定义可复用的 struct/table 字段模板 | `@define-schema DropSchema \n [{"name":"id","type":"number"...}]` |
-| `@schema`        | 引用已定义的 Schema 模板         | `@schema DropSchema`                                              |
+| 标签 | 说明 |
+| --- | --- |
+| `@text` | 参数界面显示名 |
+| `@base` | 前置依赖（管理器内检测顺序与是否开启） |
+| `@orderAfter` | 应排在某插件之后 |
+| `@define-schema` / `@schema` | struct/table 模板 |
 
 ***
 
-## 🆕 V3.13.0 新功能详解
+## 🆕 版本更新摘要
+
+### V4.0.0 — Steam 创意工坊（2026-05-28）
+
+- 扫描 `steamapps/workshop/content/4379740/<FileId>/`，经 `js/mods/_workshop/` **目录联接** 供游戏加载（不复制、不写 `plugins.js`）
+- 配置键：`ws:<FileId>:<脚本名>`；支持同订阅多 `.js`、各自参数与依赖检测
+- UI：全部/本地/创意工坊筛选、刷新工坊、工坊角标与详情（订阅 ID & 名称、来源说明）
+- 工坊 Mod 只读：不可删除、不可拖放安装，**可排序**（需在「全部」筛选下）
+- 安全：Mod 为可执行脚本，请只订阅信任来源；审核与举报依赖 Steam，ModLoader 不提供杀毒/沙箱
+
+### V3.17.1 — 多语言与入口（2026-05-28）
+
+- 移除硬编码简中兜底表，仅语言包 + `zh_CN` 回退
+- 修复标题入口按钮闪现等问题
+
+### V3.17.0 — 运行时加载架构（2026-05-28）
+
+- **不再写入 `plugins.js`**：开关/参数/排序仅存 `mod_config.json`
+- 通过 `PluginManager.setup` Hook 在官方插件之后按 `order` 加载 Mod
+- 游戏更新导致 `plugins.js` 被 RMMZ 重置时，**Mod 配置不再失效**，无需再进管理器「一键恢复」
+- 启动时自动清理旧版写入 `plugins.js` 的 Mod 条目
+
+### V3.16.1 — 正版环境（2026-05-23）
+
+- 为接入 Steam 创意工坊，增加 **Steam 安装路径** 检测
+- 非正版环境启动时提示，引导使用 Steam 正版或旧版整合包（V3.1，已停更）
+- 后续版本（含工坊）仅在 Steam 正版环境下维护
+
+### V3.16.0 — 多语言与系统设置（2026-05-19）
+
+- 多语言：`config/language/*.json`，⚙ 设置面板切换语言与主题
+- 语言查找链：当前语言 → `zh_CN` → key 原文
+
+<details>
+<summary>V3.16.0 多语言详细说明（展开）</summary>
+
+#### 语言包位置
+
+```
+js/mods/config/language/
+├── zh_CN.json
+├── zh_TW.json
+└── en.json
+```
+
+#### 添加新语言
+
+1. 在 `config/language/` 新建 JSON（如 `ja.json`）
+2. 包含 `_langCode`、`_langName` 及全部翻译键
+3. 重开管理器，下拉列表自动出现
+
+#### 系统设置
+
+点击 ⚙：语言下拉 + 暗黑/暖色主题按钮；点击外部关闭，不触发「未保存」提示。
+
+</details>
+
+***
+
+## 🆕 V3.13.0 新功能详解（struct / @text）
 
 ### 一、`@text` 参数别名
 
-#### 原理
-
-ModLoader 在解析 `@param` 时，自动将参数名同时作为显示名。当存在 `@text` 标签时，**覆盖**参数名为指定的中文别名。
-
-#### 使用规范
-
 ```javascript
-@param damageMultiplier   // 参数名（存储用，建议英文）
-@text 伤害倍率             // 显示名（界面展示用，中文）
+@param damageMultiplier
+@text 伤害倍率
 @type number
 @default 2
 ```
 
-#### 代码演示（Mod 作者侧）
+代码中仍用 `@param` 后的英文名：`params['damageMultiplier']`。
 
-```javascript
-// 获取参数：始终使用 @param 后的参数名
-const params = PluginManager.parameters('MyMod');
-const value = Number(params['damageMultiplier']);  // 注意：这里用英文参数名
-```
+### 二、Schema 模板 + struct/table
 
-> 🔔 **提示**：`@text` 只改变管理器中的显示名称，不影响代码中通过 `PluginManager.parameters()` 获取参数值的方式。**代码中必须使用** **`@param`** **后的参数名**。
-
-***
-
-### 二、Schema 模板系统 + struct/table 类型
-
-#### 原理
-
-| 组件               | 作用                                        |
-| ---------------- | ----------------------------------------- |
-| `@define-schema` | 定义一个**可复用的字段模板**（JSON 数组格式），包含字段名、类型、默认值等 |
-| `@schema`        | 在参数中引用已定义的模板名                             |
-| `struct` 类型      | 将模板渲染为**折叠式结构体面板**，支持无限层级嵌套               |
-| `table` 类型       | 将模板渲染为**可增删行的表格列表编辑器**                    |
-
-**数据存储格式**：
-
-- `struct`：`JSON.stringify({field1: value1, field2: value2, ...})`
-- `table`：`JSON.stringify(["JSON.stringify(行1)", "JSON.stringify(行2)", ...])`（双重转义）
-
-**自动默认值**：struct/table 类型即使省略 `@default`，也会从 Schema 定义中自动生成默认 JSON，无需手动设置。table类型省略则表格为空，复杂情况不会生成默认值可以先省略，管理器里操作完保存，从mod\_config.json里抄作业，新增行时自动套用默认值。填写了默认值参数编辑界面会自动填充默认值行数。
-
-#### 使用规范
-
-**步骤1：定义 Schema 模板（写在** **`@help`** **之前）**
+**定义模板**（写在 `@help` 之前）：
 
 ```javascript
 @define-schema MonsterDropSchema
-[{"name":"enemyId","text":"目标怪物","type":"enemy","default":"1"},{"name":"itemId","text":"掉落物品","type":"item","default":"1"},{"name":"dropRate","text":"掉落概率(1/N)","type":"number","default":"1","min":1}]
+[{"name":"enemyId","text":"目标怪物","type":"enemy","default":"1"}, ...]
 ```
 
-**步骤2：引用模板作为 struct 参数**
-
-```javascript
-@param bossConfig
-@text Boss配置
-@type struct
-@schema MonsterDropSchema
-@desc 配置单个怪物的掉落信息（折叠面板展示）
-```
-
-**步骤3：引用模板作为 table 参数**
+**引用**：
 
 ```javascript
 @param dropList
-@text 掉落列表
 @type table
 @schema MonsterDropSchema
-@desc 配置所有怪物的额外掉落（表格列表编辑）
 ```
 
-#### 代码演示（Mod 作者侧）
-
-**读取 struct 类型参数**：
-
-```javascript
-const params = PluginManager.parameters('MyMod');
-
-function parseStruct(paramName) {
-    try { return JSON.parse(params[paramName] || '{}'); }
-    catch (e) { return {}; }
-}
-
-const bossConfig = parseStruct('bossConfig');
-console.log(bossConfig.enemyId, bossConfig.itemId, bossConfig.dropRate);
-```
-
-**读取 table 类型参数**：
-
-```javascript
-function parseTable(paramName) {
-    try {
-        const arr = JSON.parse(params[paramName] || '[]');
-        return arr.map(row => {
-            try { return JSON.parse(row); }
-            catch (e) { return {}; }
-        });
-    } catch (e) { return []; }
-}
-
-const dropList = parseTable('dropList');
-dropList.forEach(drop => {
-    console.log(`怪物${drop.enemyId} 掉落物品${drop.itemId} 概率1/${drop.dropRate}`);
-});
-```
-
-> 🔔 **提示**：struct 和 table 类型的数据是 JSON 字符串，Mod 代码中需要手动 `JSON.parse()` 才能使用。具体可参考 `TestSchemaMod.js` 中的 `parseStructParam()` 和 `parseTableParam()` 辅助函数。
+读取时需 `JSON.parse()`，可参考 `TestSchemaMod.js`、`mydrop.js`。
 
 ***
 
 ### 📂 参考示例 Mod
 
-| 示例 Mod             | 说明                                       |
-| ------------------ | ---------------------------------------- |
-| `TestSchemaMod.js` | struct/table 完整测试用例，含多层嵌套、多模板引用、@text 别名 |
-| `mydrop.js`        | 实战示例：怪物掉落物扩展，使用 table 类型配置掉落列表           |
+| 示例 | 说明 |
+| --- | --- |
+| `TestMod.js` | 基础参数类型测试 |
+| `TestSchemaMod.js` | struct/table、嵌套、@text |
+| `mydrop.js` | table 配置怪物掉落 |
+
+工坊自测包见 `steamapps/workshop/content/4379740/`（3000000001~4），规范见 `docs/V4_workshop_作者规范.md`。
 
 ***
 
 ## 📜 开源协议
 
-MIT License - 详见 LICENSE 文件
+MIT License — 详见 `docs/LICENSE`
 
 ***
 
@@ -290,4 +320,4 @@ MIT License - 详见 LICENSE 文件
 
 ***
 
-**版本**: v3.13.0 | **更新日期**: 2026-05-16
+**版本**: v4.0.0 | **更新日期**: 2026-05-28

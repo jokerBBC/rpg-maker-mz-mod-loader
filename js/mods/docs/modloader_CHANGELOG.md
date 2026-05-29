@@ -1,5 +1,206 @@
 # ModLoader 更新日志
 
+## V4.0.0 (2026-05-28)
+
+### 后续改进
+
+- **修复**：插件模式时序——`injectStyles` 在样式已存在时仍同步配置；`deferLoadEnabledModsRuntime` 延迟加载；`window.load` 已触发时立即 bootstrap；工坊关闭时清理 `_workshop` 桥接
+- **修复**：启动时 `ensureModLoaderConfigFile` 生成/补全 `modloader_config.json` 的 `workshop` 段（此前仅切换主题时才写入文件）
+- **移除**：`workshop_sim` / `useDevSim` / `workshop_subscriptions.json` 开发模拟（RMMZ 无法加载游戏目录外工坊路径，自测请用 `steamapps/workshop/content/4379740/`）
+- **UX**：工坊详情显示「工坊订阅」为 `ID & modloader.json 名称`；来源区三行说明（Steam创意工坊 / 管理器限制 / Steam 订阅）
+- **自测**：工坊包 `3000000004` 多脚本（核心 + @base + @orderAfter）演示
+- **修复**：多脚本包列表名使用各脚本文件名，不再共用 `modloader.json` 的 `title`
+- **修复**：工坊 Mod 可正常排序（`readOnly` 仅限制删除/拖放安装）
+- **修复**：依赖检测 modLookup 恢复 V3.17 逻辑，工坊 Mod 仅额外按 `ws:<id>:<脚本名>` 中的脚本名注册
+- **修复**：`mod_config` 无记录的工坊/本地新 Mod 排在已有 Mod 之后（按配置最大 order 递增）
+- **UX**：筛选为「本地」或「创意工坊」时禁用排序，悬停排序按钮显示提示
+- **自测**：`workshop/content/4379740/` 测试包 3000000001~4
+- **文档**：`V4_IMPLEMENTATION_PLAN.md` 同步为已实现说明；作者规范补充安全与信任说明
+
+### Steam 创意工坊（磁盘扫描）
+
+- **新增**：`workshop` 配置段（`steamAppId=4379740`、`steamLibraryPath`）
+- **新增**：`scanLocalMods` / `scanWorkshopMods` / `scanAllMods`，工坊 Mod 使用 `ws:<fileId>:<name>` 配置键
+- **新增**：Mod 对象扩展 `loadPath`、`source`、`workshopId`、`workshopRoot`、`subscribed`、`readOnly`、`installState`
+- **变更**：`loadEnabledModsRuntime` 使用 `mod.loadPath` 加载（非 `mod.id`）
+- **新增**：UI 筛选（全部/本地/创意工坊）、刷新工坊按钮、工坊角标与只读删除保护
+
+## V3.17.1 (2026-05-28)
+
+### 多语言与标题按钮
+
+- **移除**：`initLangFallback()` 硬编码简中兜底表（仅保留语言包 + zh_CN 回退）
+- **清理**：删除 V3.17.0 已废弃的 plugins 重置相关翻译键
+- **修复**：确认对话框误用 `button.ok`（语言包仅有 `dialog.ok`）导致按钮显示为 key
+- **修复**：标题入口按钮改为 `window.load` 后创建，并内联 `display:none` 避免闪现
+
+## V3.17.0 (2026-05-28)
+
+### 运行时加载（不再写入 plugins.js，其更新后mod不再失效，不需要一键恢复了。）
+
+- **重构**：Mod 开关/参数/排序仅保存至 `mod_config.json`，不再调用 `updatePluginsJs` 改写 `plugins.js`
+- **新增**：`PluginManager.setup` Hook，在官方插件加载完毕后按 `order` 调用 `loadEnabledModsRuntime` 加载 Mod
+- **新增**：`buildModFinalParameters`、`installBootstrapHooks`、`installWindowLoadFallback`（插件模式首轮兜底）
+- **新增**：`cleanupLegacyModEntriesFromPluginsJs`，启动时自动清理旧版 `__isMod` / `../mods/` 注册条目
+- **移除**：`updatePluginsJs`、`checkPluginsReset` 及「plugins.js 被重置」恢复对话框
+
+## V3.16.1 (2026-05-23)
+
+### 环境兼容性调整
+
+- **新增**：非 Steam 正版环境使用提示，引导用户前往正确环境或使用旧版整合包
+- **说明**：为保障维护效率，后续版本将仅支持 Steam 正版环境运行。非正版用户可继续使用 V3.1 旧版整合包（已停止更新）
+
+## V3.16.0 (2026-05-19)
+
+### 多语言支持 + 系统设置面板
+
+#### 多语言系统
+
+- **新增**：多语言支持体系，采用 `config/language/` 文件夹 + 独立语言包 JSON 文件方案
+- **新增**：内置 3 种语言包
+  - 简体中文（`zh_CN.json`）—— 同时也是翻译兜底语言
+  - 繁体中文（`zh_TW.json`）
+  - English（`en.json`）
+- **新增**：自动扫描发现机制 —— 扫描 `config/language/` 目录下所有 `.json` 文件，下拉列表自动拓展
+- **新增**：`initLangFallback()` 硬编码简中兜底表 —— 即使语言包文件缺失，界面也不会崩溃
+- **新增**：`t(key)` 翻译函数 —— 三重兜底链：当前语言包 → zh_CN 语言包 → 代码硬编码兜底表 → key 原始值
+- **新增**：`loadLanguageConfigs()` 扫描加载所有语言包文件
+- **新增**：`getAvailableLanguages()` 获取已安装语言列表，排序：简体中文 → 繁体中文 → English → 其余按字母
+- **新增**：`getLanguageDisplayName()` 获取语言自身文字显示名称
+- **新增**：`setLanguage()` 切换语言并自动保存到 `modloader_config.json`
+- **新增**：`refreshAllUIText()` 统一刷新界面所有文字
+- **新增**：语言设置在切换时即时生效，不触发"有未保存的修改"判定
+
+#### 系统设置面板
+
+- **新增**：⚙ 齿轮图标（系统设置入口），位于模组管理器标题左侧
+- **新增**：`ml-settings-gear` 点击展开下拉卡片，hover 旋转动画
+- **新增**：`ml-settings-card` 下拉卡片面板，包含语言下拉框和主题切换按钮
+- **新增**：点击卡片外部自动关闭，非模态弹窗交互
+- **重构**：主题切换从头部 ☀️/🌙 emoji 移入设置卡片，改为"暗黑主题/暖色主题"两个按钮
+- **新增**：主题设置也通过 `ml_theme` 保存到 `modloader_config.json`，合并写入不丢失现有配置
+- **优化**：齿轮图标根据主题自动适应配色
+
+#### 国际化改造
+
+- **重构**：Mod 管理器全部界面文字替换为 `t('key')` 翻译调用，约 50+ 个翻译标识符
+  - 覆盖范围：标题、按钮、详情面板、参数编辑、安装/删除/排序模式、确认对话框、错误提示等
+- **新增**：`getDbLabel()` 数据库类型标签翻译函数
+- **新增**：依赖检测报错消息（`dep.*`）、数据库标签（`db.*`）、降级提示（`param.db*`）等翻译支持
+- **修复**：`t('title')` 在语言系统初始化前被调用导致显示 key 名的问题
+- **修复**：多处翻译 key 缺失导致的界面显示原始 key 名问题
+- **修复**：安装界面拖放提示文字被误改写的问题
+
+## V3.15.2 (2026-05-18)
+
+### 依赖检测5状态判定 + 配置全量重写
+
+#### 依赖检测5状态判定
+- **重构**：依赖检测算法完全重写，从简单"缺失/通过"二元判断升级为5种状态精准判定
+  - ✅ **PASS**：依赖插件存在且已开启且排序正确
+  - 🔴 **GAME_DISABLED**：游戏原生前置插件未开启
+  - 🔴 **NOT_FOUND**：缺少前置插件
+  - 🔴 **MOD_DISABLED**：前置Mod插件未开启
+  - 🔴 **WRONG_ORDER**：前置Mod插件已开启但排序错误
+- **重构**：`getGamePluginInfo()` 替代原 `getGamePluginNames()`，返回 `Map<name, {enabled}>` 支持检测"存在但未开启"的原生插件
+- **重构**：`checkModDependencies()` 内部新增 `checkSingleDep()` 函数实现3步检测流程
+- **重构**：`getModDepStatus()` 返回值从 `{baseMissing, orderAfterMissing}` 改为 `{baseDetails, orderAfterDetails}`，包含详细原因说明
+- **优化**：`toggleMod()` 弹框消息从笼统"缺失"改为逐条列出具体原因
+- **优化**：`renderDetail()` 每个依赖项显示插件名 + 原因说明文本，纵向排列
+- **新增**：CSS `.ml-dep-item` 和 `.ml-dep-reason` 样式，依赖项行容器和原因说明文本
+
+#### 配置全量重写
+- **重构**：`saveAllChanges()` 函数改为全量重写配置，解决手动删除mod后的僵尸信息残留
+  - 旧逻辑：读取已有配置 → 增量更新 → 保存
+  - 新逻辑：新建空对象 → 只写入当前mod → 保存
+- **优化**：玩家手动删除 `js/mods/` 下的 .js 文件后，该mod的配置条目会在下次保存时自动清除
+
+## V3.15.1 (2026-05-18)
+
+### 中文插件名依赖检测修复
+
+- **修复**：中文插件名（如"分解界面UI"）依赖检测失效的Bug
+- **重构**：`parseDependencyList()` 算法改进，不再以"是否含中文字符"作为区分标准，统一以 `.js` 后缀作为唯一分界标记
+  - 含 `.js` 的 token：提取到 `.js` 为止，去后缀
+  - 不含 `.js` 的 token：直接作为插件名
+- **测试**：12个测试用例全部通过，覆盖纯英文、纯中文、中英文混合等各种场景
+
+## V3.15.0 (2026-05-18)
+
+### 前置插件依赖检测功能
+
+#### 核心依赖检测系统
+- **新增**：`parseDependencyList(rawStr)` 函数，支持4种格式的 `@base` / `@orderAfter` 解析
+  - 标准带/不带 `.js` 格式
+  - 非标准混中文无空格/有空格格式
+  - 自动丢弃中文说明文本
+  - 自动去重处理
+- **新增**：`getGamePluginNames()` 函数，读取 `plugins.js` 获取已开启的游戏原生插件集合
+- **新增**：`checkModDependencies(modList)` 核心检测函数
+  - `@base` 检测：前置插件必须存在且已开启
+  - `@orderAfter` 检测：前置插件必须存在且已开启且排序在当前mod之前
+- **新增**：`refreshDependencyCheck()` / `getModDepStatus(mod)` 全局缓存系统，避免重复计算
+
+#### UI 警告提示
+- **优化**：`renderModList()` 中 toggle-thumb 显示警告色
+  - `@base` 缺失 → 红色警告
+  - `@orderAfter` 缺失 → 黄色警告
+- **优化**：`toggleMod()` 开启mod时检测依赖状态，弹框确认后才执行
+  - `@base` 缺失提示"可能导致游戏崩溃"
+  - `@orderAfter` 缺失提示"可能导致插件失效"
+- **新增**：`doToggleMod()` 函数，从原 `toggleMod` 拆分出的实际执行开关逻辑
+- **优化**：`renderDetail()` 依赖文本颜色和图标
+  - 缺失 → 红色/黄色文本 + ❌ 图标
+  - 通过 → 绿色文本 + ✔ 图标
+- **优化**：进入管理器、排序变动、安装/删除mod、全部关闭等操作后自动刷新依赖检测
+
+#### CSS 样式
+- **新增**：`modloader.css` 新增依赖警告样式类
+  - `.ml-dep-base-warning`：toggle-thumb 红色警告
+  - `.ml-dep-order-warning`：toggle-thumb 黄色警告
+  - `.ml-dep-list`：依赖列表容器
+  - 多种文本/标签颜色类
+- **优化**：`injectStyles()` 内联降级CSS同步添加所有依赖警告样式
+
+## V3.14.0 (2026-05-17)
+
+### CSS 分离 + 暗黑/暖色双主题系统
+
+#### CSS 外部化
+
+- **重构**：将约 1337 行 CSS 从 ModLoader.js 内联模板字符串提取到外部文件 `js/mods/config/modloader.css`
+- **重构**：`injectStyles()` 改为运行时通过 `fs.readFileSync()` 读取外部 CSS 文件
+- **新增**：`getFallbackCSS_ml()` 降级函数 —— CSS 文件缺失时使用内置紧凑版 CSS（约 80 行），确保 UI 不崩溃
+- **优化**：ModLoader.js 从约 6100 行缩减至约 4900 行（减少约 20%）
+
+#### 暗黑/暖色双主题
+
+- **新增**：使用 `html[data-ml-theme]` 属性控制主题，支持 `"dark"`（暗黑）和 `"warm"`（暖色）两套配色
+- **新增**：暖色主题配色方案 —— 米白/浅驼背景 + 深棕文字 + 珊瑚橙强调色
+- **新增**：主题切换按钮（☀️/🌙），位于模组管理器头部 `(日志)` 链接旁
+- **新增**：主题自动保存到独立配置文件 `js/mods/config/modloader_config.json`，与 Mod 配置完全解耦
+- **修复**：大量硬编码颜色替换为 CSS 变量引用（43 处），暖色主题下 UI 元素颜色完整覆盖
+- **修复**：struct/table 区域 14 处幽灵变量引用（`--ml-text`→`--ml-text-primary`, `--ml-primary`→`--ml-accent`）
+- **修复**：安装 Mod 界面（拖放区、文字、按钮背景）改用 CSS 变量，跟随主题切换
+- **修复**：输入框聚焦光晕、滑动条滑轨、下拉框选项背景等组件色系完整适配暖色主题
+- **修复**：拨动开关关闭态改为"已禁用"徽章背景色（`--ml-danger-bg`），消除暖色下与背景融为一体的问题
+- **修复**：主题切换不再触发"有未保存的修改"提示
+
+#### 新增 RGB 分量变量
+
+- **新增**：`--ml-accent-rgb`、`--ml-danger-rgb`、`--ml-warning-rgb` 变量，支持跨主题的 `rgba(var(...), alpha)` 用法
+
+## V3.13.1 (2026-05-17)
+
+### 更新日志查看器
+
+- **新增**：版本号后 `(日志)` 链接，点击可查看 `docs/modloader_CHANGELOG.md` 更新日志
+- **新增**：`parseMarkdownToHtml()` 简易 Markdown→HTML 解析器（零依赖，~65 行）
+  - 支持 `#`/`##`/`###`/`####` 标题、`- ` 列表、`**粗体**`、`` `代码` ``、`---` 分割线
+- **新增**：`showChangelog()` / `hideChangelog()` 弹窗函数
+- **新增**：更新日志弹窗 CSS 样式（宽版模态弹窗，支持 ESC/遮罩/按钮关闭）
+
 ## V3.13.0 (2026-05-16)
 
 ### 参数支持阶段2：Schema 模板系统 + struct/table 参数类型

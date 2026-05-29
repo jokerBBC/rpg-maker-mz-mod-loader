@@ -1,22 +1,20 @@
 /*:
  * @target MZ
  * @plugindesc 怪物掉落物扩展（兼容Yanfly额外掉落）
- * @author joker创意 / DeepseekV4
  * @version 1.0.0
+ * @author joker创意 / GLM
  *
  * @define-schema DropListSchema
- * [{"name":"enemyId","text":"目标怪物","type":"enemy","default":"3"},{"name":"itemId","text":"掉落物品","type":"item","default":"1"},{"name":"dropRate","text":"掉落概率(1/X)","type":"number","default":"1","min":1}]
+ * [{"name":"enemyId","text":"目标怪物","type":"enemy","default":"3"},{"name":"itemId","text":"掉落物品","type":"item","default":"1"},{"name":"dropRate","text":"掉落概率1/n（100~1000）","type":"number","default":"100","min":100,"max":1000,"step":100}]
  *
  * @param dropList
  * @text 🎁 怪物额外掉落配置
  * @type table
  * @schema DropListSchema
- * @default ["{\"enemyId\":\"3\",\"itemId\":\"1\",\"dropRate\":\"1\"}","{\"enemyId\":\"4\",\"itemId\":\"2\",\"dropRate\":\"1\"}"]
+ * @default ["{\"enemyId\":\"18\",\"itemId\":\"1\",\"dropRate\":\"1\"}","{\"enemyId\":\"19\",\"itemId\":\"2\",\"dropRate\":\"100\"}"]
  *
  * @help
- * 用于测试ModLoader的 struct 和 table 功能，同时实现了一个简单的怪物掉落物扩展功能。
- * 
- * 功能说明：
+ * mod管理器表格功能测试实例
  * 为指定怪物添加额外掉落物，完美兼容 Yanfly 额外掉落插件。
  * 掉落概率：填1为100%，填2为50%，填10为10%。
  */

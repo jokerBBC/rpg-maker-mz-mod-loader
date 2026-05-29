@@ -2,7 +2,7 @@
  * @target MZ
  * @plugindesc 游戏内模组管理器（DOM化UI & 现代交互 & 拖放添加Mod & 滑动条/长文本/数据库引用）
  * @author joker创意 / GLM核心代码
- * @version V3.13.0
+ * @version V4.0.0
  *
  * @param Mod Button X
  * @type number
@@ -25,9 +25,10 @@
  * 7. 支持 @type color 标签：@color[#ff0000]红色文字@/color、@color[24]RMMZ色号@/color、@color[red]CSS颜色@/color
  * 8. F5刷新游戏后，游戏才能读取新的mod开关状态及参数值。
  * 9. 支持导入Mod、删除Mod、排序Mod
- * 10.支持检测游戏plugins更新，一键恢复Mod配置
+ * 10. Mod 运行时加载，不再写入 plugins.js（仅 mod_config.json 为配置源）
  * 11.支持一键全关Mod
  * 12.标签读取支持：@version @base @orderAfter @orderBefore @author @help
+ * 13.依赖检测：自动检测@base/@orderAfter前置插件是否满足，UI颜色警告提示
  * 
  * 【前置必要操作 - 两种模式】
  * 
@@ -101,7 +102,6 @@
  * ============================================================================
  * 
  * 【更新日志】请查看 docs/modloader_CHANGELOG.md 文件
- * 修复了游戏游戏无法使用滚轮操作ui的问题，加上了作者和版本号
  */
 
 (() => {
@@ -111,7 +111,7 @@
     // 1. 基础配置与日志系统
     // ================================================================
     const ModName = "ModLoader";
-    const VERSION = "V3.13.0";
+    const VERSION = "V4.0.0";
     const DEBUG_LEVEL = 0;
 
     const log = (level, ...args) => {
@@ -153,9 +153,92 @@
     const fs = require('fs');
     const pathMod = require('path');
     const MODS_DIR = pathMod.join(process.cwd(), 'js', 'mods');
+    const WORKSHOP_BRIDGE_DIR = pathMod.join(MODS_DIR, '_workshop');
     const CONFIG_PATH = pathMod.join(MODS_DIR, 'mod_config.json');
     const PLUGINS_PATH = pathMod.join(process.cwd(), 'js', 'plugins.js');
-    const MOD_SECRET_FLAG = "__isMod";
+    const MODLOADER_CONFIG_PATH = pathMod.join(MODS_DIR, 'config', 'modloader_config.json');
+    // 工坊默认项：loadWorkshopConfig 内存合并用；ensureModLoaderConfigFile 写入 modloader_config.json 时用
+    const DEFAULT_WORKSHOP_CONFIG = {
+        enabled: true,
+        // 发行游戏的 Steam AppID（须与 steam_appid.txt、Steamworks 工坊后台一致）；4379740 仅为本仓库联调示例，游戏作者请改为自己的 AppID
+        steamAppId: '4379740',
+        // Steam 库根目录：留空则从游戏安装路径向上自动查找 steamapps；多库盘符或非默认库时填库根，如 "D:/SteamLibrary" 或 "E:/Games/Steam"
+        steamLibraryPath: ''
+    };
+    const LANGUAGE_DIR = pathMod.join(MODS_DIR, 'config', 'language');
+    let _currentLanguage = 'zh_CN';
+    let _languageConfigs = {};
+    // ================================================================
+    // 3.5 盗版环境检测（路径结构 + 文件指纹双重检测）
+    // ================================================================
+    let _piracyCacheResult = null;
+
+    function detectPiracy() {
+        if (_piracyCacheResult !== null) return _piracyCacheResult;
+        try {
+            const cwd = process.cwd();
+            const checks = [];
+            const norm = sep => cwd.replace(/\\/g, sep).toLowerCase();
+
+            // ---- 主检测：Steam 安装路径结构 ----
+            // 正版 Steam 必然安装在 <任意位置>/steamapps/common/<游戏名>/
+            // 盗版解压后通常放在 下载/桌面/游戏合集 等位置，路径不含 steamapps\common
+            // 即使盗版用户刻意伪造目录结构，也需要额外建 2 层文件夹，增加成本
+            const forward = norm('/');
+            const steamPathPattern = /[/\\]steamapps[/\\]common[/\\][^/\\]+$/;
+            if (!steamPathPattern.test(forward)) {
+                checks.push({
+                    name: 'NonSteamPath',
+                    reason: '当前路径不是 Steam 安装目录'
+                });
+            }
+
+            // ---- 辅助检测：已知盗版工具残留文件 ----
+            const libDir = pathMod.join(cwd, 'lib');
+            if (fs.existsSync(libDir)) {
+                const libFiles = fs.readdirSync(libDir).map(f => f.toLowerCase());
+                const libSet = new Set(libFiles);
+                if (libSet.has('steamclient_loader_x64.exe'))
+                    checks.push({ name: 'GSE-Loader', reason: 'lib/ 下存在 GSE 加载器' });
+                if (fs.existsSync(pathMod.join(libDir, 'steamclient.dll')) && !libSet.has('steam_api.dll.bak'))
+                    checks.push({ name: 'GSE-Client32', reason: 'lib/ 下存在 GSE steamclient' });
+                if (fs.existsSync(pathMod.join(libDir, 'steamclient64.dll')) && !libSet.has('steam_api64.dll.bak'))
+                    checks.push({ name: 'GSE-Client64', reason: 'lib/ 下存在 GSE steamclient64' });
+                if (fs.existsSync(pathMod.join(libDir, 'steam_settings')))
+                    checks.push({ name: 'Goldberg', reason: 'lib/ 下存在 Goldberg 配置目录' });
+                if (libSet.has('steam_api.dll.bak') || libSet.has('steam_api64.dll.bak'))
+                    checks.push({ name: 'Goldberg-Bak', reason: 'lib/ 下存在 DLL 备份（Goldberg 替换痕迹）' });
+            }
+            // 根目录也可能直接丢 GSE 文件（截图确认的情况）
+            const rootFiles = fs.readdirSync(cwd).map(f => f.toLowerCase());
+            const rootSet = new Set(rootFiles);
+            if (rootSet.has('steamclient_loader_x64.exe'))
+                checks.push({ name: 'GSE-RootLoader', reason: '根目录存在 GSE 加载器' });
+            if (rootSet.has('steamclient.dll') || rootSet.has('steamclient64.dll'))
+                checks.push({ name: 'GSE-RootClient', reason: '根目录存在 GSE steamclient' });
+
+            _piracyCacheResult = checks.length > 0 ? { detected: true, details: checks } : { detected: false, details: [] };
+            if (_piracyCacheResult.detected) {
+                log(1, "检测到非正版环境:", _piracyCacheResult.details.map(d => d.name + '(' + d.reason + ')').join(' | '));
+            }
+            return _piracyCacheResult;
+        } catch (e) {
+            log(2, "环境检测异常（默认放行）:", e.message);
+            _piracyCacheResult = { detected: false, details: [] };
+            return _piracyCacheResult;
+        }
+    }
+
+    function showPiracyWarning() {
+        const result = detectPiracy();
+        if (!result.detected) return false;
+        showConfirmDialog(
+            '\u26a0\ufe0f \u63d0\u793a',
+            '\u68c0\u6d4b\u5230\u5f53\u524d\u4e3a\u975e Steam \u6b63\u7248\u73af\u5883\uff0cModLoader \u6700\u65b0\u7248\u65e0\u6cd5\u4f7f\u7528\u3002\n\n\u76d7\u7248\u73af\u5883\u8bf7\u4f7f\u7528 V3.1 \u65e7\u7248\u6574\u5408\u5305\uff0c\u4f46\u8be5\u7248\u672c\u5df2\u505c\u6b62\u66f4\u65b0\uff0c\u51fa\u73b0 Bug \u8bf7\u81ea\u884c\u89e3\u51b3\uff0c\u4e0d\u518d\u63a5\u53d7\u53cd\u9988\u3002\n\n\u611f\u8c22\u7406\u89e3\u3002',
+            [{ text: '\u6211\u77e5\u9053\u4e86', class: 'ml-btn-primary', action: () => hideConfirmDialog() }]
+        );
+        return true;
+    }
 
     // ================================================================
     // 4. 配置与文件操作（纯逻辑，无UI依赖）
@@ -165,59 +248,219 @@
     }
 
     function loadConfig() {
-        if (!fs.existsSync(CONFIG_PATH)) return {};
+        if (!fs.existsSync(CONFIG_PATH)) return { plugins: [] };
         try {
-            return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
+            const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
+            if (!config.plugins) config.plugins = [];
+            return config;
         } catch (e) {
             log(1, "加载配置失败", e);
-            return {};
+            return { plugins: [] };
         }
     }
 
-    /**
-     * 检查 plugins.js 是否被重置（所有 Mod 标记都丢失了）
-     */
-    function checkPluginsReset() {
+    // ================================================================
+    // 语言包系统
+    // ================================================================
+    function loadLanguageConfigs() {
+        _languageConfigs = {};
         try {
-            const content = fs.readFileSync(PLUGINS_PATH, 'utf-8');
-            const lines = content.split('\n');
-            let hasModMarkers = false;
-            let hasConfigEnabledMods = false;
-
-            // 检查 plugins.js 中是否还有 Mod 标记
-            for (const line of lines) {
-                const objMatch = line.match(/^\s*(\{.*\})\s*,?\s*$/);
-                if (objMatch) {
-                    try {
-                        let obj = JSON.parse(objMatch[1]);
-                        if (obj.hasOwnProperty(MOD_SECRET_FLAG)) {
-                            hasModMarkers = true;
-                            break;
+            if (fs.existsSync(LANGUAGE_DIR)) {
+                var files = fs.readdirSync(LANGUAGE_DIR);
+                files.forEach(function(f) {
+                    if (f.endsWith('.json')) {
+                        try {
+                            var raw = fs.readFileSync(pathMod.join(LANGUAGE_DIR, f), 'utf-8');
+                            var data = JSON.parse(raw);
+                            var langCode = data._langCode || f.replace('.json', '');
+                            _languageConfigs[langCode] = data;
+                            log(3, '语言包加载成功: ' + langCode);
+                        } catch (e2) {
+                            log(1, '语言包解析失败: ' + f + ' - ' + e2.message);
                         }
-                    } catch (jsonErr) { /* 忽略 */ }
-                }
+                    }
+                });
             }
-
-            // 检查配置文件中是否有启用的 Mod
-            const config = loadConfig();
-            Object.keys(config).forEach(key => {
-                let status = false;
-                if (typeof config[key] === 'boolean') {
-                    status = config[key];
-                } else if (config[key] && typeof config[key] === 'object') {
-                    status = config[key].status;
-                }
-                if (status) {
-                    hasConfigEnabledMods = true;
-                }
-            });
-
-            // 如果配置中有启用的 Mod 但 plugins.js 中没有标记，说明被重置了
-            return hasConfigEnabledMods && !hasModMarkers;
         } catch (e) {
-            log(1, "检查 plugins 重置失败", e);
-            return false;
+            log(1, '扫描语言包目录失败: ' + e.message);
         }
+    }
+
+    function getAvailableLanguages() {
+        var langs = Object.keys(_languageConfigs);
+        var order = ['zh_CN', 'zh_TW', 'en'];
+        langs.sort(function(a, b) {
+            var ia = order.indexOf(a);
+            var ib = order.indexOf(b);
+            if (ia === -1) ia = 999;
+            if (ib === -1) ib = 999;
+            if (ia !== ib) return ia - ib;
+            return a.localeCompare(b);
+        });
+        return langs;
+    }
+
+    function getLanguageDisplayName(langCode) {
+        if (_languageConfigs[langCode] && _languageConfigs[langCode]._langName) {
+            return _languageConfigs[langCode]._langName;
+        }
+        var map = { 'zh_CN': '简体中文', 'zh_TW': '繁體中文', 'en': 'English' };
+        return map[langCode] || langCode;
+    }
+
+    function t(key) {
+        if (_languageConfigs[_currentLanguage] && _languageConfigs[_currentLanguage][key] !== undefined) {
+            return _languageConfigs[_currentLanguage][key];
+        }
+        if (_currentLanguage !== 'zh_CN' && _languageConfigs['zh_CN'] && _languageConfigs['zh_CN'][key] !== undefined) {
+            return _languageConfigs['zh_CN'][key];
+        }
+        return key;
+    }
+
+    function setLanguage(langCode) {
+        if (!_languageConfigs[langCode]) return;
+        _currentLanguage = langCode;
+        saveModLoaderConfig({ ml_theme: _currentTheme, ml_language: langCode });
+        log(3, '语言切换为: ' + langCode);
+    }
+
+    function getCurrentLanguage() {
+        return _currentLanguage;
+    }
+
+    let _workshopConfigCache = null;
+
+    function invalidateWorkshopConfigCache() {
+        _workshopConfigCache = null;
+    }
+
+    function getDefaultModLoaderConfig() {
+        return {
+            ml_theme: 'dark',
+            ml_language: 'zh_CN',
+            workshop: Object.assign({}, DEFAULT_WORKSHOP_CONFIG)
+        };
+    }
+
+    function mergeWorkshopConfigSection(existingWorkshop) {
+        const merged = Object.assign({}, DEFAULT_WORKSHOP_CONFIG, existingWorkshop || {});
+        const defaults = getDefaultModLoaderConfig().workshop;
+        let changed = false;
+        for (const key of Object.keys(defaults)) {
+            if (existingWorkshop && existingWorkshop[key] !== undefined) continue;
+            if (merged[key] !== defaults[key]) {
+                merged[key] = defaults[key];
+                changed = true;
+            }
+        }
+        return { merged, changed: changed || !existingWorkshop };
+    }
+
+    /**
+     * 首次启动或旧版配置缺少 workshop 段时，补全并写入 modloader_config.json
+     */
+    function ensureModLoaderConfigFile() {
+        try {
+            const dir = pathMod.dirname(MODLOADER_CONFIG_PATH);
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
+            }
+            if (!fs.existsSync(MODLOADER_CONFIG_PATH)) {
+                fs.writeFileSync(
+                    MODLOADER_CONFIG_PATH,
+                    JSON.stringify(getDefaultModLoaderConfig(), null, 2),
+                    'utf-8'
+                );
+                invalidateWorkshopConfigCache();
+                log(3, '已生成默认 modloader_config.json');
+                return;
+            }
+            const raw = JSON.parse(fs.readFileSync(MODLOADER_CONFIG_PATH, 'utf-8'));
+            const workshopMerge = mergeWorkshopConfigSection(raw.workshop);
+            if (workshopMerge.changed) {
+                raw.workshop = workshopMerge.merged;
+                fs.writeFileSync(MODLOADER_CONFIG_PATH, JSON.stringify(raw, null, 2), 'utf-8');
+                invalidateWorkshopConfigCache();
+                log(3, '已为 modloader_config.json 补全 workshop 段');
+            }
+        } catch (e) {
+            log(2, '确保 modloader_config.json 失败: ' + e.message);
+        }
+    }
+
+    function loadModLoaderConfig() {
+        ensureModLoaderConfigFile();
+        invalidateWorkshopConfigCache();
+        try {
+            if (fs.existsSync(MODLOADER_CONFIG_PATH)) {
+                var raw = fs.readFileSync(MODLOADER_CONFIG_PATH, 'utf-8');
+                var parsed = JSON.parse(raw);
+                var defaults = getDefaultModLoaderConfig();
+                return {
+                    ml_theme: parsed.ml_theme !== undefined ? parsed.ml_theme : defaults.ml_theme,
+                    ml_language: parsed.ml_language !== undefined ? parsed.ml_language : defaults.ml_language,
+                    workshop: Object.assign({}, defaults.workshop, parsed.workshop || {})
+                };
+            }
+        } catch (e) {
+            log(1, '读取 ModLoader 配置失败: ' + e.message);
+        }
+        return getDefaultModLoaderConfig();
+    }
+
+    function saveModLoaderConfig(config) {
+        try {
+            ensureModLoaderConfigFile();
+            var existingConfig = loadModLoaderConfig();
+            var mergedConfig = {
+                ml_theme: config.ml_theme !== undefined ? config.ml_theme : existingConfig.ml_theme,
+                ml_language: config.ml_language !== undefined ? config.ml_language : existingConfig.ml_language,
+                workshop: Object.assign({}, existingConfig.workshop, config.workshop || {})
+            };
+            fs.writeFileSync(MODLOADER_CONFIG_PATH, JSON.stringify(mergedConfig, null, 2), 'utf-8');
+            invalidateWorkshopConfigCache();
+        } catch (e) {
+            log(1, '保存 ModLoader 配置失败: ' + e.message);
+        }
+    }
+
+    function loadWorkshopConfig() {
+        const mlConfig = loadModLoaderConfig();
+        return Object.assign({}, DEFAULT_WORKSHOP_CONFIG, mlConfig.workshop || {});
+    }
+
+    ensureModLoaderConfigFile();
+
+    function resolveSteamPaths() {
+        const wsCfg = loadWorkshopConfig();
+        const steamAppId = String(wsCfg.steamAppId || DEFAULT_WORKSHOP_CONFIG.steamAppId);
+        let steamRoot = null;
+
+        if (wsCfg.steamLibraryPath) {
+            // 非空：显式指定 Steam 库根（含 steamapps 的上一级或 steamapps 目录本身），用于多库/自定义安装路径
+            const libPath = String(wsCfg.steamLibraryPath);
+            steamRoot = fs.existsSync(pathMod.join(libPath, 'steamapps'))
+                ? pathMod.join(libPath, 'steamapps')
+                : libPath;
+        } else {
+            // 空字符串：从 process.cwd()（游戏根目录）向上逐级查找 steamapps
+            let dir = process.cwd();
+            const root = pathMod.parse(dir).root;
+            while (dir && dir !== root) {
+                const candidate = pathMod.join(dir, 'steamapps');
+                if (fs.existsSync(candidate)) {
+                    steamRoot = candidate;
+                    break;
+                }
+                dir = pathMod.dirname(dir);
+            }
+        }
+
+        const workshopDir = steamRoot
+            ? pathMod.join(steamRoot, 'workshop', 'content', steamAppId)
+            : null;
+        return { steamRoot, workshopDir, steamAppId };
     }
 
     // ================================================================
@@ -372,9 +615,9 @@
         if (!items) {
             log(1, "items 不存在！使用 dataTransfer 只有 files，没有 items！");
             showConfirmDialog(
-                "提示",
-                "您的浏览器不支持拖放文件夹，请使用单个 .js 文件拖放。",
-                [{ text: "确定", class: "ml-btn-primary", action: hideConfirmDialog }]
+                t('dialog.title'),
+                t('install.browserNoFolder'),
+                [{ text: t('dialog.ok'), class: "ml-btn-primary", action: hideConfirmDialog }]
             );
             return;
         }
@@ -386,9 +629,9 @@
         if (collectedFiles.length === 0) {
             log(2, "没有有效的文件/文件夹！");
             showConfirmDialog(
-                "提示",
-                "请拖放单个 .js 文件或整个 mods 文件夹！",
-                [{ text: "确定", class: "ml-btn-primary", action: hideConfirmDialog }]
+                t('dialog.title'),
+                t('install.dragJsFile'),
+                [{ text: t('dialog.ok'), class: "ml-btn-primary", action: hideConfirmDialog }]
             );
             return;
         }
@@ -420,9 +663,9 @@
 
         if (jsFiles.length === 0) {
             showConfirmDialog(
-                "提示",
-                "请拖放单个 .js 文件或整个 mods 文件夹！",
-                [{ text: "确定", class: "ml-btn-primary", action: hideConfirmDialog }]
+                t('dialog.title'),
+                t('install.dragJsFile'),
+                [{ text: t('dialog.ok'), class: "ml-btn-primary", action: hideConfirmDialog }]
             );
         }
     }
@@ -501,9 +744,9 @@
         
         if (!srcModsDir || !fs.existsSync(srcModsDir)) {
             showConfirmDialog(
-                "提示",
-                "请使用单个 .js 文件拖放，或确保拖放的是完整的 mods 文件夹！",
-                [{ text: "确定", class: "ml-btn-primary", action: hideConfirmDialog }]
+                t('dialog.title'),
+                t('install.dragCorrect'),
+                [{ text: t('dialog.ok'), class: "ml-btn-primary", action: hideConfirmDialog }]
             );
             return;
         }
@@ -530,29 +773,29 @@
         // 构建清单
         let listText = '';
         if (newFiles.length > 0) {
-            listText += `✨ 新增mod（${newFiles.length}个）:\n`;
+            listText += '✨ ' + t('info.format.新增mod') + '（' + newFiles.length + '个）:\n';
             listText += newFiles.map(f => '  - ' + f).join('\n');
             listText += '\n\n';
         }
         if (updateFiles.length > 0) {
-            listText += `🔄 更新mod（${updateFiles.length}个）:\n`;
+            listText += '🔄 ' + t('info.format.更新mod') + '（' + updateFiles.length + '个）:\n';
             listText += updateFiles.map(f => '  - ' + f).join('\n');
             listText += '\n\n';
         }
         if (newFiles.length === 0 && updateFiles.length === 0) {
-            listText += '未检测到js文件变化';
+            listText += t('info.format.未检测到js文件变化');
         }
-        listText += '\n⚠️ 会覆盖整个mods文件夹的所有内容（包括非js文件）';
+        listText += '\n' + t('info.format.会覆盖整个mods文件夹');
         
         const hasUpdates = updateFiles.length > 0;
         
         showConfirmDialog(
-            "导入清单",
+            t('install.importList'),
             listText,
             [
-                { text: "取消", class: "ml-btn-secondary", action: hideConfirmDialog },
+                { text: t('button.cancel'), class: "ml-btn-secondary", action: hideConfirmDialog },
                 {
-                    text: hasUpdates ? "导入并覆盖" : "导入",
+                    text: hasUpdates ? t('button.importOverwrite') : t('button.import'),
                     class: "ml-btn-primary",
                     action: async () => {
                         hideConfirmDialog();
@@ -562,7 +805,7 @@
                             log(3, `✅ 成功复制 ${count} 个文件/文件夹！`);
                             
                             // 刷新并排序新mod
-                            _modData = scanMods();
+                            _modData = scanAllMods();
                             const config = loadConfig();
                             let currentMaxOrder = 0;
                             
@@ -587,21 +830,23 @@
                             }
                             
                             saveConfig(config);
-                            _modData = scanMods();
+                            _modData = scanAllMods();
+                            // 【V3.15.0 新增】安装后刷新依赖检测
+                            refreshDependencyCheck();
                             renderModList();
                             updateCounts();
                             
                             showConfirmDialog(
-                                "成功",
-                                `已成功复制 ${count} 个项目到 mods 目录！`,
-                                [{ text: "确定", class: "ml-btn-primary", action: hideConfirmDialog }]
+                                t('dialog.success'),
+                                t('install.copySuccess').replace('{count}', count),
+                                [{ text: t('dialog.ok'), class: "ml-btn-primary", action: hideConfirmDialog }]
                             );
                         } catch (e) {
                             log(1, "处理 mods 文件夹失败", e);
                             showConfirmDialog(
-                                "错误",
-                                "处理 mods 文件夹失败，请检查控制台日志！",
-                                [{ text: "确定", class: "ml-btn-primary", action: hideConfirmDialog }]
+                                t('dialog.error'),
+                                t('install.copyFailed'),
+                                [{ text: t('dialog.ok'), class: "ml-btn-primary", action: hideConfirmDialog }]
                             );
                         }
                     }
@@ -645,13 +890,13 @@
         // 构建清单文本
         let listText = '';
         if (nonJsFiles.length > 0) {
-            listText += `❌ 已排除非js文件：${nonJsFiles.join('、')}\n\n`;
+            listText += '❌ ' + t('info.format.已排除非js文件') + '：' + nonJsFiles.join('、') + '\n\n';
         }
         if (newFiles.length > 0) {
-            listText += `✨ 新增mod：\n${newFiles.map(f => '  - ' + f.name).join('\n')}\n`;
+            listText += '✨ ' + t('info.format.新增mod') + '：\n' + newFiles.map(f => '  - ' + f.name).join('\n') + '\n';
         }
         if (updateFiles.length > 0) {
-            listText += `🔄 更新mod：\n${updateFiles.map(f => '  - ' + f.name).join('\n')}\n`;
+            listText += '🔄 ' + t('info.format.更新mod') + '：\n' + updateFiles.map(f => '  - ' + f.name).join('\n') + '\n';
         }
 
         // 确定按钮逻辑
@@ -662,10 +907,10 @@
         if (onlyNonJs) {
             // 只有非js文件：只有取消按钮
             showConfirmDialog(
-                "导入清单",
-                listText || "没有有效的js文件！",
+                t('install.importList'),
+                listText || t('install.noValidFiles'),
                 [
-                    { text: "取消", class: "ml-btn-primary", action: hideConfirmDialog }
+                    { text: t('button.cancel'), class: "ml-btn-primary", action: hideConfirmDialog }
                 ]
             );
             return;
@@ -674,10 +919,10 @@
         if (!hasJsFiles) {
             // 没有任何文件
             showConfirmDialog(
-                "提示",
-                "没有选择任何文件！",
+                t('dialog.title'),
+                t('install.noFiles'),
                 [
-                    { text: "确定", class: "ml-btn-primary", action: hideConfirmDialog }
+                    { text: t('dialog.ok'), class: "ml-btn-primary", action: hideConfirmDialog }
                 ]
             );
             return;
@@ -686,12 +931,12 @@
         // 构建按钮
         const buttons = [];
         buttons.push({
-            text: "取消",
+            text: t('button.cancel'),
             class: "ml-btn-secondary",
             action: hideConfirmDialog
         });
         buttons.push({
-            text: hasUpdates ? "导入并覆盖" : "导入",
+            text: hasUpdates ? t('button.importOverwrite') : t('button.import'),
             class: "ml-btn-primary",
             action: async () => {
                 hideConfirmDialog();
@@ -700,7 +945,7 @@
         });
 
         showConfirmDialog(
-            "导入清单",
+            t('install.importList'),
             listText,
             buttons
         );
@@ -722,7 +967,7 @@
         }
 
         // 刷新mod数据
-        _modData = scanMods();
+        _modData = scanAllMods();
         
         // 将新mod排到最后并保存
         const config = loadConfig();
@@ -754,16 +999,18 @@
         saveConfig(config);
         
         // 重新扫描并渲染
-        _modData = scanMods();
+        _modData = scanAllMods();
+        // 【V3.15.0 新增】安装后刷新依赖检测
+        refreshDependencyCheck();
         renderModList();
         updateCounts();
 
         // 显示成功提示
         showConfirmDialog(
-            "安装成功",
-            `成功导入 ${successCount} 个mod！`,
+            t('install.success'),
+            t('install.importSuccess').replace('{count}', successCount),
             [
-                { text: "确定", class: "ml-btn-primary", action: () => { hideConfirmDialog(); hideInstallOverlay(); } }
+                { text: t('dialog.ok'), class: "ml-btn-primary", action: () => { hideConfirmDialog(); hideInstallOverlay(); } }
             ]
         );
     }
@@ -836,8 +1083,8 @@
     /**
      * 递归生成 struct/table 的默认值
      * 根据 Schema 模板中子参数的 default 递归拼装成嵌套 JSON 对象
-     * @param {Array} schemaFields - Schema 模板的子参数数组
-     * @returns {object} - 拼装好的默认值对象
+     * param {Array} schemaFields - Schema 模板的子参数数组
+     * returns {object} - 拼装好的默认值对象
      */
     function generateDefaultFromSchema(schemaFields) {
         const obj = {};
@@ -867,9 +1114,9 @@
     }
 
     /**
-     * 解析 @define-schema 块，将模板存入全局 _schemaDictionary
-     * 格式: @define-schema 模板名 \n JSON字符串
-     * @param {string} metaContent - 清洗后的元数据内容
+     * 解析 define-schema 块，将模板存入全局 _schemaDictionary
+     * 格式: define-schema 模板名 \n JSON字符串
+     * param {string} metaContent - 清洗后的元数据内容
      */
     function parseSchemaDefinitions(metaContent) {
         // 匹配 @define-schema 模板名，下一行为 JSON 定义
@@ -908,7 +1155,7 @@
         try {
             const content = fs.readFileSync(filePath, 'utf-8');
             const metaBlockMatch = content.match(/\/\*:[\s\S]*?\*\//);
-            if (!metaBlockMatch) return { author: "未知作者", help: "", params: [], version: undefined, base: undefined, orderAfter: undefined, orderBefore: undefined };
+            if (!metaBlockMatch) return { author: t('detail.labelUnknown'), help: "", params: [], version: undefined, base: undefined, orderAfter: undefined, orderBefore: undefined };
             let metaContent = metaBlockMatch[0];
 
             const lines = metaContent.split(/\r?\n/);
@@ -1026,106 +1273,369 @@
                 }
             }
 
+            // 【V3.15.0 修改】解析 base 和 orderAfter 的依赖插件列表
+            const baseRaw = baseMatch ? baseMatch[1].trim() : undefined;
+            const orderAfterRaw = orderAfterMatch ? orderAfterMatch[1].trim() : undefined;
+            const baseList = parseDependencyList(baseRaw);
+            const orderAfterList = parseDependencyList(orderAfterRaw);
+
             return {
-                author: authorMatch ? authorMatch[1].trim() : "未知作者",
-                help: helpContent || "无帮助信息",
+                author: authorMatch ? authorMatch[1].trim() : t('detail.labelUnknown'),
+                help: helpContent || t('detail.noHelp'),
                 version: versionMatch ? versionMatch[1].trim() : undefined,
-                base: baseMatch ? baseMatch[1].trim() : undefined,
-                orderAfter: orderAfterMatch ? orderAfterMatch[1].trim() : undefined,
+                base: baseRaw,           // 保留原始字符串，用于详情显示
+                orderAfter: orderAfterRaw, // 保留原始字符串，用于详情显示
+                baseList: baseList,           // 【V3.15.0 新增】解析后的依赖列表
+                orderAfterList: orderAfterList, // 【V3.15.0 新增】解析后的依赖列表
                 orderBefore: orderBeforeMatch ? orderBeforeMatch[1].trim() : undefined,
                 params: isStrictLocked ? [] : paramBlocks
             };
         } catch (e) {
             log(1, "解析Mod信息异常", e);
-            return { author: "解析失败", help: "", params: [], version: undefined, base: undefined, orderAfter: undefined, orderBefore: undefined };
+            return { author: t('detail.labelUnknown'), help: "", params: [], version: undefined, base: undefined, orderAfter: undefined, baseList: [], orderAfterList: [], orderBefore: undefined };
         }
     }
 
-    function scanMods() {
+    /**
+     * 从 mod_config 读取 status/params/order 并构建 Mod 条目公共字段
+     */
+    function applyModConfigToEntry(modId, filePath, fileName, displayName, config, defaultOrder) {
+        const info = parseModInfo(filePath);
+        let modConfig = config[modId];
+        let status = false;
+        let currentParams = {};
+        let order = defaultOrder;
+
+        if (typeof modConfig === 'boolean') {
+            status = modConfig;
+        } else if (modConfig && typeof modConfig === 'object') {
+            status = modConfig.status || false;
+            if (modConfig.order !== undefined) {
+                order = modConfig.order;
+            }
+            const rawParams = modConfig.params || {};
+            info.params.forEach(p => {
+                let value = rawParams.hasOwnProperty(p.name) ? rawParams[p.name] : undefined;
+                if (value === '' || value === undefined || value === null) {
+                    currentParams[p.name] = p.default;
+                } else if (p.type === 'number') {
+                    const numValue = Number(value);
+                    if (isNaN(numValue)) {
+                        currentParams[p.name] = p.default;
+                    } else {
+                        let finalValue = numValue;
+                        if (p.min !== undefined && finalValue < p.min) finalValue = p.min;
+                        if (p.max !== undefined && finalValue > p.max) finalValue = p.max;
+                        currentParams[p.name] = String(finalValue);
+                    }
+                } else if (p.type === 'color') {
+                    currentParams[p.name] = isValidColor(value) ? value : p.default;
+                } else if (isNoteType(p.type)) {
+                    currentParams[p.name] = value;
+                } else if (isDatabaseType(p.type)) {
+                    currentParams[p.name] = String(value);
+                } else {
+                    currentParams[p.name] = value;
+                }
+            });
+        }
+
+        return {
+            id: modId,
+            fileName: fileName,
+            displayName: displayName || pathMod.parse(fileName).name,
+            status: status,
+            params: info.params,
+            currentParams: currentParams,
+            author: info.author,
+            help: info.help,
+            version: info.version,
+            base: info.base,
+            orderAfter: info.orderAfter,
+            orderBefore: info.orderBefore,
+            baseList: info.baseList,
+            orderAfterList: info.orderAfterList,
+            order: order
+        };
+    }
+
+    function readWorkshopManifest(root) {
+        const manifestPath = pathMod.join(root, 'modloader.json');
+        try {
+            if (fs.existsSync(manifestPath)) {
+                return JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+            }
+        } catch (e) {
+            log(2, '解析 modloader.json 失败: ' + root, e.message);
+        }
+        return null;
+    }
+
+    /**
+     * 发现工坊包内的脚本列表（modloader.json → js/mods/*.js → 根目录 *.js）
+     */
+    function discoverWorkshopScripts(root) {
+        const scripts = [];
+        const manifest = readWorkshopManifest(root);
+
+        if (manifest && Array.isArray(manifest.entries) && manifest.entries.length > 0) {
+            for (const entry of manifest.entries) {
+                const relPath = String(entry).replace(/\\/g, '/');
+                const absPath = pathMod.join(root, relPath);
+                if (fs.existsSync(absPath) && relPath.endsWith('.js')) {
+                    scripts.push({
+                        relPath: relPath,
+                        absPath: absPath,
+                        title: null
+                    });
+                }
+            }
+            return scripts;
+        }
+
+        const modsSubDir = pathMod.join(root, 'js', 'mods');
+        if (fs.existsSync(modsSubDir)) {
+            const files = fs.readdirSync(modsSubDir).filter(file => file.endsWith('.js') && file !== 'ModLoader.js');
+            for (const file of files) {
+                scripts.push({
+                    relPath: 'js/mods/' + file,
+                    absPath: pathMod.join(modsSubDir, file),
+                    title: null
+                });
+            }
+            if (scripts.length > 0) return scripts;
+        }
+
+        try {
+            const rootFiles = fs.readdirSync(root).filter(file => file.endsWith('.js') && file !== 'ModLoader.js');
+            for (const file of rootFiles) {
+                scripts.push({
+                    relPath: file,
+                    absPath: pathMod.join(root, file),
+                    title: null
+                });
+            }
+        } catch (e) {
+            log(2, '扫描工坊根目录失败: ' + root, e.message);
+        }
+        return scripts;
+    }
+
+    function getConfigMaxOrder(config) {
+        let max = 0;
+        Object.keys(config).forEach(key => {
+            const entry = config[key];
+            if (entry && typeof entry === 'object' && entry.order !== undefined) {
+                max = Math.max(max, Number(entry.order) || 0);
+            }
+        });
+        return max;
+    }
+
+    function allocDefaultOrderForMod(config, orderState, modId) {
+        const entry = config[modId];
+        if (entry && typeof entry === 'object' && entry.order !== undefined) {
+            return entry.order;
+        }
+        return orderState.next++;
+    }
+
+  /**
+     * 移除路径（目录联接 / 符号链接 / 普通文件）
+     */
+    function removePathSafe(targetPath) {
+        if (!fs.existsSync(targetPath)) return;
+        try {
+            const stat = fs.lstatSync(targetPath);
+            if (stat.isDirectory()) {
+                fs.rmSync(targetPath, { recursive: true, force: true });
+            } else {
+                fs.unlinkSync(targetPath);
+            }
+        } catch (e) {
+            log(2, '移除路径失败: ' + targetPath, e.message);
+        }
+    }
+
+    /**
+     * 正式工坊：在 js/mods/_workshop/<fileId>/ 建立联接，供 PluginManager 加载。
+     * RMMZ 的 loadScript 只能解析游戏目录内路径，不能直接加载 steamapps/workshop/ 下的文件。
+     */
+    function syncWorkshopBridge(fileId, root, scripts) {
+        if (!scripts || scripts.length === 0) return false;
+
+        ensureDir(WORKSHOP_BRIDGE_DIR);
+        const bridgeDir = pathMod.join(WORKSHOP_BRIDGE_DIR, String(fileId));
+        removePathSafe(bridgeDir);
+
+        const modsSubDir = pathMod.join(root, 'js', 'mods');
+        const allUnderJsMods = scripts.every(s =>
+            String(s.relPath).replace(/\\/g, '/').indexOf('js/mods/') === 0
+        );
+
+        if (allUnderJsMods && fs.existsSync(modsSubDir)) {
+            try {
+                fs.symlinkSync(modsSubDir, bridgeDir, 'junction');
+                return true;
+            } catch (e) {
+                log(2, '工坊 junction 失败，改用逐文件桥接: ' + fileId, e.message);
+                removePathSafe(bridgeDir);
+            }
+        }
+
+        ensureDir(bridgeDir);
+        for (const script of scripts) {
+            const fileName = pathMod.basename(script.relPath);
+            const linkPath = pathMod.join(bridgeDir, fileName);
+            removePathSafe(linkPath);
+            try {
+                fs.symlinkSync(script.absPath, linkPath, 'file');
+            } catch (e1) {
+                try {
+                    fs.linkSync(script.absPath, linkPath);
+                } catch (e2) {
+                    log(1, '工坊桥接失败: ' + script.absPath, e1.message, e2.message);
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    function buildWorkshopBridgeLoadPath(fileId, relPath) {
+        const baseName = pathMod.parse(relPath).name;
+        return '../mods/_workshop/' + String(fileId) + '/' + baseName;
+    }
+
+    function scanLocalMods(config, orderState) {
         ensureDir(MODS_DIR);
-        // 阶段2新增：每次扫描前重置 Schema 字典
-        _schemaDictionary = {};
-        const config = loadConfig();
-        let mods = [];
+        const mods = [];
         try {
             const files = fs.readdirSync(MODS_DIR).filter(file => file.endsWith('.js') && file !== 'ModLoader.js');
             files.forEach(file => {
                 const filePath = pathMod.join(MODS_DIR, file);
-                const modId = "../mods/" + pathMod.parse(file).name;
-                const info = parseModInfo(filePath);
-
-                let modConfig = config[modId];
-                let status = false;
-                let currentParams = {};
-                let order = mods.length + 1; // 默认顺序
-
-                if (typeof modConfig === 'boolean') {
-                    // 旧格式适配：只有 status
-                    status = modConfig;
-                } else if (modConfig && typeof modConfig === 'object') {
-                    status = modConfig.status || false;
-                    // 读取 order，如果没有就给默认值
-                    if (modConfig.order !== undefined) {
-                        order = modConfig.order;
-                    }
-                    // 验证并修复参数值
-                    const rawParams = modConfig.params || {};
-                    info.params.forEach(p => {
-                        let value = rawParams.hasOwnProperty(p.name) ? rawParams[p.name] : undefined;
-                        if (value === '' || value === undefined || value === null) {
-                            currentParams[p.name] = p.default;
-                        } else if (p.type === 'number') {
-                            const numValue = Number(value);
-                            if (isNaN(numValue)) {
-                                currentParams[p.name] = p.default;
-                            } else {
-                                let finalValue = numValue;
-                                if (p.min !== undefined && finalValue < p.min) finalValue = p.min;
-                                if (p.max !== undefined && finalValue > p.max) finalValue = p.max;
-                                currentParams[p.name] = String(finalValue);
-                            }
-                        } else if (p.type === 'color') {
-                            if (isValidColor(value)) {
-                                currentParams[p.name] = value;
-                            } else {
-                                currentParams[p.name] = p.default;
-                            }
-                        } else if (isNoteType(p.type)) {
-                            // 长文本类型：保留换行符
-                            currentParams[p.name] = value;
-                        } else if (isDatabaseType(p.type)) {
-                            // 数据库引用类型：值必须是字符串类型的 ID
-                            currentParams[p.name] = String(value);
-                        } else {
-                            currentParams[p.name] = value;
-                        }
-                    });
-                }
-
-                mods.push({
-                    id: modId,
-                    fileName: file,
-                    displayName: pathMod.parse(file).name,
-                    status: status,
-                    params: info.params,
-                    currentParams: currentParams,
-                    author: info.author,
-                    help: info.help,
-                    version: info.version,
-                    base: info.base,
-                    orderAfter: info.orderAfter,
-                    orderBefore: info.orderBefore,
-                    order: order
-                });
+                const modId = '../mods/' + pathMod.parse(file).name;
+                const entry = applyModConfigToEntry(
+                    modId,
+                    filePath,
+                    file,
+                    pathMod.parse(file).name,
+                    config,
+                    allocDefaultOrderForMod(config, orderState, modId)
+                );
+                mods.push(Object.assign(entry, {
+                    loadPath: modId,
+                    source: 'local',
+                    workshopId: null,
+                    workshopRoot: null,
+                    subscribed: true,
+                    readOnly: false,
+                    installState: 'ready'
+                }));
             });
-            // 按 order 排序
-            mods.sort((a, b) => a.order - b.order);
-            // 重新分配连续的 order
-            reassignOrders(mods);
         } catch (e) {
-            log(1, "扫描Mod目录失败", e);
+            log(1, '扫描本地 Mod 目录失败', e);
         }
         return mods;
+    }
+
+    function scanWorkshopMods(config, orderState) {
+        const wsCfg = loadWorkshopConfig();
+        if (!wsCfg.enabled) {
+            if (fs.existsSync(WORKSHOP_BRIDGE_DIR)) {
+                removePathSafe(WORKSHOP_BRIDGE_DIR);
+            }
+            return [];
+        }
+
+        const { workshopDir, steamAppId } = resolveSteamPaths();
+        const mods = [];
+        const seenLoadPaths = new Set();
+
+        function addWorkshopPackage(root, fileId) {
+            const fileIdStr = String(fileId);
+            const scripts = discoverWorkshopScripts(root);
+            if (scripts.length === 0) {
+                return;
+            }
+
+            const manifest = readWorkshopManifest(root);
+            const packageTitle = manifest && manifest.title ? manifest.title : null;
+            let installState = 'ready';
+            const bridged = syncWorkshopBridge(fileIdStr, root, scripts);
+            if (!bridged) {
+                installState = 'missing';
+            }
+
+            scripts.forEach(script => {
+                const scriptBaseName = pathMod.parse(script.relPath).name;
+                const modId = 'ws:' + fileIdStr + ':' + scriptBaseName;
+                const loadPath = buildWorkshopBridgeLoadPath(fileIdStr, script.relPath);
+                if (seenLoadPaths.has(loadPath)) return;
+                seenLoadPaths.add(loadPath);
+
+                const displayName = script.title || scriptBaseName;
+                const entry = applyModConfigToEntry(
+                    modId,
+                    script.absPath,
+                    pathMod.basename(script.relPath),
+                    displayName,
+                    config,
+                    allocDefaultOrderForMod(config, orderState, modId)
+                );
+                mods.push(Object.assign(entry, {
+                    loadPath: loadPath,
+                    source: 'workshop',
+                    workshopId: fileIdStr,
+                    workshopPackageTitle: packageTitle || '',
+                    workshopRoot: root,
+                    subscribed: true,
+                    readOnly: true,
+                    installState: installState
+                }));
+            });
+        }
+
+        if (steamAppId && workshopDir && fs.existsSync(workshopDir)) {
+            try {
+                fs.readdirSync(workshopDir, { withFileTypes: true })
+                    .filter(entry => entry.isDirectory())
+                    .forEach(entry => addWorkshopPackage(pathMod.join(workshopDir, entry.name), entry.name));
+            } catch (e) {
+                log(2, '扫描工坊目录失败: ' + workshopDir, e.message);
+            }
+        }
+
+        return mods;
+    }
+
+    function scanAllMods() {
+        ensureModLoaderConfigFile();
+        invalidateWorkshopConfigCache();
+        _schemaDictionary = {};
+        const config = loadConfig();
+        const orderState = { next: getConfigMaxOrder(config) + 1 };
+        const localMods = scanLocalMods(config, orderState);
+        const workshopMods = scanWorkshopMods(config, orderState);
+        const seenLoadPaths = new Set();
+        const mods = [];
+
+        for (const mod of localMods.concat(workshopMods)) {
+            if (seenLoadPaths.has(mod.loadPath)) {
+                log(2, '跳过重复 loadPath:', mod.loadPath);
+                continue;
+            }
+            seenLoadPaths.add(mod.loadPath);
+            mods.push(mod);
+        }
+
+        mods.sort((a, b) => a.order - b.order);
+        reassignOrders(mods);
+        return mods;
+    }
+
+    function scanMods() {
+        return scanAllMods();
     }
 
     /**
@@ -1138,86 +1648,452 @@
         });
     }
 
-    function updatePluginsJs(mods) {
-        try {
-            let content = fs.readFileSync(PLUGINS_PATH, 'utf-8');
-            const lines = content.split('\n');
-            const originalPlugins = [];
+    // ================================================================
+    // 【V3.15.0 新增】依赖解析与检测系统
+    // ================================================================
 
+    /**
+     * 解析base / orderAfter 标签中的依赖插件列表
+     * 
+     * 支持格式：
+     *   情况① base 插件1.js        → 标准带.js后缀
+     *   情况② base 插件1            → 标准不带.js后缀（含中文插件名如"界面UI"）
+     *   情况③ base 插件1.js（确保放在它后面） → 非标准：.js后紧跟中文说明无空格，丢弃说明文本
+     *   情况④ base 插件1.js（确保放在它后面） 插件2 → 非标准：识别到插件2
+     *   多插件：base 插件1.js 插件2 插件3.js → 空格分隔
+     *
+     * 核心思路：以 .js 作为插件名与说明文字的分界标记
+     *   - 含 .js → 提取到 .js 为止的部分作为插件名，.js 后面的文本视为说明丢弃
+     *   - 不含 .js → 整个 token 就是插件名（支持中文插件名）
+     *
+     * param {string} rawStr - base 或 orderAfter 后的原始字符串
+     * returns {string[]} 解析出的插件名列表（统一不含.js后缀）
+     */
+    function parseDependencyList(rawStr) {
+        if (!rawStr || typeof rawStr !== 'string') return [];
+        const trimmed = rawStr.trim();
+        if (!trimmed) return [];
+
+        const result = [];
+        // 按空格分割原始字符串
+        const tokens = trimmed.split(/\s+/);
+
+        for (let i = 0; i < tokens.length; i++) {
+            let token = tokens[i];
+            if (!token) continue;
+
+            // 检查 token 中是否包含 .js
+            // .js 是插件名与说明文字的分界标记：
+            //   - "插件1.js" → 插件名 "插件1"
+            //   - "插件1.js（说明）" → 插件名 "插件1"，丢弃 "（说明）"
+            //   - "界面UI"（无.js）→ 整个就是插件名 "界面UI"
+            const jsIndex = token.indexOf('.js');
+            if (jsIndex !== -1) {
+                // 情况①③：token 含 .js
+                // 提取从开头到 .js 结束的部分（含.js），丢弃 .js 后面的说明文字
+                let pluginName = token.substring(0, jsIndex + 3); // 包含 ".js"
+                // 去掉 .js 后缀，统一格式
+                pluginName = pluginName.slice(0, -3);
+                if (pluginName) {
+                    result.push(pluginName);
+                }
+            } else {
+                // 情况②：token 不含 .js，整个 token 就是插件名
+                // 支持中文插件名如 "界面UI"、"分解界面UI"、"主菜单UI"
+                result.push(token);
+            }
+        }
+
+        // 去重
+        return [...new Set(result)];
+    }
+
+    /**
+     * 获取游戏原生插件信息（非mod插件）
+     * 从 plugins.js 中读取已注册的原生游戏插件及其开启状态
+     * 【V3.15.1 修改】返回 Map<插件名, {enabled: boolean}> 替代 Set，支持检测"存在但未开启"
+     * returns {Map<string, {enabled: boolean}>} 原生插件名→启用状态映射（不含.js后缀）
+     */
+    function getGamePluginInfo() {
+        const gamePlugins = new Map();
+        try {
+            const content = fs.readFileSync(PLUGINS_PATH, 'utf-8');
+            const lines = content.split('\n');
             for (const line of lines) {
                 const objMatch = line.match(/^\s*(\{.*\})\s*,?\s*$/);
                 if (objMatch) {
                     try {
                         let obj = JSON.parse(objMatch[1]);
-                        if (!obj.hasOwnProperty(MOD_SECRET_FLAG)) {
-                            originalPlugins.push(obj);
+                        if (obj.name) {
+                            let name = obj.name;
+                            // 跳过旧版写入 plugins.js 的 mod 路径条目
+                            if (name.startsWith('../mods/') || obj.__isMod) continue;
+                            // 去掉.js后缀，统一格式
+                            if (name.endsWith('.js')) name = name.slice(0, -3);
+                            // 只取文件名部分（去掉目录路径）
+                            const baseName = name.includes('/') ? name.split('/').pop() : name;
+                            const enabled = obj.status !== false;
+                            // 同时存储文件名和完整路径名
+                            gamePlugins.set(baseName, { enabled });
+                            if (baseName !== name) {
+                                gamePlugins.set(name, { enabled });
+                            }
                         }
                     } catch (jsonErr) { /* 忽略解析失败的行 */ }
                 }
             }
-
-            const originalPluginsStr = originalPlugins.map(p => JSON.stringify(p));
-            const enabledModsStr = mods.filter(mod => mod.status).map(mod => {
-                const finalParams = {};
-                if (mod.params) {
-                    mod.params.forEach(p => {
-                        let value = mod.currentParams.hasOwnProperty(p.name)
-                            ? mod.currentParams[p.name]
-                            : p.default;
-                        
-                        // 验证值是否有效
-                        if (value === '' || value === undefined || value === null) {
-                            finalParams[p.name] = p.default;
-                        } else if (p.type === 'number') {
-                            const numValue = Number(value);
-                            if (isNaN(numValue)) {
-                                finalParams[p.name] = p.default;
-                            } else {
-                                let finalValue = numValue;
-                                if (p.min !== undefined && finalValue < p.min) finalValue = p.min;
-                                if (p.max !== undefined && finalValue > p.max) finalValue = p.max;
-                                finalParams[p.name] = String(finalValue);
-                            }
-                        } else if (p.type === 'color') {
-                            if (isValidColor(value)) {
-                                finalParams[p.name] = value;
-                            } else {
-                                finalParams[p.name] = p.default;
-                            }
-                        } else if (isNoteType(p.type)) {
-                            // 长文本类型：保留换行符，进行 XSS 净化
-                            finalParams[p.name] = sanitizeText(value);
-                        } else if (isDatabaseType(p.type)) {
-                            // 数据库引用类型：值必须是字符串类型的 ID
-                            finalParams[p.name] = String(value);
-                        } else if (p.type === 'struct' || p.type === 'table') {
-                            // 阶段2新增：struct/table 类型直接透传（已是 JSON 字符串）
-                            finalParams[p.name] = value || p.default;
-                        } else {
-                            // 文本等其他类型：进行 XSS 净化
-                            finalParams[p.name] = sanitizeText(value);
-                        }
-                    });
-                }
-                let modObj = {
-                    "name": mod.id,
-                    "status": true,
-                    "description": "",
-                    "parameters": finalParams,
-                    [MOD_SECRET_FLAG]: true
-                };
-                return JSON.stringify(modObj);
-            });
-
-            const allPluginsStr = [...originalPluginsStr, ...enabledModsStr];
-            let newContent = '// Generated by RPG Maker.\n// Do not edit this file directly.\nvar $plugins =\n[\n';
-            newContent += allPluginsStr.join(',\n');
-            newContent += '\n]\n';
-
-            fs.writeFileSync(PLUGINS_PATH, newContent, 'utf-8');
-            log(3, "plugins.js 重写完成");
         } catch (e) {
-            log(1, "plugins.js 写入失败", e);
+            log(1, "读取游戏插件列表失败", e);
+        }
+        return gamePlugins;
+    }
+
+    /**
+     * 检测所有mod的依赖状态
+     * 
+     * 【V3.15.1 重写】5种状态判定逻辑：
+     * 
+     * 判定流程（对每个依赖插件名逐一检测）：
+     *   Step 1: 在游戏原生插件中查找
+     *     ├─ 找到且已开启 → PASS（游戏插件始终在mod之前加载，顺序天然满足）
+     *     ├─ 找到但未开启 → GAME_DISABLED（"游戏中的前置插件：XXX未开启"）
+     *     └─ 未找到 → Step 2
+     *   Step 2: 在mod列表中查找
+     *     ├─ 未找到 → NOT_FOUND（"缺少前置插件：XXX"）
+     *     ├─ 找到但未开启 → MOD_DISABLED（"前置Mod插件：XXX未开启"）
+     *     └─ 找到且已开启 → Step 3
+     *   Step 3: 检查排序（仅mod间需要，游戏插件天然在最前）
+     *     ├─ 依赖mod在当前mod之前 → PASS
+     *     └─ 依赖mod在当前mod之后（含同位） → WRONG_ORDER（"应放置于前置Mod插件：XXX下方"）
+     * 
+     *  param {Array} modList - 模组数据列表，默认使用_modData
+     *  returns {Object} 每个mod的依赖检测结果
+     *   { modId: {
+     *       baseDetails: [{ name, status, message }],
+     *       orderAfterDetails: [{ name, status, message }],
+     *       baseWarning: boolean,
+     *       orderAfterWarning: boolean
+     *   } }
+     */
+    function checkModDependencies(modList) {
+        if (!modList) modList = _modData;
+        const result = {};
+
+        // 获取游戏原生插件信息 Map<插件名, {enabled}>
+        const gamePlugins = getGamePluginInfo();
+
+        // 构建当前mod列表的查找表：{ 插件名(不含.js): { mod, index, status } }
+        const modLookup = {};
+        modList.forEach((mod, index) => {
+            const modName = mod.id.replace('../mods/', '');
+            modLookup[modName] = { mod, index, status: mod.status };
+            if (mod.fileName) {
+                const fileNameNoExt = mod.fileName.replace(/\.js$/, '');
+                modLookup[fileNameNoExt] = { mod, index, status: mod.status };
+            }
+            if (mod.id.startsWith('ws:')) {
+                const parts = mod.id.split(':');
+                if (parts.length >= 3) {
+                    modLookup[parts[2]] = { mod, index, status: mod.status };
+                }
+            }
+        });
+
+        /**
+         * 检测单个依赖插件的状态
+         * @param {string} depName - 依赖插件名
+         * @param {number} currentIndex - 当前mod在列表中的索引
+         * @returns {{ status: string, message: string }}
+         *   status: "pass" | "not_found" | "game_disabled" | "mod_disabled" | "wrong_order"
+         */
+        function checkSingleDep(depName, currentIndex) {
+            // Step 1: 在游戏原生插件中查找
+            const gameInfo = gamePlugins.get(depName);
+            if (gameInfo) {
+                if (gameInfo.enabled) {
+                    // 游戏插件已开启，且游戏插件始终在mod之前加载 → 顺序天然满足
+                    return { status: 'pass', message: '' };
+                } else {
+                    // 游戏插件存在但未开启
+                    return { status: 'game_disabled', message: t('dep.gameDisabled').replace('{name}', depName) };
+                }
+            }
+
+            // Step 2: 在mod列表中查找
+            const modEntry = modLookup[depName];
+            if (!modEntry) {
+                // 游戏插件和mod列表中都找不到
+                return { status: 'not_found', message: t('dep.notFound').replace('{name}', depName) };
+            }
+
+            if (!modEntry.status) {
+                // mod存在但未开启
+                return { status: 'mod_disabled', message: t('dep.modDisabled').replace('{name}', depName) };
+            }
+
+            // Step 3: mod已开启，检查排序
+            if (modEntry.index < currentIndex) {
+                // 依赖mod在当前mod之前 → 顺序正确
+                return { status: 'pass', message: '' };
+            } else {
+                // 依赖mod在当前mod之后或同位 → 顺序错误
+                return { status: 'wrong_order', message: t('dep.wrongOrder').replace('{name}', depName) };
+            }
+        }
+
+        modList.forEach((mod, index) => {
+            const modId = mod.id;
+            const depInfo = {
+                baseDetails: [],
+                orderAfterDetails: [],
+                baseWarning: false,
+                orderAfterWarning: false
+            };
+
+            // ---- 检测 @base 依赖 ----
+            if (mod.baseList && mod.baseList.length > 0) {
+                for (const depName of mod.baseList) {
+                    const check = checkSingleDep(depName, index);
+                    depInfo.baseDetails.push({
+                        name: depName,
+                        status: check.status,
+                        message: check.message
+                    });
+                    if (check.status !== 'pass') {
+                        depInfo.baseWarning = true;
+                    }
+                }
+            }
+
+            // ---- 检测 @orderAfter 依赖 ----
+            if (mod.orderAfterList && mod.orderAfterList.length > 0) {
+                for (const depName of mod.orderAfterList) {
+                    const check = checkSingleDep(depName, index);
+                    depInfo.orderAfterDetails.push({
+                        name: depName,
+                        status: check.status,
+                        message: check.message
+                    });
+                    if (check.status !== 'pass') {
+                        depInfo.orderAfterWarning = true;
+                    }
+                }
+            }
+
+            result[modId] = depInfo;
+        });
+
+        return result;
+    }
+
+    /**
+     * 缓存的依赖检测结果
+     */
+    let _dependencyCache = {};
+
+    /**
+     * 刷新依赖检测缓存并更新UI
+     * 在进入管理器、排序变动、开关变动时调用
+     */
+    function refreshDependencyCheck() {
+        _dependencyCache = checkModDependencies(_modData);
+        log(3, "依赖检测完成，结果:", JSON.stringify(_dependencyCache));
+    }
+
+    /**
+     * 获取指定mod的依赖状态
+     * 【V3.15.1 修改】返回类型更新为含 baseDetails/orderAfterDetails
+     * @param {Object} mod - 模组对象
+     * @returns {Object} { baseDetails, orderAfterDetails, baseWarning, orderAfterWarning }
+     */
+    function getModDepStatus(mod) {
+        if (!mod || !mod.id) return { baseDetails: [], orderAfterDetails: [], baseWarning: false, orderAfterWarning: false };
+        return _dependencyCache[mod.id] || { baseDetails: [], orderAfterDetails: [], baseWarning: false, orderAfterWarning: false };
+    }
+
+    /**
+     * 为运行时加载组装 Mod 的 PluginManager 参数字典
+     * @param {Object} mod - scanMods() 返回的模组对象
+     * @returns {Object} parameters 对象
+     */
+    function buildModFinalParameters(mod) {
+        const finalParams = {};
+        if (!mod.params) return finalParams;
+        mod.params.forEach(p => {
+            let value = mod.currentParams.hasOwnProperty(p.name)
+                ? mod.currentParams[p.name]
+                : p.default;
+
+            if (value === '' || value === undefined || value === null) {
+                finalParams[p.name] = p.default;
+            } else if (p.type === 'number') {
+                const numValue = Number(value);
+                if (isNaN(numValue)) {
+                    finalParams[p.name] = p.default;
+                } else {
+                    let finalValue = numValue;
+                    if (p.min !== undefined && finalValue < p.min) finalValue = p.min;
+                    if (p.max !== undefined && finalValue > p.max) finalValue = p.max;
+                    finalParams[p.name] = String(finalValue);
+                }
+            } else if (p.type === 'color') {
+                finalParams[p.name] = isValidColor(value) ? value : p.default;
+            } else if (isNoteType(p.type)) {
+                finalParams[p.name] = sanitizeText(value);
+            } else if (isDatabaseType(p.type)) {
+                finalParams[p.name] = String(value);
+            } else if (p.type === 'struct' || p.type === 'table') {
+                finalParams[p.name] = value || p.default;
+            } else {
+                finalParams[p.name] = sanitizeText(value);
+            }
+        });
+        return finalParams;
+    }
+
+    /**
+     * 运行时通过 PluginManager 加载已启用的 Mod（不修改 plugins.js）
+     * @param {Array} [mods] - 模组列表，默认 scanAllMods()
+     */
+    function loadEnabledModsRuntime(mods) {
+        if (typeof PluginManager === 'undefined') return;
+        if (PluginManager._modLoaderModsLoaded) return;
+
+        ensureModLoaderConfigFile();
+        invalidateWorkshopConfigCache();
+        if (!mods) mods = scanAllMods();
+        const enabled = mods
+            .filter(m => m.status && m.installState === 'ready')
+            .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+        const loadedPaths = new Set();
+        for (const mod of enabled) {
+            const loadPath = mod.loadPath || mod.id;
+            if (loadedPaths.has(loadPath)) {
+                log(2, 'Mod loadPath 重复，跳过:', loadPath);
+                continue;
+            }
+            loadedPaths.add(loadPath);
+
+            const pluginName = typeof Utils !== 'undefined'
+                ? Utils.extractFileName(loadPath)
+                : mod.displayName;
+            if (PluginManager._scripts.includes(pluginName)) {
+                log(2, 'Mod 已加载，跳过:', pluginName);
+                continue;
+            }
+            PluginManager.setParameters(pluginName, buildModFinalParameters(mod));
+            PluginManager.loadScript(loadPath);
+            PluginManager._scripts.push(pluginName);
+            log(3, '运行时加载 Mod:', pluginName, 'loadPath:', loadPath);
+        }
+        PluginManager._modLoaderModsLoaded = true;
+        log(3, '运行时 Mod 加载完成，共', enabled.length, '个');
+    }
+
+    /**
+     * 插件模式：ModLoader 在 PluginManager.setup 异步加载链中才执行，首轮 setup 可能已结束；
+     * 延迟到当前宏任务/短延时后再加载 Mod，并补装 Hook。
+     */
+    function deferLoadEnabledModsRuntime() {
+        if (typeof PluginManager === 'undefined') return;
+        if (PluginManager._modLoaderModsLoaded) return;
+        const run = () => {
+            if (!PluginManager._modLoaderModsLoaded) {
+                loadEnabledModsRuntime();
+            }
+        };
+        setTimeout(run, 0);
+        setTimeout(run, 100);
+    }
+
+    function bootstrapModLoaderReady() {
+        ensureModLoaderConfigFile();
+        invalidateWorkshopConfigCache();
+        if (typeof PluginManager === 'undefined') return;
+        installPluginManagerHook();
+        if (document.readyState === 'complete') {
+            deferLoadEnabledModsRuntime();
+        }
+    }
+
+    /**
+     * 安装 PluginManager.setup Hook，在官方插件之后加载 Mod
+     */
+    function installPluginManagerHook() {
+        if (typeof PluginManager === 'undefined') return false;
+        if (PluginManager._modLoaderHooked) return true;
+
+        const _setup = PluginManager.setup;
+        PluginManager.setup = function (plugins) {
+            _setup.call(this, plugins);
+            deferLoadEnabledModsRuntime();
+        };
+        PluginManager._modLoaderHooked = true;
+        log(3, "PluginManager.setup Hook 已安装");
+
+        // 插件模式：Hook 安装时首轮 setup 可能已在进行或刚结束
+        if (PluginManager._scripts && PluginManager._scripts.length > 0) {
+            deferLoadEnabledModsRuntime();
+        }
+        return true;
+    }
+
+    /**
+     * 等待 PluginManager 可用后安装 Hook（注入模式 / 插件模式均适用）
+     */
+    function installBootstrapHooks() {
+        if (installPluginManagerHook()) return;
+
+        const timer = setInterval(() => {
+            if (installPluginManagerHook()) clearInterval(timer);
+        }, 10);
+        setTimeout(() => clearInterval(timer), 60000);
+    }
+
+    /**
+     * 插件模式兜底：window.load 时补载 Mod（首轮 setup 时 ModLoader 可能尚未安装 Hook）
+     */
+    function installWindowLoadFallback() {
+        const onReady = () => bootstrapModLoaderReady();
+        window.addEventListener('load', onReady);
+        if (document.readyState === 'complete') {
+            onReady();
+        }
+    }
+
+    /**
+     * 迁移：从 plugins.js 移除旧版写入的 Mod 条目（__isMod 或 ../mods/ 路径）
+     */
+    function cleanupLegacyModEntriesFromPluginsJs() {
+        try {
+            if (!fs.existsSync(PLUGINS_PATH)) return;
+            const content = fs.readFileSync(PLUGINS_PATH, 'utf-8');
+            const lines = content.split('\n');
+            const kept = [];
+            let removed = 0;
+
+            for (const line of lines) {
+                const objMatch = line.match(/^\s*(\{.*\})\s*,?\s*$/);
+                if (objMatch) {
+                    try {
+                        const obj = JSON.parse(objMatch[1]);
+                        const isLegacyMod = obj.__isMod || (obj.name && String(obj.name).startsWith('../mods/'));
+                        if (isLegacyMod) {
+                            removed++;
+                            continue;
+                        }
+                    } catch (jsonErr) { /* 保留无法解析的行 */ }
+                }
+                kept.push(line);
+            }
+
+            if (removed > 0) {
+                fs.writeFileSync(PLUGINS_PATH, kept.join('\n'), 'utf-8');
+                log(3, `已从 plugins.js 清理 ${removed} 条旧版 Mod 注册`);
+            }
+        } catch (e) {
+            log(1, "清理 plugins.js 旧 Mod 条目失败", e);
         }
     }
 
@@ -1532,6 +2408,14 @@
         return DB_TYPE_MAP.hasOwnProperty(type);
     }
 
+    function getDbLabel(type) {
+        var key = 'db.' + type;
+        var translated = t(key);
+        if (translated !== key) return translated;
+        var mapping = DB_TYPE_MAP[type];
+        return mapping ? mapping.label : type;
+    }
+
     /**
      * 获取数据库引用类型对应的 RMMZ 数据数组
      * 返回 null 表示数据库未加载
@@ -1740,1249 +2624,133 @@
     // 6. CSS 样式注入
     // ================================================================
     function injectStyles() {
-        if (document.getElementById('ml-styles')) return; // 防止重复注入
-
-        const styleEl = document.createElement('style');
-        styleEl.id = 'ml-styles';
-        styleEl.textContent = `
-/* ===== ModLoader V3 DOM UI 样式系统 ===== */
-
-/* ---------- CSS 变量（主题色） ---------- */
-:root {
-    --ml-bg-overlay: rgba(8, 8, 18, 0.88);
-    --ml-bg-primary: rgba(18, 18, 32, 1);
-    --ml-bg-secondary: rgba(28, 28, 48, 0.95);
-    --ml-bg-tertiary: rgba(38, 38, 58, 0.90);
-    --ml-bg-hover: rgba(255, 255, 255, 0.06);
-    --ml-bg-active: rgba(74, 158, 255, 0.12);
-    --ml-bg-selected: rgba(74, 158, 255, 0.18);
-    --ml-border: rgba(255, 255, 255, 0.08);
-    --ml-border-light: rgba(255, 255, 255, 0.15);
-    --ml-text-primary: #e8e8ec;
-    --ml-text-secondary: #9a9ab0;
-    --ml-text-muted: #666680;
-    --ml-accent: #4a9eff;
-    --ml-accent-hover: #5cb0ff;
-    --ml-success: #4caf50;
-    --ml-success-bg: rgba(76, 175, 80, 0.15);
-    --ml-danger: #ef5350;
-    --ml-danger-bg: rgba(239, 83, 80, 0.15);
-    --ml-warning: #ffa726;
-    --ml-warning-bg: rgba(255, 167, 38, 0.15);
-    --ml-radius-sm: 6px;
-    --ml-radius: 10px;
-    --ml-radius-lg: 14px;
-    --ml-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-    --ml-shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.6);
-    --ml-transition: 0.2s ease;
-    --ml-font: 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-}
-
-/* ---------- 遮罩层 ---------- */
-.ml-overlay {
-    position: fixed;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    z-index: 9999;
-    background: var(--ml-bg-overlay);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    animation: mlFadeIn 0.25s ease;
-    font-family: var(--ml-font);
-    color: var(--ml-text-primary);
-    user-select: none;
-}
-
-/* ---------- 主容器 ---------- */
-.ml-container {
-    width: 88%;
-    max-width: 1060px;
-    height: 82%;
-    max-height: 720px;
-    display: flex;
-    flex-direction: column;
-    background: var(--ml-bg-primary);
-    border-radius: var(--ml-radius-lg);
-    border: 1px solid var(--ml-border-light);
-    box-shadow: var(--ml-shadow-lg);
-    overflow: hidden;
-    animation: mlSlideUp 0.3s ease;
-}
-
-/* ---------- 头部 ---------- */
-.ml-header {
-    padding: 18px 24px;
-    background: var(--ml-bg-secondary);
-    border-bottom: 1px solid var(--ml-border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-shrink: 0;
-}
-
-.ml-header h2 {
-    margin: 0;
-    font-size: 20px;
-    font-weight: 600;
-    color: var(--ml-text-primary);
-    letter-spacing: 1px;
-}
-
-.ml-header-info {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    font-size: 13px;
-    color: var(--ml-text-secondary);
-}
-
-.ml-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 3px 10px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 500;
-}
-
-.ml-badge-success {
-    background: var(--ml-success-bg);
-    color: var(--ml-success);
-}
-
-.ml-badge-warning {
-    background: var(--ml-warning-bg);
-    color: var(--ml-warning);
-}
-
-/* ---------- 内容区域 ---------- */
-.ml-content {
-    flex: 1;
-    display: flex;
-    overflow: hidden;
-    min-height: 0;
-}
-
-/* ---------- 模组列表面板 ---------- */
-.ml-list-panel {
-    width: 42%;
-    min-width: 280px;
-    border-right: 1px solid var(--ml-border);
-    display: flex;
-    flex-direction: column;
-    background: var(--ml-bg-secondary);
-}
-
-.ml-list-header {
-    padding: 12px 16px;
-    font-size: 12px;
-    color: var(--ml-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    border-bottom: 1px solid var(--ml-border);
-    flex-shrink: 0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.ml-list-header span:nth-child(2) {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--ml-text-primary);
-    flex: 1;
-    text-align: center;
-    text-transform: none;
-    letter-spacing: normal;
-}
-
-.ml-list-scroll {
-    flex: 1;
-    overflow-y: auto;
-    overflow-x: hidden;
-}
-
-/* ---------- 模组条目 ---------- */
-.ml-mod-item {
-    display: flex;
-    align-items: center;
-    padding: 10px 16px;
-    cursor: pointer;
-    transition: background var(--ml-transition), border-color var(--ml-transition);
-    border-left: 3px solid transparent;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-    gap: 10px;
-}
-
-.ml-mod-item:hover {
-    background: var(--ml-bg-hover);
-}
-
-.ml-mod-item.selected {
-    background: var(--ml-bg-selected);
-    border-left-color: var(--ml-accent);
-}
-
-/* ---------- Toggle 开关 ---------- */
-.ml-toggle {
-    position: relative;
-    width: 40px;
-    height: 22px;
-    border-radius: 11px;
-    background: rgba(255, 255, 255, 0.15);
-    cursor: pointer;
-    transition: background 0.3s ease;
-    flex-shrink: 0;
-}
-
-.ml-toggle.on {
-    background: var(--ml-success);
-}
-
-.ml-toggle-thumb {
-    position: absolute;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: #fff;
-    top: 2px;
-    left: 2px;
-    transition: transform 0.3s ease;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-}
-
-.ml-toggle.on .ml-toggle-thumb {
-    transform: translateX(18px);
-}
-
-/* ---------- 模组名称 ---------- */
-.ml-mod-name {
-    flex: 1;
-    font-size: 14px;
-    color: var(--ml-text-primary);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    line-height: 1.4;
-}
-
-.ml-mod-name span {
-    /* @color 渲染的 span 继承行高 */
-    line-height: inherit;
-}
-
-/* ---------- 齿轮图标 ---------- */
-.ml-gear {
-    font-size: 20px;
-    color: var(--ml-text-muted);
-    cursor: pointer;
-    transition: color var(--ml-transition), transform var(--ml-transition);
-    flex-shrink: 0;
-    padding: 2px 4px;
-    border-radius: 4px;
-}
-
-.ml-gear:hover {
-    color: var(--ml-accent);
-    transform: rotate(45deg);
-}
-
-/* ========== 序号显示 ========== */
-.ml-order-text {
-    width: 40px;
-    height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--ml-text-secondary);
-    font-size: 13px;
-    font-weight: 500;
-    flex-shrink: 0;
-}
-
-.ml-order-input {
-    width: 40px;
-    height: 28px;
-    border: 1px solid var(--ml-border-light);
-    border-radius: 4px;
-    background: var(--ml-bg-tertiary);
-    color: var(--ml-text-primary);
-    font-size: 13px;
-    text-align: center;
-    flex-shrink: 0;
-    outline: none;
-    transition: all var(--ml-transition);
-}
-
-.ml-order-input:hover {
-    border-color: var(--ml-accent);
-}
-
-.ml-order-input:focus {
-    border-color: var(--ml-accent);
-    box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.2);
-}
-
-/* ========== 拖拽效果 ========== */
-.ml-mod-item.dragging {
-    opacity: 0.5;
-    transform: scale(0.97);
-    background: var(--ml-bg-tertiary) !important;
-}
-
-/* 拖放到上半部分：顶部边框提示 */
-.ml-mod-item.drag-over-top {
-    border-top: 2px solid var(--ml-accent);
-    background: var(--ml-bg-active);
-}
-
-/* 拖放到下半部分：底部边框提示 */
-.ml-mod-item.drag-over-bottom {
-    border-bottom: 2px solid var(--ml-accent);
-    background: var(--ml-bg-active);
-}
-
-/* ========== 未保存提示样式 ========== */
-.ml-unsaved-indicator {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    color: var(--ml-warning);
-}
-
-.ml-unsaved-indicator.hidden {
-    display: none;
-}
-
-/* ---------- 详情面板 ---------- */
-.ml-detail-panel {
-    flex: 1;
-    overflow-y: auto;
-    padding: 24px;
-    background: var(--ml-bg-primary);
-}
-
-.ml-detail-empty {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    color: var(--ml-text-muted);
-    font-size: 15px;
-}
-
-.ml-detail-section {
-    margin-bottom: 20px;
-}
-
-.ml-detail-label {
-    font-size: 11px;
-    color: var(--ml-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-bottom: 6px;
-}
-
-.ml-detail-value {
-    font-size: 15px;
-    color: var(--ml-text-primary);
-    line-height: 1.6;
-}
-
-.ml-detail-value span {
-    line-height: inherit;
-}
-
-.ml-detail-help {
-    font-size: 13px;
-    color: var(--ml-text-secondary);
-    line-height: 1.8;
-    white-space: pre-wrap;
-    word-break: break-word;
-}
-
-.ml-detail-help span {
-    line-height: inherit;
-}
-
-.ml-detail-params {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.ml-detail-param-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 10px;
-    background: var(--ml-bg-tertiary);
-    border-radius: var(--ml-radius-sm);
-    font-size: 13px;
-}
-
-.ml-detail-param-name {
-    color: var(--ml-text-secondary);
-    min-width: 100px;
-}
-
-.ml-detail-param-value {
-    color: var(--ml-accent);
-    font-weight: 500;
-}
-
-.ml-detail-param-type {
-    color: var(--ml-text-muted);
-    font-size: 11px;
-    margin-left: auto;
-}
-
-/* ---------- 底部栏 ---------- */
-.ml-footer {
-    padding: 14px 24px;
-    background: var(--ml-bg-secondary);
-    border-top: 1px solid var(--ml-border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-shrink: 0;
-}
-
-.ml-restart-hint {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 13px;
-    color: var(--ml-warning);
-    animation: mlPulse 2s ease infinite;
-}
-
-.ml-restart-hint.hidden {
-    display: none;
-}
-
-.ml-footer-actions {
-    display: flex;
-    gap: 10px;
-}
-
-/* ---------- 按钮 ---------- */
-.ml-btn {
-    padding: 8px 20px;
-    border-radius: var(--ml-radius-sm);
-    border: 1px solid transparent;
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 500;
-    font-family: var(--ml-font);
-    transition: all var(--ml-transition);
-    outline: none;
-}
-
-.ml-btn:focus-visible {
-    box-shadow: 0 0 0 2px var(--ml-accent);
-}
-
-.ml-btn-primary {
-    background: var(--ml-accent);
-    color: #fff;
-    border-color: var(--ml-accent);
-}
-
-.ml-btn-primary:hover {
-    background: var(--ml-accent-hover);
-    border-color: var(--ml-accent-hover);
-}
-
-.ml-btn-secondary {
-    background: rgba(255, 255, 255, 0.06);
-    color: var(--ml-text-secondary);
-    border-color: var(--ml-border-light);
-}
-
-.ml-btn-secondary:hover {
-    background: rgba(255, 255, 255, 0.12);
-    color: var(--ml-text-primary);
-}
-
-.ml-btn-danger {
-    background: var(--ml-danger-bg);
-    color: var(--ml-danger);
-    border-color: rgba(239, 83, 80, 0.3);
-}
-
-.ml-btn-danger:hover {
-    background: rgba(239, 83, 80, 0.25);
-}
-
-.ml-btn-warning {
-    background: var(--ml-warning-bg);
-    color: var(--ml-warning);
-    border-color: rgba(255, 167, 38, 0.3);
-}
-
-.ml-btn-warning:hover {
-    background: rgba(255, 167, 38, 0.25);
-}
-
-/* ---------- 参数编辑模态框 ---------- */
-.ml-modal-overlay {
-    position: fixed;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    z-index: 10001;
-    background: rgba(0, 0, 0, 0.55);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    animation: mlFadeIn 0.15s ease;
-    font-family: var(--ml-font);
-    color: var(--ml-text-primary);
-    user-select: none;
-}
-
-.ml-modal {
-    background: var(--ml-bg-primary);
-    border-radius: var(--ml-radius-lg);
-    border: 1px solid var(--ml-border-light);
-    box-shadow: var(--ml-shadow-lg);
-    width: 520px;
-    max-width: 92vw;
-    max-height: 80vh;
-    display: flex;
-    flex-direction: column;
-    animation: mlSlideUp 0.2s ease;
-    overflow: hidden;
-}
-
-.ml-modal-header {
-    padding: 18px 24px;
-    background: var(--ml-bg-secondary);
-    border-bottom: 1px solid var(--ml-border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-shrink: 0;
-}
-
-.ml-modal-header h3 {
-    margin: 0;
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--ml-text-primary);
-}
-
-.ml-modal-close {
-    background: none;
-    border: none;
-    color: var(--ml-text-muted);
-    font-size: 22px;
-    cursor: pointer;
-    padding: 0 4px;
-    line-height: 1;
-    transition: color var(--ml-transition);
-}
-
-.ml-modal-close:hover {
-    color: var(--ml-text-primary);
-}
-
-.ml-modal-body {
-    flex: 1;
-    overflow-y: auto;
-    padding: 20px 24px;
-}
-
-.ml-modal-footer {
-    padding: 14px 24px;
-    background: var(--ml-bg-secondary);
-    border-top: 1px solid var(--ml-border);
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    flex-shrink: 0;
-}
-
-/* ---------- 表单控件 ---------- */
-.ml-form-group {
-    margin-bottom: 18px;
-}
-
-.ml-form-group:last-child {
-    margin-bottom: 0;
-}
-
-.ml-form-label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 8px;
-    font-size: 13px;
-    color: var(--ml-text-secondary);
-}
-
-.ml-form-label-type {
-    font-size: 11px;
-    padding: 1px 6px;
-    border-radius: 4px;
-    background: var(--ml-bg-tertiary);
-    color: var(--ml-text-muted);
-}
-
-.ml-form-desc {
-    font-size: 11px;
-    color: var(--ml-text-muted);
-    margin-top: 4px;
-}
-
-.ml-form-default {
-    font-size: 11px;
-    color: var(--ml-text-muted);
-    margin-top: 2px;
-}
-
-.ml-form-input {
-    width: 100%;
-    padding: 9px 14px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid var(--ml-border-light);
-    border-radius: var(--ml-radius-sm);
-    color: var(--ml-text-primary);
-    font-size: 14px;
-    font-family: var(--ml-font);
-    outline: none;
-    transition: border-color var(--ml-transition), box-shadow var(--ml-transition);
-    box-sizing: border-box;
-}
-
-.ml-form-input:focus {
-    border-color: var(--ml-accent);
-    box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.2);
-}
-
-.ml-form-input::placeholder {
-    color: var(--ml-text-muted);
-}
-
-.ml-form-select {
-    width: 100%;
-    padding: 9px 14px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid var(--ml-border-light);
-    border-radius: var(--ml-radius-sm);
-    color: var(--ml-text-primary);
-    font-size: 14px;
-    font-family: var(--ml-font);
-    outline: none;
-    cursor: pointer;
-    transition: border-color var(--ml-transition);
-    box-sizing: border-box;
-    appearance: none;
-    -webkit-appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239a9ab0' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 12px center;
-    padding-right: 32px;
-}
-
-.ml-form-select:focus {
-    border-color: var(--ml-accent);
-}
-
-.ml-form-select option {
-    background: #1a1a2e;
-    color: var(--ml-text-primary);
-}
-
-/* 布尔值行内切换 */
-.ml-form-toggle-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.ml-form-toggle-status {
-    font-size: 13px;
-    font-weight: 500;
-}
-
-.ml-form-toggle-status.on {
-    color: var(--ml-success);
-}
-
-.ml-form-toggle-status.off {
-    color: var(--ml-danger);
-}
-
-/* 数值输入行 */
-.ml-form-number-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.ml-form-number-input {
-    flex: 1;
-}
-
-.ml-form-number-btn {
-    min-width: 70px;
-    height: 32px;
-    padding: 0 10px;
-    border-radius: var(--ml-radius-sm);
-    border: 1px solid var(--ml-border-light);
-    background: rgba(255, 255, 255, 0.06);
-    color: var(--ml-text-secondary);
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all var(--ml-transition);
-    white-space: nowrap;
-}
-
-.ml-form-number-btn:hover:not(.disabled) {
-    background: rgba(74, 158, 255, 0.25);
-    border-color: var(--ml-accent);
-    color: var(--ml-accent);
-}
-
-.ml-form-number-btn.disabled {
-    opacity: 0.35;
-    cursor: not-allowed;
-    background: rgba(255, 255, 255, 0.03);
-}
-
-.ml-form-number-btn.disabled:hover {
-    background: rgba(255, 255, 255, 0.03);
-    border-color: var(--ml-border-light);
-    color: var(--ml-text-secondary);
-}
-
-/* 数值滑动条 */
-.ml-form-slider-row {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.ml-form-slider-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-}
-
-.ml-form-slider-value {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--ml-accent);
-    cursor: pointer;
-    padding: 2px 8px;
-    border-radius: 4px;
-    min-width: 40px;
-    text-align: center;
-    transition: background var(--ml-transition);
-}
-
-.ml-form-slider-value:hover {
-    background: rgba(74, 158, 255, 0.15);
-}
-
-.ml-form-slider-range {
-    width: 100%;
-    height: 6px;
-    -webkit-appearance: none;
-    appearance: none;
-    background: rgba(255, 255, 255, 0.12);
-    border-radius: 3px;
-    outline: none;
-    cursor: pointer;
-}
-
-.ml-form-slider-range::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: var(--ml-accent);
-    cursor: pointer;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-    transition: transform 0.15s ease;
-}
-
-.ml-form-slider-range::-webkit-slider-thumb:hover {
-    transform: scale(1.15);
-}
-
-.ml-form-slider-range::-moz-range-thumb {
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: var(--ml-accent);
-    cursor: pointer;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-}
-
-.ml-form-slider-number-input {
-    width: 80px;
-    padding: 4px 8px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid var(--ml-accent);
-    border-radius: var(--ml-radius-sm);
-    color: var(--ml-text-primary);
-    font-size: 14px;
-    font-weight: 600;
-    text-align: center;
-    outline: none;
-    box-sizing: border-box;
-}
-
-.ml-form-slider-bounds {
-    display: flex;
-    justify-content: space-between;
-    font-size: 11px;
-    color: var(--ml-text-muted);
-}
-
-/* 长文本 textarea */
-.ml-form-textarea {
-    width: 100%;
-    min-height: 100px;
-    padding: 9px 14px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid var(--ml-border-light);
-    border-radius: var(--ml-radius-sm);
-    color: var(--ml-text-primary);
-    font-size: 14px;
-    font-family: var(--ml-font);
-    outline: none;
-    transition: border-color var(--ml-transition), box-shadow var(--ml-transition);
-    box-sizing: border-box;
-    white-space: pre;
-    font-family: monospace;
-    resize: vertical;
-}
-
-.ml-form-textarea:focus {
-    border-color: var(--ml-accent);
-    box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.2);
-}
-
-/* 数据库引用下拉 */
-.ml-form-db-hint {
-    font-size: 11px;
-    color: var(--ml-danger);
-    margin-top: 4px;
-    font-style: italic;
-}
-
-/* ---------- 标题画面按钮 ---------- */
-.ml-title-btn {
-    position: fixed;
-    z-index: 9998;
-    padding: 10px 18px;
-    background: rgba(18, 18, 32, 0.92);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: var(--ml-radius);
-    color: var(--ml-text-primary);
-    font-size: 14px;
-    font-family: var(--ml-font);
-    cursor: pointer;
-    transition: all var(--ml-transition);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-    user-select: none;
-    display: none;
-}
-
-.ml-title-btn:hover {
-    background: rgba(74, 158, 255, 0.2);
-    border-color: var(--ml-accent);
-    transform: translateY(-1px);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
-}
-
-.ml-title-btn:active {
-    transform: translateY(0);
-}
-
-/* ---------- 自定义滚动条 ---------- */
-.ml-list-scroll::-webkit-scrollbar,
-.ml-detail-panel::-webkit-scrollbar,
-.ml-modal-body::-webkit-scrollbar {
-    width: 6px;
-}
-
-.ml-list-scroll::-webkit-scrollbar-track,
-.ml-detail-panel::-webkit-scrollbar-track,
-.ml-modal-body::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-.ml-list-scroll::-webkit-scrollbar-thumb,
-.ml-detail-panel::-webkit-scrollbar-thumb,
-.ml-modal-body::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.15);
-    border-radius: 3px;
-}
-
-.ml-list-scroll::-webkit-scrollbar-thumb:hover,
-.ml-detail-panel::-webkit-scrollbar-thumb:hover,
-.ml-modal-body::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.25);
-}
-
-/* ---------- 动画 ---------- */
-@keyframes mlFadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
-@keyframes mlSlideUp {
-    from { opacity: 0; transform: translateY(16px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes mlPulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.6; }
-}
-
-/* ---------- 空状态 ---------- */
-.ml-empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    padding: 40px;
-    color: var(--ml-text-muted);
-    text-align: center;
-}
-
-.ml-drop-zone {
-    border: 2px dashed var(--ml-border-light);
-    border-radius: var(--ml-radius-lg);
-    padding: 30px 40px;
-    margin-top: 20px;
-    transition: all var(--ml-transition);
-}
-
-.ml-drop-zone.drag-over {
-    border-color: var(--ml-accent);
-    background: var(--ml-bg-active);
-}
-
-.ml-drop-zone-icon {
-    font-size: 48px;
-    margin-bottom: 10px;
-}
-
-.ml-drop-zone-text {
-    font-size: 16px;
-    color: var(--ml-text-secondary);
-}
-
-.ml-drop-zone-hint {
-    font-size: 12px;
-    margin-top: 8px;
-}
-
-.ml-empty-state-icon {
-    font-size: 48px;
-    margin-bottom: 16px;
-    opacity: 0.4;
-}
-
-.ml-empty-state-text {
-    font-size: 14px;
-    line-height: 1.6;
-}
-
-/* ================================================================
-   阶段2新增：struct 折叠面板 + table 表格列表 样式
-   ================================================================ */
-
-/* ---- 外层容器加宽（当模态框包含 struct/table 时通过 JS 添加此类） ---- */
-.ml-modal.ml-modal-wide {
-    width: 90vw !important;
-    max-width: 1200px !important;
-}
-
-/* ---- struct 折叠面板 ---- */
-.ml-struct-details {
-    border: 1px solid var(--ml-border);
-    border-radius: 6px;
-    margin: 4px 0;
-    transition: background 0.2s;
-}
-
-/* 一级折叠：带背景色和左边距 */
-.ml-struct-depth-1 {
-    padding-left: 15px;
-    background: var(--ml-bg-tertiary);
-}
-
-/* 二级折叠：透明背景，更大左边距 */
-.ml-struct-depth-2 {
-    padding-left: 30px;
-    background: transparent;
-}
-
-/* 三级及更深：最大 40px 左边距 */
-.ml-struct-depth-3 {
-    padding-left: 40px;
-    background: transparent;
-}
-
-.ml-struct-summary {
-    cursor: pointer;
-    font-weight: 600;
-    font-size: 13px;
-    padding: 6px 10px;
-    user-select: none;
-    color: var(--ml-text);
-    outline: none;
-}
-
-.ml-struct-summary:hover {
-    color: var(--ml-primary);
-}
-
-.ml-struct-summary::marker {
-    color: var(--ml-primary);
-}
-
-.ml-struct-body {
-    padding: 4px 0 8px 0;
-}
-
-.ml-struct-field {
-    margin: 4px 0;
-}
-
-.ml-struct-field .ml-form-label {
-    font-size: 12px;
-    margin-bottom: 2px;
-}
-
-.ml-struct-field .ml-form-label-type {
-    font-size: 10px;
-}
-
-.ml-struct-input {
-    max-width: 280px;
-}
-
-.ml-struct-select {
-    max-width: 280px;
-}
-
-/* ---- table 表格列表 ---- */
-.ml-table-container {
-    margin: 8px 0;
-    width: 100%;
-}
-
-.ml-table-scroll-wrapper {
-    overflow-x: auto;
-    width: 100%;
-    border: 1px solid var(--ml-border);
-    border-radius: 6px;
-}
-
-.ml-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 12px;
-    table-layout: auto;
-}
-
-.ml-table thead {
-    background: var(--ml-bg-hover);
-}
-
-.ml-table th {
-    padding: 6px 8px;
-    text-align: left;
-    font-weight: 600;
-    font-size: 11px;
-    color: var(--ml-text);
-    white-space: nowrap;
-    border-bottom: 2px solid var(--ml-border);
-}
-
-.ml-table-action-th {
-    text-align: center;
-    width: 90px;
-    min-width: 90px;
-}
-
-.ml-table-row {
-    border-bottom: 1px solid var(--ml-border);
-    transition: background 0.15s;
-}
-
-.ml-table-row:hover {
-    background: var(--ml-bg-hover);
-}
-
-.ml-table-cell {
-    padding: 4px 6px;
-    vertical-align: middle;
-    white-space: nowrap;
-}
-
-.ml-table-action-cell {
-    text-align: center;
-    white-space: nowrap;
-}
-
-/* 表格内微型输入框 */
-.ml-table-input {
-    width: 80px;
-    min-width: 60px;
-    max-width: 140px;
-    padding: 2px 4px;
-    font-size: 11px;
-    border: 1px solid var(--ml-border);
-    border-radius: 3px;
-    background: var(--ml-bg);
-    color: var(--ml-text);
-}
-
-.ml-table-input:focus {
-    border-color: var(--ml-primary);
-    outline: none;
-}
-
-.ml-table-number {
-    width: 60px;
-    min-width: 50px;
-    max-width: 90px;
-}
-
-/* 表格内微型色块 */
-.ml-table-color {
-    width: 28px;
-    height: 22px;
-    border: 1px solid var(--ml-border);
-    border-radius: 3px;
-    cursor: pointer;
-    padding: 0;
-}
-
-/* 表格内微型下拉框 */
-.ml-table-select {
-    max-width: 120px;
-    padding: 2px 4px;
-    font-size: 11px;
-    border: 1px solid var(--ml-border);
-    border-radius: 3px;
-    background: var(--ml-bg);
-    color: var(--ml-text);
-}
-
-.ml-table-select option { background: #1a1a2e; color: var(--ml-text-primary); }
-
-
-.ml-table-select:focus {
-    border-color: var(--ml-primary);
-    outline: none;
-}
-
-/* 表格内微型拨动开关 */
-.ml-table-switch {
-    position: relative;
-    display: inline-block;
-    width: 32px;
-    height: 18px;
-}
-
-.ml-table-switch .ml-form-switch-slider {
-    width: 32px;
-    height: 18px;
-}
-
-.ml-table-switch .ml-form-switch-slider::before {
-    height: 14px;
-    width: 14px;
-    left: 2px;
-    bottom: 2px;
-}
-
-.ml-table-switch input:checked + .ml-form-switch-slider::before {
-    transform: translateX(14px);
-}
-
-/* 表格操作按钮 */
-.ml-table-action-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    border: 1px solid var(--ml-border);
-    border-radius: 3px;
-    background: var(--ml-bg);
-    color: var(--ml-text);
-    cursor: pointer;
-    font-size: 10px;
-    margin: 0 1px;
-    padding: 0;
-    transition: all 0.15s;
-}
-
-.ml-table-action-btn:hover {
-    background: var(--ml-bg-hover);
-    border-color: var(--ml-primary);
-    color: var(--ml-primary);
-}
-
-.ml-table-delete-btn:hover {
-    background: #fff0f0;
-    border-color: #e74c3c;
-    color: #e74c3c;
-}
-
-/* 表格只读降级提示 */
-.ml-table-readonly {
-    font-size: 10px;
-    color: var(--ml-text-muted);
-    font-style: italic;
-    max-width: 100px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: inline-block;
-}
-
-/* 添加行按钮区域 */
-.ml-table-add-row {
-    margin-top: 6px;
-    display: flex;
-    justify-content: flex-start;
-}
-
-.ml-table-add-btn {
-    font-size: 12px;
-    padding: 4px 12px;
-}
-        `;
-        document.head.appendChild(styleEl);
-        log(3, "CSS 样式注入完成");
-    }
+            var mlConfig = loadModLoaderConfig();
+            _currentTheme = mlConfig.ml_theme || 'dark';
+            document.documentElement.setAttribute('data-ml-theme', _currentTheme);
+
+            if (document.getElementById('ml-styles')) {
+                log(3, 'CSS 样式已存在，已同步主题配置: ' + _currentTheme);
+                return;
+            }
+
+            var styleEl = document.createElement('style');
+            styleEl.id = 'ml-styles';
+
+            var cssPath = pathMod.join(MODS_DIR, 'config', 'modloader.css');
+            var cssContent = null;
+            try {
+                if (fs.existsSync(cssPath)) {
+                    cssContent = fs.readFileSync(cssPath, 'utf-8');
+                }
+            } catch (e) {
+                log(1, '读取外部 CSS 文件失败: ' + e.message);
+            }
+
+            if (!cssContent) {
+                log(1, 'CSS 文件缺失，使用内置降级样式');
+                cssContent = getFallbackCSS_ml();
+            }
+
+            styleEl.textContent = cssContent;
+            document.head.appendChild(styleEl);
+
+            log(3, 'CSS 样式注入完成，当前主题: ' + _currentTheme);
+        }
+    
+        function getFallbackCSS_ml() {
+            return 'html[data-ml-theme="dark"]{' +
+                '--ml-bg-overlay:rgba(8,8,18,0.88);--ml-bg-primary:rgba(18,18,32,1);' +
+                '--ml-bg-secondary:rgba(28,28,48,0.95);--ml-bg-tertiary:rgba(38,38,58,0.90);' +
+                '--ml-bg-hover:rgba(255,255,255,0.06);--ml-bg-active:rgba(74,158,255,0.12);' +
+                '--ml-bg-selected:rgba(74,158,255,0.18);--ml-border:rgba(255,255,255,0.08);' +
+                '--ml-border-light:rgba(255,255,255,0.15);--ml-text-primary:#e8e8ec;' +
+                '--ml-text-secondary:#9a9ab0;--ml-text-muted:#666680;--ml-accent:#4a9eff;' +
+                '--ml-accent-hover:#5cb0ff;--ml-success:#4caf50;--ml-success-bg:rgba(76,175,80,0.15);' +
+                '--ml-danger:#ef5350;--ml-danger-bg:rgba(239,83,80,0.15);--ml-warning:#ffa726;' +
+                '--ml-warning-bg:rgba(255,167,38,0.15);--ml-radius-sm:6px;--ml-radius:10px;' +
+                '--ml-radius-lg:14px;--ml-shadow:0 8px 32px rgba(0,0,0,0.4);' +
+                '--ml-shadow-lg:0 20px 60px rgba(0,0,0,0.6);--ml-transition:0.2s ease;' +
+                '--ml-font:"Microsoft YaHei","PingFang SC","Noto Sans SC","WenQuanYi Micro Hei",sans-serif;}' +
+                '.ml-overlay{position:fixed;top:0;left:0;width:100%;height:100%;z-index:10000;' +
+                'background:var(--ml-bg-overlay);display:flex;align-items:center;justify-content:center;' +
+                'font-family:var(--ml-font);color:var(--ml-text-primary);user-select:none;}' +
+                '.ml-container{background:var(--ml-bg-primary);border-radius:var(--ml-radius-lg);' +
+                'border:1px solid var(--ml-border-light);box-shadow:var(--ml-shadow-lg);width:900px;' +
+                'max-width:94vw;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;}' +
+                '.ml-header{padding:18px 24px;background:var(--ml-bg-secondary);' +
+                'border-bottom:1px solid var(--ml-border);display:flex;align-items:center;' +
+                'justify-content:space-between;flex-shrink:0;}' +
+                '.ml-header h2{margin:0;font-size:20px;font-weight:700;color:var(--ml-text-primary);}' +
+                '.ml-header-info{display:flex;gap:10px;align-items:center;}' +
+                '.ml-badge{font-size:12px;padding:3px 10px;border-radius:var(--ml-radius-sm);font-weight:600;}' +
+                '.ml-badge-success{background:var(--ml-success-bg);color:var(--ml-success);}' +
+                '.ml-badge-warning{background:var(--ml-warning-bg);color:var(--ml-warning);}' +
+                '.ml-content{flex:1;display:flex;overflow:hidden;min-height:0;}' +
+                '.ml-list-panel{width:320px;border-right:1px solid var(--ml-border);display:flex;' +
+                'flex-direction:column;flex-shrink:0;}' +
+                '.ml-list-header{font-size:13px;font-weight:600;padding:12px 16px;' +
+                'background:var(--ml-bg-tertiary);border-bottom:1px solid var(--ml-border);' +
+                'display:flex;justify-content:space-between;align-items:center;color:var(--ml-text-secondary);}' +
+                '.ml-list-scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:6px 8px;}' +
+                '.ml-mod-item{display:flex;align-items:center;gap:10px;padding:8px 10px;margin:2px 0;' +
+                'border-radius:var(--ml-radius-sm);cursor:pointer;transition:background var(--ml-transition);' +
+                'border:1px solid transparent;}' +
+                '.ml-mod-item:hover{background:var(--ml-bg-hover);}' +
+                '.ml-mod-item.selected{background:var(--ml-bg-selected);border-color:var(--ml-accent);}' +
+                '.ml-workshop-unsubscribed{opacity:0.55;}' +
+                '.ml-workshop-warn .ml-mod-name{color:var(--ml-warning,#f59e0b);}' +
+                '.ml-filter-btn.active{background:var(--ml-accent);color:#fff;}' +
+                '.ml-btn-sort-blocked{opacity:0.65;pointer-events:auto;}' +
+                '.ml-toggle{position:relative;display:inline-block;width:38px;height:20px;flex-shrink:0;}' +
+                '.ml-toggle input{display:none;}' +
+                '.ml-toggle-track{position:absolute;top:0;left:0;right:0;bottom:0;background:var(--ml-danger-bg);' +
+                'border-radius:10px;cursor:pointer;transition:background var(--ml-transition);border:1px solid var(--ml-border);}' +
+                '.ml-toggle input:checked+.ml-toggle-track{background:var(--ml-accent);border-color:var(--ml-accent);}' +
+                '.ml-toggle-thumb{position:absolute;top:2px;left:2px;width:14px;height:14px;background:#fff;' +
+                'border-radius:50%;transition:transform var(--ml-transition);box-shadow:0 1px 3px rgba(0,0,0,0.3);}' +
+                '.ml-toggle input:checked+.ml-toggle-track .ml-toggle-thumb{transform:translateX(18px);}' +
+                '.ml-mod-name{flex:1;font-size:14px;font-weight:500;color:var(--ml-text-primary);' +
+                'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}' +
+                '.ml-btn{padding:8px 18px;border-radius:var(--ml-radius-sm);font-size:14px;font-weight:500;' +
+                'cursor:pointer;border:1px solid transparent;transition:all var(--ml-transition);font-family:var(--ml-font);}' +
+                '.ml-btn-primary{background:var(--ml-accent);color:#fff;border-color:var(--ml-accent);}' +
+                '.ml-btn-primary:hover{background:var(--ml-accent-hover);}' +
+                '.ml-btn-secondary{background:var(--ml-bg-tertiary);color:var(--ml-text-primary);border-color:var(--ml-border);}' +
+                '.ml-btn-secondary:hover{background:var(--ml-bg-hover);border-color:var(--ml-border-light);}' +
+                '.ml-footer{padding:14px 24px;background:var(--ml-bg-secondary);border-top:1px solid var(--ml-border);' +
+                'display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}' +
+                '.ml-footer-actions{display:flex;gap:8px;}' +
+                '.ml-modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;z-index:10001;' +
+                'background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;' +
+                'font-family:var(--ml-font);color:var(--ml-text-primary);user-select:none;}' +
+                '.ml-modal{background:var(--ml-bg-primary);border-radius:var(--ml-radius-lg);' +
+                'border:1px solid var(--ml-border-light);box-shadow:var(--ml-shadow-lg);width:520px;' +
+                'max-width:92vw;max-height:80vh;display:flex;flex-direction:column;overflow:hidden;}' +
+                '.ml-modal-header{padding:18px 24px;background:var(--ml-bg-secondary);' +
+                'border-bottom:1px solid var(--ml-border);display:flex;align-items:center;justify-content:space-between;}' +
+                '.ml-modal-header h3{margin:0;font-size:16px;font-weight:600;color:var(--ml-text-primary);}' +
+                '.ml-modal-close{background:none;border:none;font-size:20px;color:var(--ml-text-muted);cursor:pointer;padding:4px;}' +
+                '.ml-modal-close:hover{color:var(--ml-text-primary);}' +
+                '.ml-modal-body{flex:1;overflow-y:auto;padding:20px 24px;}' +
+                '.ml-modal-footer{padding:14px 24px;background:var(--ml-bg-secondary);' +
+                'border-top:1px solid var(--ml-border);display:flex;gap:8px;}' +
+                '.ml-detail-panel{flex:1;display:flex;flex-direction:column;overflow-y:auto;padding:20px 24px;min-width:0;}' +
+                '.ml-changelog-link{color:var(--ml-accent);cursor:pointer;text-decoration:underline;font-size:11px;margin-left:2px;}' +
+                '.ml-theme-toggle{cursor:pointer;text-decoration:none;font-size:13px;margin-left:4px;display:inline-block;}' +
+                '@keyframes mlFadeIn{from{opacity:0}to{opacity:1}}' +
+                '@keyframes mlSlideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}' +
+                /* 【V3.15.0 新增】依赖检测警告内联样式 */
+                '.ml-toggle-thumb.ml-dep-base-warning{background:#ef4444!important;box-shadow:0 0 6px rgba(239,68,68,0.6),0 1px 3px rgba(0,0,0,0.3);}' +
+                '.ml-toggle-thumb.ml-dep-order-warning{background:#f59e0b!important;box-shadow:0 0 6px rgba(245,158,11,0.6),0 1px 3px rgba(0,0,0,0.3);}' +
+                '.ml-dep-list{display:flex;flex-direction:column;gap:4px;line-height:1.6;}' +
+                '.ml-dep-item{display:flex;align-items:baseline;gap:4px;padding:2px 0;flex-wrap:wrap;}' +
+                '.ml-dep-reason{font-size:12px;opacity:0.85;margin-left:4px;font-weight:400;}' +
+                '.ml-dep-text-base-missing{color:#ef4444;font-weight:600;padding:1px 4px;border-radius:3px;background:rgba(239,68,68,0.1);}' +
+                '.ml-dep-text-order-missing{color:#f59e0b;font-weight:600;padding:1px 4px;border-radius:3px;background:rgba(245,158,11,0.1);}' +
+                '.ml-dep-text-pass{color:#22c55e;padding:1px 4px;border-radius:3px;background:rgba(34,197,94,0.1);}' +
+                '.ml-dep-label-base-missing{color:#ef4444!important;font-weight:700;}' +
+                '.ml-dep-label-order-missing{color:#f59e0b!important;font-weight:700;}';
+        }
 
     // ================================================================
     // 7. DOM UI 系统
@@ -2996,11 +2764,14 @@
     let _hasUnsavedChanges = false; // 是否有未保存的修改
     let _draggedIndex = null;  // 当前拖拽的索引
     let _confirmModal = null;  // 确认对话框
+    let _changelogModal = null; // 更新日志弹窗
     let _dragEnabled = false;  // 拖拽功能是否启用（默认关闭）
     let _dropPosition = null;  // 拖放位置：'before' 或 'after'
     let _keyboardCaptureActive = false;  // 是否开启了通用键盘捕获
     let _deleteMode = false;   // 删除模式是否启用
+    let _listFilter = 'all';   // 列表筛选：all | local | workshop
     let _installOverlay = null; // 安装mod的全屏拖放遮罩
+    let _currentTheme = 'dark';  // 当前主题
     
     // RMMZ 输入拦截备份
     let _originalInputUpdate = null;
@@ -3098,46 +2869,68 @@
         _overlay.innerHTML = `
             <div class="ml-container">
                 <div class="ml-header">
-            <div style="display: flex; align-items: baseline; gap: 12px;">
-                <h2 style="margin: 0;">模组管理器</h2>
+            <div style="display: flex; align-items: center; gap: 8px; position: relative;">
+                <span class="ml-settings-gear" id="ml-settings-gear" title="${t('settings')}">⚙</span>
+                <h2 style="margin: 0;">${t('title')}</h2>
                 <span class="ml-list-header" style="font-size: 12px; color: var(--ml-text-muted); text-transform: uppercase; letter-spacing: 1px; background: none; padding: 0;">
-                    作者: joker ${VERSION}
+                    ${t('author')} ${VERSION} <a class="ml-changelog-link" id="ml-changelog-link">${t('changelog')}</a>
                 </span>
+                <div class="ml-settings-card" id="ml-settings-card" style="display:none;">
+                    <div class="ml-settings-item">
+                        <label class="ml-settings-label">${t('language.label')}</label>
+                        <select class="ml-form-select ml-settings-select" id="ml-language-select"></select>
+                    </div>
+                    <div class="ml-settings-item">
+                        <label class="ml-settings-label">${t('settings.theme')}</label>
+                        <div class="ml-settings-theme-btns">
+                            <button class="ml-settings-theme-btn" id="ml-theme-btn-dark" data-theme="dark">${t('theme.dark')}</button>
+                            <button class="ml-settings-theme-btn" id="ml-theme-btn-warm" data-theme="warm">${t('theme.warm')}</button>
+                        </div>
+                    </div>
+                </div>
             </div>
                     <div class="ml-header-info" style="gap: 8px; align-items: center;">
-                        <button class="ml-btn ml-btn-secondary" id="ml-btn-disable-all" style="font-size: 13px; padding: 4px 12px;">一键全关</button>
-                        <button class="ml-btn ml-btn-secondary" id="ml-btn-install" style="font-size: 13px; padding: 4px 12px;">安装mod</button>
-                        <button class="ml-btn ml-btn-secondary" id="ml-btn-delete" style="font-size: 13px; padding: 4px 12px;">删除mod</button>
-                        <button class="ml-btn ml-btn-secondary" id="ml-btn-sort" style="font-size: 13px; padding: 4px 12px;">排序Mod</button>
-                        <span class="ml-badge ml-badge-success" id="ml-enabled-count">已启用: 0</span>
-                        <span class="ml-badge ml-badge-warning" id="ml-total-count">总计: 0</span>
+                        <button class="ml-btn ml-btn-secondary" id="ml-btn-disable-all" style="font-size: 13px; padding: 4px 12px;">${t('button.disableAll')}</button>
+                        <button class="ml-btn ml-btn-secondary" id="ml-btn-install" style="font-size: 13px; padding: 4px 12px;">${t('button.installMod')}</button>
+                        <button class="ml-btn ml-btn-secondary" id="ml-btn-delete" style="font-size: 13px; padding: 4px 12px;">${t('button.deleteMod')}</button>
+                        <button class="ml-btn ml-btn-secondary" id="ml-btn-sort" style="font-size: 13px; padding: 4px 12px;">${t('button.sortMod')}</button>
+                        <span class="ml-badge ml-badge-success" id="ml-enabled-count">${t('count.enabled')}: 0</span>
+                        <span class="ml-badge ml-badge-warning" id="ml-total-count">${t('count.total')}: 0</span>
                     </div>
                 </div>
                 <div class="ml-content">
                     <div class="ml-list-panel">
+                        <div class="ml-list-toolbar" id="ml-list-toolbar" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;border-bottom:1px solid var(--ml-border);">
+                            <div class="ml-filter-tabs" id="ml-filter-tabs" style="display:flex;gap:6px;">
+                                <button class="ml-btn ml-btn-secondary ml-filter-btn active" data-filter="all" style="font-size:12px;padding:2px 10px;">${t('tab.all')}</button>
+                                <button class="ml-btn ml-btn-secondary ml-filter-btn" data-filter="local" style="font-size:12px;padding:2px 10px;">${t('tab.local')}</button>
+                                <button class="ml-btn ml-btn-secondary ml-filter-btn" data-filter="workshop" style="font-size:12px;padding:2px 10px;">${t('tab.workshop')}</button>
+                            </div>
+                            <button class="ml-btn ml-btn-secondary" id="ml-btn-refresh-workshop" style="font-size:12px;padding:2px 10px;">${t('workshop.refresh')}</button>
+                        </div>
                         <div class="ml-list-header">
-                            <span style="font-size:13px;opacity:0.9">序号</span>
-                            <span>模组列表</span>
-                            <span style="font-size:13px;opacity:0.9">点击⚙修改参数</span>
+                            <span style="font-size:13px;opacity:0.9">${t('list.headerOrder')}</span>
+                            <span>${t('list.headerModList')}</span>
+                            <span style="font-size:13px;opacity:0.9">${t('list.headerClickGear')}</span>
                         </div>
                         <div class="ml-list-scroll" id="ml-list-scroll"></div>
                     </div>
                     <div class="ml-detail-panel" id="ml-detail-panel">
-                        <div class="ml-detail-empty">点击左侧模组查看详情</div>
+                        <div class="ml-detail-empty">${t('detail.empty')}</div>
                     </div>
                 </div>
                 <div class="ml-footer">
                     <div style="display:flex;flex-direction:column;gap:4px;">
                         <div class="ml-restart-hint hidden" id="ml-restart-hint">
-                            &#9888; 修改需重启游戏后生效（F5）
+                            &#9888; ${t('footer.restartHint')}
                         </div>
                         <div class="ml-unsaved-indicator hidden" id="ml-unsaved-indicator">
-                            &#8226; 有未保存的修改
+                            &#8226; ${t('footer.unsaved')}
                         </div>
                     </div>
                     <div class="ml-footer-actions">
-                        <button class="ml-btn ml-btn-primary" id="ml-btn-save">保存</button>
-                        <button class="ml-btn ml-btn-secondary" id="ml-btn-close">关闭</button>
+                        <button class="ml-btn ml-btn-primary" id="ml-btn-save">${t('button.save')}</button>
+                        <button class="ml-btn ml-btn-secondary" id="ml-btn-close">${t('button.close')}</button>
                     </div>
                 </div>
             </div>
@@ -3154,9 +2947,94 @@
         document.getElementById('ml-btn-install').addEventListener('click', showInstallOverlay);
         document.getElementById('ml-btn-delete').addEventListener('click', toggleDeleteMode);
         document.getElementById('ml-btn-sort').addEventListener('click', toggleDrag);
+
+        var filterTabs = document.getElementById('ml-filter-tabs');
+        if (filterTabs) {
+            filterTabs.addEventListener('click', function(e) {
+                var btn = e.target.closest('[data-filter]');
+                if (!btn) return;
+                _listFilter = btn.dataset.filter || 'all';
+                filterTabs.querySelectorAll('.ml-filter-btn').forEach(function(b) {
+                    b.classList.toggle('active', b === btn);
+                    b.style.backgroundColor = b === btn ? 'var(--ml-accent)' : '';
+                    b.style.color = b === btn ? '#fff' : '';
+                });
+                onListFilterChanged();
+            });
+        }
+
+        var refreshWorkshopBtn = document.getElementById('ml-btn-refresh-workshop');
+        if (refreshWorkshopBtn) {
+            refreshWorkshopBtn.addEventListener('click', refreshWorkshopMods);
+        }
+        
+        // 绑定更新日志链接
+        var changelogLink = document.getElementById('ml-changelog-link');
+        if (changelogLink) {
+            changelogLink.addEventListener('click', function(e) {
+                e.stopPropagation();
+                showChangelog();
+            });
+        }
+        
+        // 绑定系统设置齿轮
+        var settingsGear = document.getElementById('ml-settings-gear');
+        var settingsCard = document.getElementById('ml-settings-card');
+        if (settingsGear && settingsCard) {
+            settingsGear.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (settingsCard.style.display === 'none') {
+                    settingsCard.style.display = 'block';
+                    populateLanguageSelect();
+                    updateThemeButtons();
+                } else {
+                    settingsCard.style.display = 'none';
+                }
+            });
+        }
+        
+        // 点击设置卡片外部关闭
+        document.addEventListener('click', function(e) {
+            if (settingsCard && settingsGear && settingsCard.style.display === 'block') {
+                if (!settingsCard.contains(e.target) && e.target !== settingsGear) {
+                    settingsCard.style.display = 'none';
+                }
+            }
+        });
+        
+        // 绑定语言下拉
+        var langSelect = document.getElementById('ml-language-select');
+        if (langSelect) {
+            langSelect.addEventListener('change', function() {
+                setLanguage(this.value);
+                refreshAllUIText();
+                updateThemeButtons();
+                document.getElementById('ml-settings-gear').title = t('settings');
+                if (settingsCard) settingsCard.style.display = 'none';
+            });
+        }
+        
+        // 绑定主题按钮
+        var themeBtnDark = document.getElementById('ml-theme-btn-dark');
+        var themeBtnWarm = document.getElementById('ml-theme-btn-warm');
+        if (themeBtnDark) {
+            themeBtnDark.addEventListener('click', function(e) {
+                e.stopPropagation();
+                setTheme('dark');
+                updateThemeButtons();
+            });
+        }
+        if (themeBtnWarm) {
+            themeBtnWarm.addEventListener('click', function(e) {
+                e.stopPropagation();
+                setTheme('warm');
+                updateThemeButtons();
+            });
+        }
         
         // 初始化按钮状态
         updateButtonStates();
+        updateWorkshopToolbarState();
 
         // ESC 关闭
         _overlay.addEventListener('keydown', (e) => {
@@ -3193,9 +3071,20 @@
      * 显示模组管理器
      */
     function showModManager() {
+        ensureModLoaderConfigFile();
+        const config = loadConfig();
+        var mlConfig = loadModLoaderConfig();
+        invalidateWorkshopConfigCache();
+        loadLanguageConfigs();
+        _currentLanguage = mlConfig.ml_language || 'zh_CN';
+        if (!_languageConfigs[_currentLanguage]) {
+            _currentLanguage = 'zh_CN';
+        }
+        applyTheme(mlConfig.ml_theme || 'dark');
         const overlay = createOverlay();
-        _modData = scanMods();
+        _modData = scanAllMods();
         _selectedIndex = -1;
+        _listFilter = 'all';
         _needsRestart = false;
         _hasUnsavedChanges = false;
 
@@ -3204,8 +3093,24 @@
         updateCounts();
         updateRestartHint();
         updateSaveButton();
+        updateButtonStates();
+        updateWorkshopToolbarState();
+
+        // 【V3.15.0 新增】进入管理器时检测依赖
+        refreshDependencyCheck();
+        // 依赖检测完成后重新渲染列表以显示警告颜色
+        renderModList();
 
         overlay.style.display = 'flex';
+        var filterTabs = document.getElementById('ml-filter-tabs');
+        if (filterTabs) {
+            filterTabs.querySelectorAll('.ml-filter-btn').forEach(function(b) {
+                var isAll = b.dataset.filter === 'all';
+                b.classList.toggle('active', isAll);
+                b.style.backgroundColor = isAll ? 'var(--ml-accent)' : '';
+                b.style.color = isAll ? '#fff' : '';
+            });
+        }
         bindModLoaderScrollContainers();   //  添加这一行修复进出管理器后的列表滚动失效
         overlay.focus();
 
@@ -3221,26 +3126,6 @@
         }
 
         log(3, "模组管理器已打开，共", _modData.length, "个模组");
-
-        // 检测 plugins.js 是否被重置
-        if (checkPluginsReset()) {
-            log(3, "检测到 plugins.js 已被重置，正在提示用户...");
-            showConfirmDialog(
-                "检测到游戏更新",
-                "检测到游戏更新了 plugins.js 文件！\nMod 因未注册而失效，是否一键还原 Mod 配置？",
-                [
-                    { text: "稍后再说", class: "ml-btn-secondary", action: hideConfirmDialog },
-                    { 
-                        text: "一键还原并保存", 
-                        class: "ml-btn-primary", 
-                        action: () => { 
-                            hideConfirmDialog(); 
-                            saveAllChanges();
-                        } 
-                    }
-                ]
-            );
-        }
     }
 
 
@@ -3271,6 +3156,66 @@
     }
 
     /**
+     * 刷新工坊 Mod 列表（重新扫描磁盘）
+     */
+    function refreshWorkshopMods() {
+        invalidateWorkshopConfigCache();
+        const prevId = _selectedIndex >= 0 && _modData[_selectedIndex] ? _modData[_selectedIndex].id : null;
+        _modData = scanAllMods();
+        refreshDependencyCheck();
+        if (prevId) {
+            const newIdx = _modData.findIndex(m => m.id === prevId);
+            _selectedIndex = newIdx >= 0 ? newIdx : -1;
+        } else {
+            _selectedIndex = -1;
+        }
+        renderModList();
+        updateCounts();
+        if (_selectedIndex >= 0) {
+            renderDetail(_modData[_selectedIndex]);
+        } else {
+            renderDetail(null);
+        }
+        log(3, '工坊 Mod 已刷新');
+    }
+
+    function isWorkshopFeatureEnabled() {
+        return !!loadWorkshopConfig().enabled;
+    }
+
+    function updateWorkshopToolbarState() {
+        const refreshBtn = document.getElementById('ml-btn-refresh-workshop');
+        if (refreshBtn) {
+            refreshBtn.style.display = isWorkshopFeatureEnabled() ? '' : 'none';
+        }
+    }
+
+    function getModListEmptyMessage() {
+        if (_listFilter === 'workshop' && !isWorkshopFeatureEnabled()) {
+            return t('workshop.disabledHint');
+        }
+        return t('detail.noModFound');
+    }
+
+    function modMatchesListFilter(mod) {
+        if (_listFilter === 'local') return mod.source === 'local';
+        if (_listFilter === 'workshop') return mod.source === 'workshop';
+        return true;
+    }
+
+    function isListFilterRestrictingSort() {
+        return _listFilter !== 'all';
+    }
+
+    function onListFilterChanged() {
+        if (isListFilterRestrictingSort() && _dragEnabled) {
+            _dragEnabled = false;
+        }
+        updateButtonStates();
+        renderModList();
+    }
+
+    /**
      * 渲染模组列表
      */
     function renderModList() {
@@ -3279,17 +3224,26 @@
 
         container.innerHTML = '';
 
-        // 先渲染Mod列表（如果有）
-        if (_modData.length > 0) {
-            _modData.forEach((mod, index) => {
+        const visibleMods = _modData
+            .map((mod, index) => ({ mod, index }))
+            .filter(item => modMatchesListFilter(item.mod));
+
+        if (visibleMods.length > 0) {
+            visibleMods.forEach(({ mod, index }) => {
                 const item = document.createElement('div');
-                item.className = 'ml-mod-item' + (index === _selectedIndex ? ' selected' : '');
+                let itemClass = 'ml-mod-item' + (index === _selectedIndex ? ' selected' : '');
+                if (mod.source === 'workshop' && mod.installState !== 'ready') {
+                    itemClass += ' ml-workshop-warn';
+                }
+                if (mod.source === 'workshop' && !mod.subscribed) {
+                    itemClass += ' ml-workshop-unsubscribed';
+                }
+                item.className = itemClass;
                 item.dataset.index = index;
                 item.draggable = _dragEnabled;
 
                 const hasParams = mod.params && mod.params.length > 0;
                 
-                // 根据拖拽是否启用显示输入框或纯文本
                 let orderHtml;
                 if (_dragEnabled) {
                     orderHtml = `<input type="number" class="ml-order-input" value="${mod.order}" min="1" max="${_modData.length}" data-index="${index}">`;
@@ -3297,21 +3251,40 @@
                     orderHtml = `<div class="ml-order-text" data-index="${index}">${mod.order}</div>`;
                 }
 
-                // 删除模式下添加红底🗑️
                 let deleteHtml = '';
-                if (_deleteMode) {
+                if (_deleteMode && !mod.readOnly) {
                     deleteHtml = `<div class="ml-delete-btn" data-action="delete" data-index="${index}" style="margin-left: 8px; background: #dc2626; color: white; padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 14px; line-height: 1;">🗑️</div>`;
+                }
+
+                const depStatus = getModDepStatus(mod);
+                let thumbClass = 'ml-toggle-thumb';
+                if (depStatus.baseWarning) {
+                    thumbClass += ' ml-dep-base-warning';
+                } else if (depStatus.orderAfterWarning) {
+                    thumbClass += ' ml-dep-order-warning';
+                }
+
+                let workshopBadge = '';
+                if (mod.source === 'workshop') {
+                    workshopBadge = `<span class="ml-badge ml-badge-warning" style="font-size:10px;margin-left:4px;" title="${escapeHtml(t('workshop.badge'))}">${t('workshop.badge')}</span>`;
+                }
+
+                let installWarn = '';
+                if (mod.installState === 'missing') {
+                    installWarn = `<span title="${escapeHtml(t('workshop.missing'))}" style="margin-left:4px;">⚠</span>`;
+                } else if (mod.installState === 'unsubscribed') {
+                    installWarn = `<span title="${escapeHtml(t('workshop.unsubscribed'))}" style="margin-left:4px;">○</span>`;
                 }
 
                 item.innerHTML = `
                     ${orderHtml}
                     <div class="ml-toggle ${mod.status ? 'on' : ''}" data-action="toggle" data-index="${index}">
-                        <div class="ml-toggle-thumb"></div>
+                        <div class="${thumbClass}"></div>
                     </div>
                     <div class="ml-mod-name" data-action="select" data-index="${index}">
-                        ${parseColorTagsFromRaw(mod.displayName)}
+                        ${parseColorTagsFromRaw(mod.displayName)}${workshopBadge}${installWarn}
                     </div>
-                    ${hasParams ? `<div class="ml-gear" data-action="params" data-index="${index}" title="编辑参数">&#9881;</div>` : ''}
+                    ${hasParams ? `<div class="ml-gear" data-action="params" data-index="${index}" title="${t('param.title')}">&#9881;</div>` : ''}
                     ${deleteHtml}
                 `;
 
@@ -3319,15 +3292,14 @@
             });
         }
 
-        // 如果是空状态，添加空状态提示
-        if (_modData.length === 0) {
+        if (visibleMods.length === 0) {
             const emptyState = document.createElement('div');
             emptyState.className = 'ml-empty-state';
             emptyState.style.paddingBottom = '0';
             emptyState.innerHTML = `
                 <div class="ml-empty-state-icon">&#128230;</div>
                 <div class="ml-empty-state-text">
-                    未发现任何模组
+                    ${escapeHtml(getModListEmptyMessage())}
                 </div>
             `;
             container.insertBefore(emptyState, container.firstChild);
@@ -3413,7 +3385,50 @@
     function toggleMod(index) {
         if (index < 0 || index >= _modData.length) return;
         const mod = _modData[index];
-        mod.status = !mod.status;
+        const newStatus = !mod.status;
+
+        // 【V3.15.1 修改】开启时检测依赖，按具体原因弹框确认
+        if (newStatus) {
+            const depStatus = getModDepStatus(mod);
+            if (depStatus.baseWarning || depStatus.orderAfterWarning) {
+                let warningMsg = '';
+
+                // @base 依赖问题（红色级别：容易崩溃）
+                if (depStatus.baseWarning) {
+                    const baseProblems = depStatus.baseDetails
+                        .filter(d => d.status !== 'pass')
+                        .map(d => `  • ${d.message}`)
+                        .join('\n');
+                    warningMsg += `⚠️ @base 依赖问题（可能导致游戏崩溃）：\n${baseProblems}\n\n`;
+                }
+
+                // @orderAfter 依赖问题（黄色级别：容易失效）
+                if (depStatus.orderAfterWarning) {
+                    const orderProblems = depStatus.orderAfterDetails
+                        .filter(d => d.status !== 'pass')
+                        .map(d => `  • ${d.message}`)
+                        .join('\n');
+                    warningMsg += `⚠️ @orderAfter 依赖问题（可能导致插件失效）：\n${orderProblems}\n\n`;
+                }
+
+                warningMsg += t('confirm.stillEnableMod');
+
+                showConfirmDialog(t('confirm.depWarning'), warningMsg, [
+                    { text: t('button.cancel'), class: "ml-btn-secondary", action: () => { hideConfirmDialog(); log(3, "用户取消开启模组:", mod.displayName); } },
+                    { text: t('button.stillEnable'), class: "ml-btn-primary", action: () => { hideConfirmDialog(); doToggleMod(index, mod, newStatus); } }
+                ]);
+                return;
+            }
+        }
+
+        doToggleMod(index, mod, newStatus);
+    }
+
+    /**
+     * 【V3.15.0 新增】实际执行模组开关切换
+     */
+    function doToggleMod(index, mod, newStatus) {
+        mod.status = newStatus;
         _hasUnsavedChanges = true;
         updateSaveButton();
 
@@ -3422,6 +3437,11 @@
         if (toggleEl) {
             toggleEl.classList.toggle('on', mod.status);
         }
+
+        // 【V3.15.0 新增】开关变化后刷新依赖检测（因为其他mod可能依赖此mod）
+        refreshDependencyCheck();
+        // 重新渲染列表以更新所有toggle-thumb的警告颜色
+        renderModList();
 
         updateCounts();
 
@@ -3468,6 +3488,9 @@
             _hasUnsavedChanges = true;
             updateSaveButton();
             updateCounts();
+            // 【V3.15.0 新增】全关后刷新依赖检测
+            refreshDependencyCheck();
+            renderModList();
         }
 
         // 播放音效
@@ -3487,8 +3510,35 @@
         const panel = document.getElementById('ml-detail-panel');
         if (!panel) return;
 
+        var DT = {
+            labelParams: t('detail.labelParams'),
+            labelVersion: t('detail.labelVersion'),
+            labelAuthor: t('detail.labelAuthor'),
+            labelHelp: t('detail.labelHelp'),
+            labelBaseDep: t('detail.labelBaseDep'),
+            labelOrderAfter: t('detail.labelOrderAfter'),
+            labelOrderBefore: t('detail.labelOrderBefore'),
+            labelModName: t('detail.labelModName'),
+            labelStatus: t('detail.labelStatus'),
+            labelUnknown: t('detail.labelUnknown'),
+            statusEnabled: t('detail.statusEnabled'),
+            statusDisabled: t('detail.statusDisabled'),
+            noHelp: t('detail.noHelp'),
+            typeText: t('param.typeText'),
+            typeBoolean: t('param.typeBoolean'),
+            typeNumber: t('param.typeNumber'),
+            typeSelect: t('param.typeSelect'),
+            typeColor: t('param.typeColor'),
+            typeNote: t('param.typeNote'),
+            typeStruct: t('param.typeStruct'),
+            typeTable: t('param.typeTable'),
+            on: t('param.on'),
+            off: t('param.off'),
+            rowsData: t('param.rowsData')
+        };
+
         if (!mod) {
-            panel.innerHTML = '<div class="ml-detail-empty">点击左侧模组查看详情</div>';
+            panel.innerHTML = '<div class="ml-detail-empty">' + t('detail.empty') + '</div>';
             return;
         }
 
@@ -3498,30 +3548,29 @@
         if (hasParams) {
             paramsHtml = `
                 <div class="ml-detail-section">
-                    <div class="ml-detail-label">参数列表（默认值蓝色，修改后变黄色）</div>
+                    <div class="ml-detail-label">${DT.labelParams}</div>
                     <div class="ml-detail-params">
                         ${mod.params.map(p => {
                             const curVal = mod.currentParams.hasOwnProperty(p.name) ? mod.currentParams[p.name] : p.default;
                             let displayVal = curVal;
-                            let typeLabel = '文本';
+                            let typeLabel = DT.typeText;
                             if (p.type === 'boolean') {
-                                displayVal = curVal === 'true' ? 'ON (开)' : 'OFF (关)';
-                                typeLabel = '开关';
+                                displayVal = curVal === 'true' ? DT.on : DT.off;
+                                typeLabel = DT.typeBoolean;
                             } else if (p.type === 'number') {
-                                typeLabel = '数值';
+                                typeLabel = DT.typeNumber;
                             } else if (p.type === 'select') {
-                                typeLabel = '单选';
+                                typeLabel = DT.typeSelect;
                             } else if (p.type === 'color') {
-                                typeLabel = '颜色';
+                                typeLabel = DT.typeColor;
                             } else if (isNoteType(p.type)) {
-                                typeLabel = '长文本';
+                                typeLabel = DT.typeNote;
                                 // 截断显示过长的值
                                 if (String(displayVal).length > 40) {
                                     displayVal = String(displayVal).substring(0, 40) + '...';
                                 }
                             } else if (isDatabaseType(p.type)) {
-                                const dbMapping = DB_TYPE_MAP[p.type];
-                                typeLabel = dbMapping ? dbMapping.label : p.type;
+                                typeLabel = getDbLabel(p.type);
                                 // 尝试显示名称而非 ID
                                 const dbArray = getDatabaseArray(p.type);
                                 if (dbArray) {
@@ -3532,7 +3581,7 @@
                                 }
                             } else if (p.type === 'struct') {
                                 // 阶段2新增：struct 类型在详情页显示为摘要
-                                typeLabel = '结构体';
+                                typeLabel = DT.typeStruct;
                                 try {
                                     const obj = typeof curVal === 'string' ? JSON.parse(curVal) : curVal;
                                     const keys = Object.keys(obj || {});
@@ -3542,10 +3591,10 @@
                                 }
                             } else if (p.type === 'table') {
                                 // 阶段2新增：table 类型在详情页显示为行数摘要
-                                typeLabel = '表格列表';
+                                typeLabel = DT.typeTable;
                                 try {
                                     const arr = typeof curVal === 'string' ? JSON.parse(curVal) : curVal;
-                                    displayVal = Array.isArray(arr) ? `${arr.length} 行数据` : String(curVal).substring(0, 40);
+                                    displayVal = Array.isArray(arr) ? arr.length + ' ' + DT.rowsData : String(curVal).substring(0, 40);
                                 } catch (e) {
                                     displayVal = String(curVal).substring(0, 40);
                                 }
@@ -3554,7 +3603,7 @@
                             return `
                                 <div class="ml-detail-param-row">
                                     <span class="ml-detail-param-name">${escapeHtml(p.text || p.name)}</span>
-                                    <span class="ml-detail-param-value" ${isModified ? 'style="color:var(--ml-warning)"' : ''}>${escapeHtml(String(displayVal))}</span>
+                                    <span class="ml-detail-param-value${isModified ? ' modified' : ''}">${escapeHtml(String(displayVal))}</span>
                                     <span class="ml-detail-param-type">${typeLabel}</span>
                                 </div>
                             `;
@@ -3568,58 +3617,147 @@
         if (mod.version) {
             metaHtml += `
                 <div class="ml-detail-section">
-                    <div class="ml-detail-label">版本</div>
+                    <div class="ml-detail-label">${DT.labelVersion}</div>
                     <div class="ml-detail-value">${escapeHtml(mod.version)}</div>
                 </div>
             `;
         }
+        // 【V3.15.1 修改】@base 依赖显示 - 5种状态判定，带具体原因文本
         if (mod.base) {
+            const depStatus = getModDepStatus(mod);
+            const baseItems = (depStatus.baseDetails || []).map(detail => {
+                const isPass = detail.status === 'pass';
+                // 根据状态选择图标和颜色
+                let icon, colorClass;
+                if (isPass) {
+                    icon = '<span style="color:#22c55e;">✔</span>';
+                    colorClass = 'ml-dep-text-pass';
+                } else {
+                    // 所有非pass状态统一用红色❌（@base缺失=崩溃级别）
+                    icon = '<span style="color:#ef4444;">❌</span>';
+                    colorClass = 'ml-dep-text-base-missing';
+                }
+                // 显示插件名 + 原因说明（pass不显示原因）
+                const reasonText = isPass ? '' : `<span class="ml-dep-reason">${escapeHtml(detail.message)}</span>`;
+                return `<div class="ml-dep-item ${colorClass}">${icon} ${escapeHtml(detail.name)} ${reasonText}</div>`;
+            }).join('');
+            const labelClass = depStatus.baseWarning ? 'ml-dep-label-base-missing' : '';
             metaHtml += `
                 <div class="ml-detail-section">
-                    <div class="ml-detail-label">依赖基础(没有将奔溃报错!)</div>
-                    <div class="ml-detail-value">${escapeHtml(mod.base)}</div>
+                    <div class="ml-detail-label ${labelClass}">${DT.labelBaseDep}</div>
+                    <div class="ml-detail-value ml-dep-list">${baseItems || escapeHtml(mod.base)}</div>
                 </div>
             `;
         }
+        // 【V3.15.1 修改】@orderAfter 依赖显示 - 5种状态判定，带具体原因文本
         if (mod.orderAfter) {
+            const depStatus = getModDepStatus(mod);
+            const orderAfterItems = (depStatus.orderAfterDetails || []).map(detail => {
+                const isPass = detail.status === 'pass';
+                let icon, colorClass;
+                if (isPass) {
+                    icon = '<span style="color:#22c55e;">✔</span>';
+                    colorClass = 'ml-dep-text-pass';
+                } else {
+                    // @orderAfter缺失=失效级别，用黄色❌
+                    icon = '<span style="color:#ef4444;">❌</span>';
+                    colorClass = 'ml-dep-text-order-missing';
+                }
+                const reasonText = isPass ? '' : `<span class="ml-dep-reason">${escapeHtml(detail.message)}</span>`;
+                return `<div class="ml-dep-item ${colorClass}">${icon} ${escapeHtml(detail.name)} ${reasonText}</div>`;
+            }).join('');
+            const labelClass = depStatus.orderAfterWarning ? 'ml-dep-label-order-missing' : '';
             metaHtml += `
                 <div class="ml-detail-section">
-                    <div class="ml-detail-label">加载在下述插件之下(否则会出现BUG)</div>
-                    <div class="ml-detail-value">${escapeHtml(mod.orderAfter)}</div>
+                    <div class="ml-detail-label ${labelClass}">${DT.labelOrderAfter}</div>
+                    <div class="ml-detail-value ml-dep-list">${orderAfterItems || escapeHtml(mod.orderAfter)}</div>
                 </div>
             `;
         }
         if (mod.orderBefore) {
             metaHtml += `
                 <div class="ml-detail-section">
-                    <div class="ml-detail-label">加载在下述插件之上(否则会出现BUG)</div>
+                    <div class="ml-detail-label">${DT.labelOrderBefore}</div>
                     <div class="ml-detail-value">${escapeHtml(mod.orderBefore)}</div>
+                </div>
+            `;
+        }
+
+        let workshopHtml = '';
+        if (mod.source === 'workshop') {
+            const sourceLabel = t('detail.labelSource');
+            const workshopSubLabel = t('detail.labelWorkshopSub');
+            const workshopRootLabel = t('detail.labelWorkshopRoot');
+            const installLabel = t('detail.labelInstallState');
+            const pkgTitle = (mod.workshopPackageTitle || '').trim();
+            const subDisplay = mod.workshopId
+                ? (mod.workshopId + ' & ' + (pkgTitle || t('workshop.unnamedPackage')))
+                : (pkgTitle || t('workshop.unnamedPackage'));
+            let installText = t('detail.installReady');
+            if (mod.installState === 'missing') installText = t('workshop.missing');
+            else if (mod.installState === 'unsubscribed') installText = t('workshop.unsubscribed');
+            workshopHtml = `
+                <div class="ml-detail-section">
+                    <div class="ml-detail-label">${escapeHtml(sourceLabel)}</div>
+                    <div class="ml-detail-value">
+                        <div>${escapeHtml(t('detail.sourceWorkshop'))}</div>
+                        <div style="font-size:12px;color:var(--ml-text-muted);margin-top:4px;line-height:1.5;">${escapeHtml(t('workshop.sourceHintManage'))}</div>
+                        <div style="font-size:12px;color:var(--ml-text-muted);margin-top:2px;line-height:1.5;">${escapeHtml(t('workshop.sourceHintSubscribe'))}</div>
+                    </div>
+                </div>
+                <div class="ml-detail-section">
+                    <div class="ml-detail-label">${escapeHtml(workshopSubLabel)}</div>
+                    <div class="ml-detail-value">${escapeHtml(subDisplay)}</div>
+                </div>
+                <div class="ml-detail-section">
+                    <div class="ml-detail-label">${escapeHtml(workshopRootLabel)}</div>
+                    <div class="ml-detail-value" style="word-break:break-all;font-size:12px;">${escapeHtml(mod.workshopRoot || '')}</div>
+                </div>
+                <div class="ml-detail-section">
+                    <div class="ml-detail-label">${escapeHtml(installLabel)}</div>
+                    <div class="ml-detail-value">${escapeHtml(installText)}</div>
+                </div>
+            `;
+        } else if (mod.source === 'local') {
+            workshopHtml = `
+                <div class="ml-detail-section">
+                    <div class="ml-detail-label">${escapeHtml(t('detail.labelSource'))}</div>
+                    <div class="ml-detail-value">${escapeHtml(t('detail.sourceLocal'))}</div>
+                </div>
+            `;
+        }
+        if (mod.loadPath) {
+            workshopHtml += `
+                <div class="ml-detail-section">
+                    <div class="ml-detail-label">${escapeHtml(t('detail.labelFile'))}</div>
+                    <div class="ml-detail-value" style="word-break:break-all;font-size:12px;">${escapeHtml(mod.loadPath)}</div>
                 </div>
             `;
         }
 
         panel.innerHTML = `
             <div class="ml-detail-section">
-                <div class="ml-detail-label">模组名称</div>
+                <div class="ml-detail-label">${DT.labelModName}</div>
                 <div class="ml-detail-value">${parseColorTagsFromRaw(mod.displayName)}</div>
             </div>
+            ${workshopHtml}
             <div class="ml-detail-section">
-                <div class="ml-detail-label">作者</div>
-                <div class="ml-detail-value">${escapeHtml(mod.author || '未知')}</div>
+                <div class="ml-detail-label">${DT.labelAuthor}</div>
+                <div class="ml-detail-value">${escapeHtml(mod.author || DT.labelUnknown)}</div>
             </div>
             ${metaHtml}
             <div class="ml-detail-section">
-                <div class="ml-detail-label">状态</div>
+                <div class="ml-detail-label">${DT.labelStatus}</div>
                 <div class="ml-detail-value">
                     <span class="ml-badge ${mod.status ? 'ml-badge-success' : 'ml-badge-danger'}" style="${mod.status ? '' : 'background:var(--ml-danger-bg);color:var(--ml-danger);'}">
-                        ${mod.status ? '已启用' : '已禁用'}
+                        ${mod.status ? DT.statusEnabled : DT.statusDisabled}
                     </span>
                 </div>
             </div>
             ${paramsHtml}
             <div class="ml-detail-section">
-                <div class="ml-detail-label">帮助说明</div>
-                <div class="ml-detail-help">${parseColorTagsFromRaw(mod.help || '无帮助信息')}</div>
+                <div class="ml-detail-label">${DT.labelHelp}</div>
+                <div class="ml-detail-help">${parseColorTagsFromRaw(mod.help || DT.noHelp)}</div>
             </div>
         `;
         
@@ -3635,10 +3773,10 @@
         const totalEl = document.getElementById('ml-total-count');
         if (enabledEl) {
             const count = _modData.filter(m => m.status).length;
-            enabledEl.textContent = `已启用: ${count}`;
+            enabledEl.textContent = t('count.enabled') + ': ' + count;
         }
         if (totalEl) {
-            totalEl.textContent = `总计: ${_modData.length}`;
+            totalEl.textContent = t('count.total') + ': ' + _modData.length;
         }
     }
 
@@ -3668,9 +3806,13 @@
 
     /**
      * 保存所有修改
+     * 【V3.15.1 修改】全量重写配置文件，防止僵尸mod信息残留
+     * 旧逻辑：读取已有config → 更新mod条目 → 保存（会保留已删除mod的残留条目）
+     * 新逻辑：从当前_modData重新构建config → 保存（只包含当前存在的mod）
      */
     function saveAllChanges() {
-        const config = loadConfig();
+        // 【V3.15.1】直接构建全新config，不读取旧配置，防止僵尸数据
+        const config = {};
         _modData.forEach(mod => {
             config[mod.id] = {
                 status: mod.status,
@@ -3679,12 +3821,11 @@
             };
         });
         saveConfig(config);
-        updatePluginsJs(_modData);
         _needsRestart = true;
         _hasUnsavedChanges = false;
         updateRestartHint();
         updateSaveButton();
-        log(3, "所有修改已保存");
+        log(3, "所有修改已保存（全量重写配置）");
         try {
             if (typeof SoundManager !== 'undefined') SoundManager.playOk();
         } catch (e) { /* 忽略 */ }
@@ -3696,11 +3837,11 @@
     function tryCloseModManager() {
         if (_hasUnsavedChanges) {
             showConfirmDialog(
-                "确认关闭",
-                "您有未保存的修改，是否继续关闭？\n（关闭后修改将丢失）",
+                t('confirm.title'),
+                t('confirm.unsavedChanges'),
                 [
-                    { text: "取消", class: "ml-btn-secondary", action: hideConfirmDialog },
-                    { text: "关闭不保存", class: "ml-btn-danger", action: () => { hideConfirmDialog(); hideModManager(); } }
+                    { text: t('button.cancel'), class: "ml-btn-secondary", action: hideConfirmDialog },
+                    { text: t('button.closeNoSave'), class: "ml-btn-danger", action: () => { hideConfirmDialog(); hideModManager(); } }
                 ]
             );
         } else {
@@ -3756,6 +3897,271 @@
             _confirmModal = null;
         }
     }
+
+    function getCurrentTheme() {
+        return _currentTheme;
+    }
+
+    function applyTheme(theme) {
+        if (theme !== 'dark' && theme !== 'warm') return;
+        _currentTheme = theme;
+        document.documentElement.setAttribute('data-ml-theme', theme);
+    }
+
+    function setTheme(theme) {
+        applyTheme(theme);
+        saveModLoaderConfig({ ml_theme: theme });
+    }
+
+    function toggleTheme() {
+        var newTheme = _currentTheme === 'dark' ? 'warm' : 'dark';
+        setTheme(newTheme);
+        updateThemeButtons();
+    }
+
+    function updateThemeButtons() {
+        var btnDark = document.getElementById('ml-theme-btn-dark');
+        var btnWarm = document.getElementById('ml-theme-btn-warm');
+        if (btnDark) {
+            btnDark.textContent = t('theme.dark');
+            if (_currentTheme === 'dark') {
+                btnDark.classList.add('active');
+            } else {
+                btnDark.classList.remove('active');
+            }
+        }
+        if (btnWarm) {
+            btnWarm.textContent = t('theme.warm');
+            if (_currentTheme === 'warm') {
+                btnWarm.classList.add('active');
+            } else {
+                btnWarm.classList.remove('active');
+            }
+        }
+    }
+
+    /**
+     * 简易 Markdown 转 HTML 解析器
+     */
+    function parseMarkdownToHtml(md) {
+        var lines = md.split('\n');
+        var html = '';
+        var inList = false;
+        var inParagraph = false;
+        var i = 0;
+
+        function processInline(text) {
+            return escapeHtml(text)
+                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                .replace(/`(.+?)`/g, '<code>$1</code>');
+        }
+
+        function closeList() {
+            if (inList) { html += '</ul>'; inList = false; }
+        }
+
+        function closeParagraph() {
+            if (inParagraph) { html += '</p>'; inParagraph = false; }
+        }
+
+        while (i < lines.length) {
+            var line = lines[i];
+
+            if (/^#### (.+)/.test(line)) {
+                closeList(); closeParagraph();
+                html += '<h4 class="ml-changelog-h4">' + processInline(RegExp.$1) + '</h4>';
+            } else if (/^### (.+)/.test(line)) {
+                closeList(); closeParagraph();
+                html += '<h3 class="ml-changelog-h3">' + processInline(RegExp.$1) + '</h3>';
+            } else if (/^## (.+)/.test(line)) {
+                closeList(); closeParagraph();
+                html += '<h2 class="ml-changelog-h2">' + processInline(RegExp.$1) + '</h2>';
+            } else if (/^# (.+)/.test(line)) {
+                closeList(); closeParagraph();
+                html += '<h1 class="ml-changelog-h1">' + processInline(RegExp.$1) + '</h1>';
+            } else if (/^---/.test(line)) {
+                closeList(); closeParagraph();
+                html += '<hr class="ml-changelog-hr">';
+            } else if (/^- (.+)/.test(line)) {
+                closeParagraph();
+                if (!inList) { html += '<ul class="ml-changelog-ul">'; inList = true; }
+                html += '<li>' + processInline(RegExp.$1) + '</li>';
+            } else if (line.trim() === '') {
+                closeList(); closeParagraph();
+            } else {
+                closeList();
+                if (!inParagraph) { html += '<p class="ml-changelog-p">'; inParagraph = true; }
+                html += processInline(line) + '<br>';
+            }
+            i++;
+        }
+
+        closeList(); closeParagraph();
+        return html;
+    }
+
+    /**
+     * 显示更新日志弹窗
+     */
+    function showChangelog() {
+        if (_changelogModal) return;
+
+        var changelogPath = pathMod.join(MODS_DIR, 'docs', 'modloader_CHANGELOG.md');
+        var mdContent;
+        try {
+            mdContent = fs.readFileSync(changelogPath, 'utf-8');
+        } catch (e) {
+            log(1, '无法读取更新日志文件:', e.message);
+            return;
+        }
+
+        var htmlContent = parseMarkdownToHtml(mdContent);
+
+        _changelogModal = document.createElement('div');
+        _changelogModal.className = 'ml-modal-overlay ml-changelog-overlay';
+        _changelogModal.innerHTML = '<div class="ml-modal ml-changelog-modal">'
+            + '<div class="ml-modal-header">'
+            + '<h3>ModLoader ' + escapeHtml(VERSION) + ' ' + t('changelog.title') + '</h3>'
+            + '<button class="ml-modal-close" id="ml-changelog-close">&times;</button>'
+            + '</div>'
+            + '<div class="ml-modal-body ml-changelog-body">'
+            + htmlContent
+            + '</div>'
+            + '<div class="ml-modal-footer">'
+            + '<button class="ml-btn ml-btn-primary" id="ml-changelog-btn-close">' + t('button.close') + '</button>'
+            + '</div>'
+            + '</div>';
+
+        _changelogModal.addEventListener('click', function(e) {
+            if (e.target.id === 'ml-changelog-close' || e.target.id === 'ml-changelog-btn-close') {
+                hideChangelog();
+            }
+            if (e.target === _changelogModal) {
+                hideChangelog();
+            }
+        });
+
+        _changelogModal.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                hideChangelog();
+            }
+        });
+
+        document.body.appendChild(_changelogModal);
+    }
+
+    /**
+     * 隐藏更新日志弹窗
+     */
+    function hideChangelog() {
+        if (_changelogModal) {
+            _changelogModal.remove();
+            _changelogModal = null;
+        }
+    }
+
+    function populateLanguageSelect() {
+        var select = document.getElementById('ml-language-select');
+        if (!select) return;
+        select.innerHTML = '';
+        var langs = getAvailableLanguages();
+        langs.forEach(function(lang) {
+            var option = document.createElement('option');
+            option.value = lang;
+            option.textContent = getLanguageDisplayName(lang);
+            if (lang === _currentLanguage) {
+                option.selected = true;
+            }
+            select.appendChild(option);
+        });
+        var langLabel = document.querySelector('.ml-settings-card .ml-settings-item:first-child .ml-settings-label');
+        if (langLabel) langLabel.textContent = t('language.label');
+        var themeLabel = document.querySelector('.ml-settings-card .ml-settings-item:last-child .ml-settings-label');
+        if (themeLabel) themeLabel.textContent = t('settings.theme');
+    }
+
+    function refreshAllUIText() {
+        var titleEl = document.querySelector('.ml-header h2');
+        if (titleEl) titleEl.textContent = t('title');
+        
+        var gear = document.getElementById('ml-settings-gear');
+        if (gear) gear.title = t('settings');
+        
+        var saveBtn = document.getElementById('ml-btn-save');
+        if (saveBtn) saveBtn.textContent = t('button.save');
+        
+        var closeBtn = document.getElementById('ml-btn-close');
+        if (closeBtn) closeBtn.textContent = t('button.close');
+        
+        var disableAllBtn = document.getElementById('ml-btn-disable-all');
+        if (disableAllBtn) disableAllBtn.textContent = t('button.disableAll');
+        
+        var installBtn = document.getElementById('ml-btn-install');
+        if (installBtn) installBtn.textContent = t('button.installMod');
+        
+        var deleteBtn = document.getElementById('ml-btn-delete');
+        if (deleteBtn) {
+            deleteBtn.textContent = _deleteMode ? t('sort.deleteEnabled') : t('sort.deleteDisabled');
+        }
+        
+        var sortBtn = document.getElementById('ml-btn-sort');
+        if (sortBtn) {
+            sortBtn.textContent = _dragEnabled ? t('sort.enabled') : t('sort.disabled');
+            sortBtn.title = isListFilterRestrictingSort() ? t('sort.filterBlockedHint') : '';
+        }
+
+        var refreshWorkshopBtn = document.getElementById('ml-btn-refresh-workshop');
+        if (refreshWorkshopBtn) refreshWorkshopBtn.textContent = t('workshop.refresh');
+        updateWorkshopToolbarState();
+
+        var filterTabs = document.getElementById('ml-filter-tabs');
+        if (filterTabs) {
+            filterTabs.querySelectorAll('[data-filter]').forEach(function(btn) {
+                var filter = btn.dataset.filter;
+                if (filter === 'all') btn.textContent = t('tab.all');
+                else if (filter === 'local') btn.textContent = t('tab.local');
+                else if (filter === 'workshop') btn.textContent = t('tab.workshop');
+            });
+        }
+        
+        updateCounts();
+        
+        var restartHint = document.getElementById('ml-restart-hint');
+        if (restartHint && !restartHint.classList.contains('hidden')) {
+            restartHint.innerHTML = '&#9888; ' + t('footer.restartHint');
+        }
+        
+        var unsavedHint = document.getElementById('ml-unsaved-indicator');
+        if (unsavedHint && !unsavedHint.classList.contains('hidden')) {
+            unsavedHint.innerHTML = '&#8226; ' + t('footer.unsaved');
+        }
+        
+        var listOrderEl = document.querySelector('.ml-list-header span:first-child');
+        if (listOrderEl) listOrderEl.textContent = t('list.headerOrder');
+        var listModEl = document.querySelector('.ml-list-header span:nth-child(2)');
+        if (listModEl) listModEl.textContent = t('list.headerModList');
+        var listGearEl = document.querySelector('.ml-list-header span:last-child');
+        if (listGearEl) listGearEl.textContent = t('list.headerClickGear');
+        
+        renderModList();
+        if (_selectedIndex >= 0 && _selectedIndex < _modData.length) {
+            renderDetail(_modData[_selectedIndex]);
+        } else {
+            var panel = document.getElementById('ml-detail-panel');
+            if (panel && _modData.length === 0) {
+                panel.innerHTML = '<div class="ml-detail-empty">' + t('detail.empty') + '</div>';
+            } else if (panel) {
+                panel.innerHTML = '<div class="ml-detail-empty">' + t('detail.empty') + '</div>';
+            }
+        }
+        
+        var changelogLink = document.getElementById('ml-changelog-link');
+        if (changelogLink) changelogLink.textContent = t('changelog');
+
+        if (_titleBtn) _titleBtn.textContent = t('title');
+        
+        updateThemeButtons();
+    }
     
     /**
      * 切换拖拽功能
@@ -3763,40 +4169,51 @@
     function updateButtonStates() {
         const btnSort = document.getElementById('ml-btn-sort');
         const btnDelete = document.getElementById('ml-btn-delete');
-        
-        // 更新排序按钮
-        btnSort.textContent = _dragEnabled ? '可拖拽排序' : '排序Mod';
-        btnSort.classList.remove('ml-btn-secondary');
-        if (_dragEnabled) {
-            btnSort.style.backgroundColor = 'var(--ml-success)';
-            btnSort.style.color = 'white';
-        } else {
-            btnSort.classList.add('ml-btn-secondary');
-            btnSort.style.backgroundColor = '';
-            btnSort.style.color = '';
+        const sortBlocked = isListFilterRestrictingSort();
+
+        if (btnSort) {
+            btnSort.textContent = _dragEnabled ? t('sort.enabled') : t('sort.disabled');
+            btnSort.classList.remove('ml-btn-secondary', 'ml-btn-sort-blocked');
+            btnSort.title = sortBlocked ? t('sort.filterBlockedHint') : '';
+            if (sortBlocked) {
+                btnSort.classList.add('ml-btn-secondary', 'ml-btn-sort-blocked');
+                btnSort.style.backgroundColor = '';
+                btnSort.style.color = '';
+                btnSort.style.cursor = 'not-allowed';
+            } else if (_dragEnabled) {
+                btnSort.style.backgroundColor = 'var(--ml-success)';
+                btnSort.style.color = 'white';
+                btnSort.style.cursor = '';
+            } else {
+                btnSort.classList.add('ml-btn-secondary');
+                btnSort.style.backgroundColor = '';
+                btnSort.style.color = '';
+                btnSort.style.cursor = '';
+            }
         }
         
-        // 更新删除按钮
-        btnDelete.textContent = _deleteMode ? '可删除Mod' : '删除mod';
-        btnDelete.classList.remove('ml-btn-secondary');
-        if (_deleteMode) {
-            btnDelete.style.backgroundColor = 'var(--ml-danger)';
-            btnDelete.style.color = 'white';
-        } else {
-            btnDelete.classList.add('ml-btn-secondary');
-            btnDelete.style.backgroundColor = '';
-            btnDelete.style.color = '';
+        if (btnDelete) {
+            btnDelete.textContent = _deleteMode ? t('sort.deleteEnabled') : t('sort.deleteDisabled');
+            btnDelete.classList.remove('ml-btn-secondary');
+            if (_deleteMode) {
+                btnDelete.style.backgroundColor = 'var(--ml-danger)';
+                btnDelete.style.color = 'white';
+            } else {
+                btnDelete.classList.add('ml-btn-secondary');
+                btnDelete.style.backgroundColor = '';
+                btnDelete.style.color = '';
+            }
         }
     }
 
     function toggleDrag() {
+        if (isListFilterRestrictingSort()) {
+            return;
+        }
         _dragEnabled = !_dragEnabled;
         updateButtonStates();
-        
-        // 重新渲染列表（切换输入框/纯文本显示）
         renderModList();
-        
-        log(3, "拖拽功能", _dragEnabled ? "已启用" : "已禁用");
+        log(3, '拖拽功能', _dragEnabled ? '已启用' : '已禁用');
     }
 
     // ========== 拖拽排序功能 ==========
@@ -3812,7 +4229,8 @@
         }
         const item = e.target.closest('.ml-mod-item');
         if (!item) return;
-        _draggedIndex = parseInt(item.dataset.index);
+        const dragIndex = parseInt(item.dataset.index);
+        _draggedIndex = dragIndex;
         _dropPosition = null;
         item.classList.add('dragging');
         e.dataTransfer.effectAllowed = 'move';
@@ -3902,6 +4320,9 @@
         _hasUnsavedChanges = true;
         updateSaveButton();
         
+        // 【V3.15.0 新增】排序变动后刷新依赖检测
+        refreshDependencyCheck();
+        
         // 重新渲染
         renderModList();
         renderDetail(_modData[insertIndex]);
@@ -3980,6 +4401,9 @@
         reassignOrders();
         _hasUnsavedChanges = true;
         updateSaveButton();
+        
+        // 【V3.15.0 新增】序号变动后刷新依赖检测
+        refreshDependencyCheck();
         
         // 重新渲染
         renderModList();
@@ -4076,7 +4500,7 @@
             group.innerHTML = `
                 <div class="ml-form-label">
                     ${escapeHtml(fieldLabel)}
-                    <span class="ml-form-label-type">开关</span>
+                    <span class="ml-form-label-type">${t('param.typeBoolean')}</span>
                 </div>
                 <label class="ml-form-switch">
                     <input type="checkbox" data-field-name="${escapeHtml(field.name)}" data-field-path="${escapeHtml(parentPath + '.' + field.name)}" ${isOn ? 'checked' : ''}>
@@ -4089,7 +4513,7 @@
             group.innerHTML = `
                 <div class="ml-form-label">
                     ${escapeHtml(fieldLabel)}
-                    <span class="ml-form-label-type">数值</span>
+                    <span class="ml-form-label-type">${t('param.typeNumber')}</span>
                 </div>
                 <input type="number" class="ml-form-input ml-struct-input"
                        data-field-name="${escapeHtml(field.name)}"
@@ -4118,7 +4542,7 @@
             group.innerHTML = `
                 <div class="ml-form-label">
                     ${escapeHtml(fieldLabel)}
-                    <span class="ml-form-label-type">颜色</span>
+                    <span class="ml-form-label-type">${t('param.typeColor')}</span>
                 </div>
                 <div style="display:flex;gap:6px;align-items:center;">
                     <input type="color" data-field-name="${escapeHtml(field.name)}" data-field-path="${escapeHtml(parentPath + '.' + field.name)}"
@@ -4151,7 +4575,7 @@
             group.innerHTML = `
                 <div class="ml-form-label">
                     ${escapeHtml(fieldLabel)}
-                    <span class="ml-form-label-type">选择</span>
+                    <span class="ml-form-label-type">${t('param.typeChoice')}</span>
                 </div>
                 <select class="ml-form-select ml-struct-select"
                         data-field-name="${escapeHtml(field.name)}"
@@ -4163,11 +4587,10 @@
         } else if (isDatabaseType(field.type)) {
             // ---- 数据库引用类型 ----
             const dbArray = getDatabaseArray(field.type);
-            const dbMapping = DB_TYPE_MAP[field.type];
-            const dbLabel = dbMapping ? dbMapping.label : field.type;
+            const dbLabel = getDbLabel(field.type);
 
             if (dbArray) {
-                let optionsHtml = '<option value="" style="color:var(--ml-text-muted);">-- 无 --</option>';
+                let optionsHtml = '<option value="" style="color:var(--ml-text-muted);">' + t('param.none') + '</option>';
                 for (let i = 1; i < dbArray.length; i++) {
                     const entry = dbArray[i];
                     if (entry && entry.name && entry.name.trim() !== '') {
@@ -4191,13 +4614,13 @@
                 group.innerHTML = `
                     <div class="ml-form-label">
                         ${escapeHtml(fieldLabel)}
-                        <span class="ml-form-label-type">${dbLabel} (文本降级)</span>
+                        <span class="ml-form-label-type">${dbLabel} ${t('param.dbFallbackHint')}</span>
                     </div>
                     <input type="text" class="ml-form-input ml-struct-input"
                            data-field-name="${escapeHtml(field.name)}"
                            data-field-path="${escapeHtml(parentPath + '.' + field.name)}"
                            value="${escapeHtml(String(curVal || field.default || ''))}"
-                           placeholder="输入${dbLabel}ID">
+                           placeholder="${t('param.dbInputPlaceholder').replace('{label}', dbLabel)}">
                 `;
                 // ---- 通用文本验证绑定（含 XSS 防护） ----
                 setTimeout(() => {
@@ -4214,7 +4637,7 @@
             group.innerHTML = `
                 <div class="ml-form-label">
                     ${escapeHtml(fieldLabel)}
-                    <span class="ml-form-label-type">文本</span>
+                    <span class="ml-form-label-type">${t('param.typeText')}</span>
                 </div>
                 <input type="text" class="ml-form-input ml-struct-input"
                        data-field-name="${escapeHtml(field.name)}"
@@ -4367,7 +4790,7 @@
         const moveUpBtn = document.createElement('button');
         moveUpBtn.className = 'ml-table-action-btn';
         moveUpBtn.textContent = '▲';
-        moveUpBtn.title = '上移';
+        moveUpBtn.title = t('sort.moveUp');
         moveUpBtn.addEventListener('click', () => {
             const prev = tr.previousElementSibling;
             if (prev) {
@@ -4379,7 +4802,7 @@
         const moveDownBtn = document.createElement('button');
         moveDownBtn.className = 'ml-table-action-btn';
         moveDownBtn.textContent = '▼';
-        moveDownBtn.title = '下移';
+        moveDownBtn.title = t('sort.moveDown');
         moveDownBtn.addEventListener('click', () => {
             const next = tr.nextElementSibling;
             if (next) {
@@ -4391,7 +4814,7 @@
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'ml-table-action-btn ml-table-delete-btn';
         deleteBtn.textContent = '✕';
-        deleteBtn.title = '删除';
+        deleteBtn.title = t('delete.actionTitle');
         deleteBtn.addEventListener('click', () => {
             tr.remove();
             log(3, `[table] 行删除`);
@@ -4558,7 +4981,7 @@
         const header = document.createElement('div');
         header.className = 'ml-modal-header';
         header.innerHTML = `
-            <h3>参数编辑 - ${escapeHtml(mod.displayName)}</h3>
+            <h3>${t('param.title')} - ${escapeHtml(mod.displayName)}</h3>
             <button class="ml-modal-close" id="ml-modal-close">&times;</button>
         `;
 
@@ -4577,14 +5000,14 @@
                 group.innerHTML = `
                     <div class="ml-form-label">
                         ${escapeHtml(p.text || p.name)}
-                        <span class="ml-form-label-type">开关</span>
+                        <span class="ml-form-label-type">${t('param.typeBoolean')}</span>
                     </div>
                     <div class="ml-form-toggle-row">
                         <div class="ml-toggle ${isOn ? 'on' : ''}" id="ml-param-${cssEscape(p.name)}">
                             <div class="ml-toggle-thumb"></div>
                         </div>
                         <span class="ml-form-toggle-status ${isOn ? 'on' : 'off'}" id="ml-param-status-${cssEscape(p.name)}">
-                            ${isOn ? 'ON (开)' : 'OFF (关)'}
+                            ${isOn ? t('param.on') : t('param.off')}
                         </span>
                     </div>
                     ${p.desc ? `<div class="ml-form-desc">${escapeHtml(p.desc)}</div>` : ''}
@@ -4600,7 +5023,7 @@
                             editParams[p.name] = newVal;
                             toggleEl.classList.toggle('on', newVal === 'true');
                             if (statusEl) {
-                                statusEl.textContent = newVal === 'true' ? 'ON (开)' : 'OFF (关)';
+                                statusEl.textContent = newVal === 'true' ? t('param.on') : t('param.off');
                                 statusEl.className = `ml-form-toggle-status ${newVal === 'true' ? 'on' : 'off'}`;
                             }
                         });
@@ -4610,7 +5033,7 @@
                 group.innerHTML = `
                     <div class="ml-form-label">
                         ${escapeHtml(p.text || p.name)}
-                        <span class="ml-form-label-type">单选 (${p.options.length}项)</span>
+                        <span class="ml-form-label-type">${t('param.typeSelect')} (${p.options.length})</span>
                     </div>
                     <select class="ml-form-select" id="ml-param-${cssEscape(p.name)}">
                         ${p.options.map(opt =>
@@ -4641,7 +5064,7 @@
                     group.innerHTML = `
                         <div class="ml-form-label">
                             ${escapeHtml(p.text || p.name)}
-                            <span class="ml-form-label-type">数值 (${p.min}~${p.max})</span>
+                            <span class="ml-form-label-type">${t('param.typeNumber')} (${p.min}~${p.max})</span>
                         </div>
                         <div class="ml-form-slider-row">
                             <div class="ml-form-slider-header">
@@ -4728,7 +5151,7 @@
                     group.innerHTML = `
                         <div class="ml-form-label">
                             ${escapeHtml(p.text || p.name)}
-                            <span class="ml-form-label-type">数值${hasMin || hasMax ? ` (${hasMin ? p.min : '...'}~${hasMax ? p.max : '...'})` : ''}</span>
+                            <span class="ml-form-label-type">${t('param.typeNumber')}${hasMin || hasMax ? ` (${hasMin ? p.min : '...'}~${hasMax ? p.max : '...'})` : ''}</span>
                         </div>
                         <div class="ml-form-number-row">
                             <button class="ml-form-number-btn ml-form-min-btn ${!hasMin ? 'disabled' : ''}"
@@ -4805,7 +5228,7 @@
                 group.innerHTML = `
                     <div class="ml-form-label">
                         ${escapeHtml(p.text || p.name)}
-                        <span class="ml-form-label-type">颜色</span>
+                        <span class="ml-form-label-type">${t('param.typeColor')}</span>
                     </div>
                     <div style="display:flex;gap:8px;align-items:center;">
                         <input type="color" 
@@ -4871,7 +5294,7 @@
                 group.innerHTML = `
                     <div class="ml-form-label">
                         ${escapeHtml(p.text || p.name)}
-                        <span class="ml-form-label-type">长文本</span>
+                        <span class="ml-form-label-type">${t('param.typeNote')}</span>
                     </div>
                     <textarea class="ml-form-textarea"
                               id="ml-param-${cssEscape(p.name)}"
@@ -4908,13 +5331,12 @@
                 }, 0);
             } else if (isDatabaseType(p.type)) {
                 // 数据库引用类型 (actor/skill/item/weapon/armor/enemy/state)
-                const dbMapping = DB_TYPE_MAP[p.type];
+                const dbLabel = getDbLabel(p.type);
                 const dbArray = getDatabaseArray(p.type);
-                const dbLabel = dbMapping ? dbMapping.label : p.type;
 
                 if (dbArray) {
                     // 数据库已加载：渲染 select 下拉框
-                    let optionsHtml = '<option value="" style="color:var(--ml-text-muted);">-- 无 --</option>';
+                    let optionsHtml = '<option value="" style="color:var(--ml-text-muted);">' + t('param.none') + '</option>';
                     for (let i = 1; i < dbArray.length; i++) {
                         const entry = dbArray[i];
                         if (entry && entry.name && entry.name.trim() !== '') {
@@ -4956,13 +5378,13 @@
                     group.innerHTML = `
                         <div class="ml-form-label">
                             ${escapeHtml(p.text || p.name)}
-                            <span class="ml-form-label-type">${dbLabel} (文本降级)</span>
+                            <span class="ml-form-label-type">${dbLabel} ${t('param.dbFallbackHint')}</span>
                         </div>
                         <input type="text" class="ml-form-input"
                                id="ml-param-${cssEscape(p.name)}"
                                value="${escapeHtml(String(curVal))}"
-                               placeholder="输入${dbLabel}ID">
-                        <div class="ml-form-db-hint">⚠ 数据库未加载，请输入${dbLabel}ID</div>
+                               placeholder="${t('param.dbInputPlaceholder').replace('{label}', dbLabel)}">
+                        <div class="ml-form-db-hint">${t('param.dbNotLoaded').replace('{label}', dbLabel)}</div>
                         ${p.desc ? `<div class="ml-form-desc">${escapeHtml(p.desc)}</div>` : ''}
                     `;
                     setTimeout(() => {
@@ -5062,7 +5484,7 @@
                 // 标题行
                 const titleLabel = document.createElement('div');
                 titleLabel.className = 'ml-form-label';
-                titleLabel.innerHTML = `${escapeHtml(p.text || p.name)} <span class="ml-form-label-type">表格列表</span>`;
+                titleLabel.innerHTML = `${escapeHtml(p.text || p.name)} <span class="ml-form-label-type">${t('param.typeTable')}</span>`;
                 tableContainer.appendChild(titleLabel);
 
                 // 滚动包裹层 + 表格
@@ -5083,7 +5505,7 @@
                 // 操作列表头
                 const actionTh = document.createElement('th');
                 actionTh.className = 'ml-table-action-th';
-                actionTh.textContent = '操作';
+                actionTh.textContent = t('sort.action');
                 headerRow.appendChild(actionTh);
                 thead.appendChild(headerRow);
                 table.appendChild(thead);
@@ -5107,7 +5529,7 @@
                 addBtnRow.className = 'ml-table-add-row';
                 const addBtn = document.createElement('button');
                 addBtn.className = 'ml-btn ml-btn-primary ml-table-add-btn';
-                addBtn.textContent = '+ 添加';
+                addBtn.textContent = t('button.addRow');
                 addBtn.addEventListener('click', () => {
                     // 新增一行，使用 schema 默认值
                     const newRowData = {};
@@ -5136,7 +5558,7 @@
                 group.innerHTML = `
                     <div class="ml-form-label">
                         ${escapeHtml(p.text || p.name)}
-                        <span class="ml-form-label-type">文本</span>
+                        <span class="ml-form-label-type">${t('param.typeText')}</span>
                     </div>
                     <input type="text" class="ml-form-input"
                            id="ml-param-${cssEscape(p.name)}"
@@ -5167,10 +5589,10 @@
             // 显示默认值（如果当前值与默认值不同）
             if (curVal !== p.default) {
                 let defDisplay = p.default;
-                if (p.type === 'boolean') defDisplay = p.default === 'true' ? 'ON (开)' : 'OFF (关)';
+                if (p.type === 'boolean') defDisplay = p.default === 'true' ? t('param.on') : t('param.off');
                 const defaultHint = document.createElement('div');
                 defaultHint.className = 'ml-form-default';
-                defaultHint.textContent = `默认值: ${defDisplay}`;
+                defaultHint.textContent = t('button.default') + ': ' + defDisplay;
                 group.appendChild(defaultHint);
             }
 
@@ -5181,9 +5603,9 @@
         const footer = document.createElement('div');
         footer.className = 'ml-modal-footer';
         footer.innerHTML = `
-            <button class="ml-btn ml-btn-warning" id="ml-modal-reset">恢复默认</button>
-            <button class="ml-btn ml-btn-secondary" id="ml-modal-cancel">取消</button>
-            <button class="ml-btn ml-btn-primary" id="ml-modal-save">保存</button>
+            <button class="ml-btn ml-btn-warning" id="ml-modal-reset">${t('button.resetDefault')}</button>
+            <button class="ml-btn ml-btn-secondary" id="ml-modal-cancel">${t('button.cancel')}</button>
+            <button class="ml-btn ml-btn-primary" id="ml-modal-save">${t('button.save')}</button>
         `;
 
         modal.appendChild(header);
@@ -5282,7 +5704,6 @@
                 order: mod.order
             };
             saveConfig(config);
-            updatePluginsJs(_modData);
 
             _needsRestart = true;
             updateRestartHint();
@@ -5359,7 +5780,7 @@
                         tableContainer.setAttribute('data-table-param', p.name);
                         const titleLabel = document.createElement('div');
                         titleLabel.className = 'ml-form-label';
-                        titleLabel.innerHTML = `${escapeHtml(p.text || p.name)} <span class="ml-form-label-type">表格列表</span>`;
+                        titleLabel.innerHTML = `${escapeHtml(p.text || p.name)} <span class="ml-form-label-type">${t('param.typeTable')}</span>`;
                         tableContainer.appendChild(titleLabel);
                         const scrollWrapper = document.createElement('div');
                         scrollWrapper.className = 'ml-table-scroll-wrapper';
@@ -5374,7 +5795,7 @@
                         });
                         const actionTh = document.createElement('th');
                         actionTh.className = 'ml-table-action-th';
-                        actionTh.textContent = '操作';
+                        actionTh.textContent = t('sort.action');
                         headerRow.appendChild(actionTh);
                         thead.appendChild(headerRow);
                         table.appendChild(thead);
@@ -5391,7 +5812,7 @@
                         addBtnRow.className = 'ml-table-add-row';
                         const addBtn = document.createElement('button');
                         addBtn.className = 'ml-btn ml-btn-primary ml-table-add-btn';
-                        addBtn.textContent = '+ 添加';
+                        addBtn.textContent = t('button.addRow');
                         addBtn.addEventListener('click', () => {
                             const newRowData = {};
                             p.schemaFields.forEach(field => { newRowData[field.name] = field.default !== undefined ? field.default : ''; });
@@ -5415,7 +5836,7 @@
                         inputEl.classList.toggle('on', isOn);
                         const statusEl = document.getElementById(`ml-param-status-${cssEscape(p.name)}`);
                         if (statusEl) {
-                            statusEl.textContent = isOn ? 'ON (开)' : 'OFF (关)';
+                            statusEl.textContent = isOn ? t('param.on') : t('param.off');
                             statusEl.className = `ml-form-toggle-status ${isOn ? 'on' : 'off'}`;
                         }
                     } else if (p.type === 'select') {
@@ -5494,11 +5915,11 @@
         // 检查是否有未保存的修改
         if (_hasUnsavedChanges) {
             showConfirmDialog(
-                "提示",
-                "保存已修改的Mod配置后，进入安装界面。",
+                t('dialog.title'),
+                t('dialog.saveFirst'),
                 [
                     {
-                        text: "保存并进入",
+                        text: t('button.save'),
                         class: "ml-btn-primary",
                         action: () => {
                             hideConfirmDialog();
@@ -5507,7 +5928,7 @@
                         }
                     },
                     {
-                        text: "取消",
+                        text: t('button.cancel'),
                         class: "ml-btn-secondary",
                         action: hideConfirmDialog
                     }
@@ -5530,15 +5951,15 @@
         _installOverlay.style.zIndex = '9999';
 
         _installOverlay.innerHTML = `
-            <div style="text-align: center; background: rgba(20,20,28,0.95); padding: 40px; border-radius: 12px; min-width: 450px;">
-                <div id="ml-drop-zone" style="border: 2px dashed white; border-radius: 12px; padding: 40px 20px; transition: all 0.3s ease;">
+            <div style="text-align: center; background: var(--ml-bg-primary); padding: 40px; border-radius: var(--ml-radius-lg); min-width: 450px; border: 1px solid var(--ml-border-light);">
+                <div id="ml-drop-zone" style="border: 2px dashed var(--ml-border-light); border-radius: var(--ml-radius); padding: 40px 20px; transition: all 0.3s ease;">
                     <div style="font-size: 64px; margin-bottom: 20px;">📁</div>
-                    <div style="font-size: 20px; margin-bottom: 10px; color: white;">拖放.js文件或者mods文件夹至游戏窗口内</div>
+                    <div style="font-size: 20px; margin-bottom: 10px; color: var(--ml-text-primary);">${t('install.dragHint')}</div>
                 </div>
-                <div style="font-size: 14px; color: white; margin: 20px 0;">或点击下方按钮浏览文件，只支持单选&amp;多选js文件导入</div>
-                <button class="ml-btn ml-btn-primary" id="ml-btn-browse" style="margin-bottom: 15px;">浏览本地文件</button>
+                <div style="font-size: 14px; color: var(--ml-text-secondary); margin: 20px 0;">${t('install.orClickBrowse')}</div>
+                <button class="ml-btn ml-btn-primary" id="ml-btn-browse" style="margin-bottom: 15px;">${t('button.browseFiles')}</button>
                 <br>
-                <button class="ml-btn ml-btn-secondary" id="ml-btn-exit-install">退出</button>
+                <button class="ml-btn ml-btn-secondary" id="ml-btn-exit-install">${t('button.exit')}</button>
             </div>
         `;
 
@@ -5559,14 +5980,14 @@
         _installOverlay.addEventListener('dragenter', (e) => {
             e.preventDefault();
             dropZone.style.borderColor = 'var(--ml-accent)';
-            dropZone.style.backgroundColor = 'rgba(74, 158, 255, 0.1)';
+            dropZone.style.backgroundColor = 'rgba(var(--ml-accent-rgb), 0.1)';
         });
 
         _installOverlay.addEventListener('dragleave', (e) => {
             e.preventDefault();
             // 只有离开 overlay 时才重置
             if (!_installOverlay.contains(e.relatedTarget)) {
-                dropZone.style.borderColor = 'white';
+                dropZone.style.borderColor = 'var(--ml-border-light)';
                 dropZone.style.backgroundColor = 'transparent';
             }
         });
@@ -5574,7 +5995,7 @@
         _installOverlay.addEventListener('drop', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            dropZone.style.borderColor = 'white';
+            dropZone.style.borderColor = 'var(--ml-border-light)';
             dropZone.style.backgroundColor = 'transparent';
             handleInstallDrop(e);
         });
@@ -5624,9 +6045,9 @@
         } catch (err) {
             log(2, "无法打开文件浏览器：", err);
             showConfirmDialog(
-                "提示",
-                "请直接拖放文件到窗口中！",
-                [{ text: "确定", class: "ml-btn-primary", action: hideConfirmDialog }]
+                t('dialog.title'),
+                t('install.dragDirectly'),
+                [{ text: t('dialog.ok'), class: "ml-btn-primary", action: hideConfirmDialog }]
             );
         }
     }
@@ -5642,9 +6063,9 @@
 
         if (files.length === 0) {
             showConfirmDialog(
-                "提示",
-                "请拖放 .js 文件或 mods 文件夹！",
-                [{ text: "确定", class: "ml-btn-primary", action: hideConfirmDialog }]
+                t('dialog.title'),
+                t('install.dragJsOrFolder'),
+                [{ text: t('dialog.ok'), class: "ml-btn-primary", action: hideConfirmDialog }]
             );
             return;
         }
@@ -5684,18 +6105,27 @@
         const mod = _modData[index];
         if (!mod) return;
 
+        if (mod.readOnly) {
+            showConfirmDialog(
+                t('dialog.error'),
+                t('workshop.readOnly'),
+                [{ text: t('dialog.ok'), class: 'ml-btn-primary', action: hideConfirmDialog }]
+            );
+            return;
+        }
+
         let extraWarning = '';
         if (_hasUnsavedChanges) {
-            extraWarning = '\n⚠️ 警告：删除后将自动保存所有未保存的配置修改！';
+            extraWarning = '\n' + t('dialog.deleteWarning');
         }
 
         showConfirmDialog(
-            "确认删除",
-            `确定要删除模组「${mod.displayName}」吗？\n\n此操作将不可恢复！${extraWarning}`,
+            t('dialog.confirmDelete'),
+            t('dialog.deleteConfirmMsg').replace('{name}', mod.displayName) + extraWarning,
             [
-                { text: "取消", class: "ml-btn-secondary", action: hideConfirmDialog },
+                { text: t('button.cancel'), class: "ml-btn-secondary", action: hideConfirmDialog },
                 {
-                    text: "确认删除",
+                    text: t('button.confirmDelete'),
                     class: "ml-btn-primary",
                     action: async () => {
                         hideConfirmDialog();
@@ -5717,9 +6147,10 @@
                             delete config[mod.id];
                             saveConfig(config);
 
-                            // 重写 plugins.js
-                            _modData = scanMods();
-                            updatePluginsJs(_modData);
+                            _modData = scanAllMods();
+
+                            // 【V3.15.0 新增】删除后刷新依赖检测
+                            refreshDependencyCheck();
 
                             // 重新渲染
                             renderModList();
@@ -5727,16 +6158,16 @@
 
                             log(3, "模组已删除:", mod.displayName);
                             showConfirmDialog(
-                                "成功",
-                                `已删除模组「${mod.displayName}」！`,
-                                [{ text: "确定", class: "ml-btn-primary", action: hideConfirmDialog }]
+                                t('dialog.success'),
+                                t('dialog.deletedMod').replace('{name}', mod.displayName),
+                                [{ text: t('dialog.ok'), class: "ml-btn-primary", action: hideConfirmDialog }]
                             );
                         } catch (err) {
                             log(1, "删除模组失败:", err);
                             showConfirmDialog(
-                                "错误",
-                                "删除模组失败，请检查控制台日志！",
-                                [{ text: "确定", class: "ml-btn-primary", action: hideConfirmDialog }]
+                                t('dialog.error'),
+                                t('dialog.deleteFailed'),
+                                [{ text: t('dialog.ok'), class: "ml-btn-primary", action: hideConfirmDialog }]
                             );
                         }
                     }
@@ -5748,34 +6179,49 @@
     // ================================================================
     // 9. 标题画面按钮（DOM 化）
     // ================================================================
+    function updateTitleButtonVisibility() {
+        if (!_titleBtn) return;
+        try {
+            if (typeof SceneManager !== 'undefined' && SceneManager._scene) {
+                const isTitle = SceneManager._scene.constructor.name === 'Scene_Title';
+                _titleBtn.style.display = isTitle ? 'block' : 'none';
+            } else {
+                _titleBtn.style.display = 'none';
+            }
+        } catch (e) {
+            _titleBtn.style.display = 'none';
+        }
+    }
+
     function setupTitleButton() {
-        // 创建 DOM 按钮
+        if (_titleBtn) return;
+
         _titleBtn = document.createElement('button');
         _titleBtn.className = 'ml-title-btn';
         _titleBtn.id = 'ml-title-btn';
-        _titleBtn.textContent = '模组管理';
+        _titleBtn.textContent = t('title');
         _titleBtn.style.left = BUTTON_X + 'px';
         _titleBtn.style.top = BUTTON_Y + 'px';
+        _titleBtn.style.display = 'none';
         document.body.appendChild(_titleBtn);
 
         _titleBtn.addEventListener('click', () => {
+            if (showPiracyWarning()) return;
             showModManager();
             try {
                 if (typeof SoundManager !== 'undefined') SoundManager.playOk();
             } catch (e) { /* 忽略 */ }
         });
 
-        // 定时检测场景，仅在标题画面显示按钮
         let lastSceneName = '';
-        const sceneTimer = setInterval(() => {
+        setInterval(() => {
             try {
                 if (typeof SceneManager !== 'undefined' && SceneManager._scene) {
                     const currentName = SceneManager._scene.constructor.name;
                     if (currentName !== lastSceneName) {
                         lastSceneName = currentName;
-                        const isTitle = currentName === 'Scene_Title';
-                        _titleBtn.style.display = isTitle ? 'block' : 'none';
-                        log(3, "场景切换:", currentName, isTitle ? "显示按钮" : "隐藏按钮");
+                        updateTitleButtonVisibility();
+                        log(3, "场景切换:", currentName);
                     }
                 }
             } catch (e) {
@@ -5783,6 +6229,7 @@
             }
         }, 200);
 
+        updateTitleButtonVisibility();
         log(3, "标题画面按钮已创建 (DOM)");
     }
 
@@ -5874,7 +6321,26 @@
     // 11. 初始化
     // ================================================================
     injectStyles();
-    setupTitleButton();
+    ensureModLoaderConfigFile();
+    loadLanguageConfigs();
+    var initMlConfig = loadModLoaderConfig();
+    _currentLanguage = initMlConfig.ml_language || 'zh_CN';
+    if (!_languageConfigs[_currentLanguage]) {
+        _currentLanguage = 'zh_CN';
+    }
+    cleanupLegacyModEntriesFromPluginsJs();
+    installBootstrapHooks();
+    installWindowLoadFallback();
+    bootstrapModLoaderReady();
+    window.addEventListener('load', () => {
+        loadLanguageConfigs();
+        var mlCfg = loadModLoaderConfig();
+        _currentLanguage = mlCfg.ml_language || 'zh_CN';
+        if (!_languageConfigs[_currentLanguage]) {
+            _currentLanguage = 'zh_CN';
+        }
+        setupTitleButton();
+    });
     log(3, `ModLoader ${VERSION} 初始化完成`);
 
 })();

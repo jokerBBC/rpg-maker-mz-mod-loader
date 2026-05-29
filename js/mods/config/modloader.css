@@ -1,0 +1,1570 @@
+/* ===== ModLoader V3.Y.Z DOM UI 样式系统 ===== */
+
+/* ---------- CSS 变量（暗黑主题） ---------- */
+html[data-ml-theme="dark"] {
+    --ml-bg-overlay: rgba(8, 8, 18, 0.88);
+    --ml-bg-primary: rgba(18, 18, 32, 1);
+    --ml-bg-secondary: rgba(28, 28, 48, 0.95);
+    --ml-bg-tertiary: rgba(38, 38, 58, 0.90);
+    --ml-bg-hover: rgba(255, 255, 255, 0.06);
+    --ml-bg-active: rgba(74, 158, 255, 0.12);
+    --ml-bg-selected: rgba(74, 158, 255, 0.18);
+    --ml-border: rgba(255, 255, 255, 0.08);
+    --ml-border-light: rgba(255, 255, 255, 0.15);
+    --ml-text-primary: #e8e8ec;
+    --ml-text-secondary: #9a9ab0;
+    --ml-text-muted: #666680;
+    --ml-accent: #4a9eff;
+    --ml-accent-hover: #5cb0ff;
+    --ml-success: #4caf50;
+    --ml-success-bg: rgba(76, 175, 80, 0.15);
+    --ml-danger: #ef5350;
+    --ml-danger-bg: rgba(239, 83, 80, 0.15);
+    --ml-warning: #ffa726;
+    --ml-warning-bg: rgba(255, 167, 38, 0.15);
+    --ml-radius-sm: 6px;
+    --ml-radius: 10px;
+    --ml-radius-lg: 14px;
+    --ml-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    --ml-shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.6);
+    --ml-transition: 0.2s ease;
+    --ml-font: 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --ml-accent-rgb: 74, 158, 255;
+    --ml-danger-rgb: 239, 83, 80;
+    --ml-warning-rgb: 255, 167, 38;
+    --ml-text-primary-rgb: 232, 232, 236;
+    --ml-param-default: var(--ml-accent);
+    --ml-param-modified: #d4743a;
+}
+
+/* ---------- CSS 变量（暖色主题） ---------- */
+html[data-ml-theme="warm"] {
+    --ml-bg-overlay:    rgba(40, 30, 20, 0.82);
+    --ml-bg-primary:    rgba(255, 248, 240, 1);
+    --ml-bg-secondary:  rgba(245, 235, 220, 0.95);
+    --ml-bg-tertiary:   rgba(235, 220, 200, 0.90);
+    --ml-bg-hover:      rgba(180, 120, 60, 0.08);
+    --ml-bg-active:     rgba(200, 100, 50, 0.12);
+    --ml-bg-selected:   rgba(200, 100, 50, 0.18);
+    --ml-border:        rgba(160, 120, 80, 0.20);
+    --ml-border-light:  rgba(160, 120, 80, 0.30);
+    --ml-text-primary:  #3d2b1a;
+    --ml-text-secondary:#6b5a4a;
+    --ml-text-muted:    #9b8a7a;
+    --ml-accent:        #d4743a;
+    --ml-accent-hover:  #e8884a;
+    --ml-success:       #5a9e4b;
+    --ml-success-bg:    rgba(90, 158, 75, 0.15);
+    --ml-danger:        #c0392b;
+    --ml-danger-bg:     rgba(192, 57, 43, 0.15);
+    --ml-warning:       #e0982a;
+    --ml-warning-bg:    rgba(224, 152, 42, 0.15);
+    --ml-radius-sm:     6px;
+    --ml-radius:        10px;
+    --ml-radius-lg:     14px;
+    --ml-shadow:        0 8px 32px rgba(0, 0, 0, 0.4);
+    --ml-shadow-lg:     0 20px 60px rgba(0, 0, 0, 0.6);
+    --ml-transition:    0.2s ease;
+    --ml-font:          'Microsoft YaHei', 'PingFang SC', 'Noto Sans SC', 'WenQuanYi Micro Hei', sans-serif;
+    --ml-accent-rgb: 212, 116, 58;
+    --ml-danger-rgb: 192, 57, 43;
+    --ml-warning-rgb: 224, 152, 42;
+    --ml-text-primary-rgb: 61, 43, 26;
+    --ml-param-default: var(--ml-accent);
+    --ml-param-modified: #4a9eff;
+}
+
+/* ---------- 主题切换按钮 ---------- */
+.ml-theme-toggle {
+    cursor: pointer;
+    text-decoration: none;
+    font-size: 13px;
+    margin-left: 4px;
+    transition: transform 0.2s ease;
+    display: inline-block;
+}
+
+.ml-theme-toggle:hover {
+    transform: scale(1.2);
+}
+
+.ml-theme-toggle:active {
+    transform: scale(0.9);
+}
+
+/* ---------- 遮罩层 ---------- */
+.ml-overlay {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 9999;
+    background: var(--ml-bg-overlay);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: mlFadeIn 0.25s ease;
+    font-family: var(--ml-font);
+    color: var(--ml-text-primary);
+    user-select: none;
+}
+
+/* ---------- 主容器 ---------- */
+.ml-container {
+    width: 88%;
+    max-width: 1060px;
+    height: 82%;
+    max-height: 720px;
+    display: flex;
+    flex-direction: column;
+    background: var(--ml-bg-primary);
+    border-radius: var(--ml-radius-lg);
+    border: 1px solid var(--ml-border-light);
+    box-shadow: var(--ml-shadow-lg);
+    overflow: hidden;
+    animation: mlSlideUp 0.3s ease;
+}
+
+/* ---------- 头部 ---------- */
+.ml-header {
+    padding: 18px 24px;
+    background: var(--ml-bg-secondary);
+    border-bottom: 1px solid var(--ml-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+}
+
+.ml-header h2 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--ml-text-primary);
+    letter-spacing: 1px;
+}
+
+.ml-header-info {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 13px;
+    color: var(--ml-text-secondary);
+}
+
+.ml-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.ml-badge-success {
+    background: var(--ml-success-bg);
+    color: var(--ml-success);
+}
+
+.ml-badge-warning {
+    background: var(--ml-warning-bg);
+    color: var(--ml-warning);
+}
+
+/* ---------- 内容区域 ---------- */
+.ml-content {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    min-height: 0;
+}
+
+/* ---------- 模组列表面板 ---------- */
+.ml-list-panel {
+    width: 42%;
+    min-width: 280px;
+    border-right: 1px solid var(--ml-border);
+    display: flex;
+    flex-direction: column;
+    background: var(--ml-bg-secondary);
+}
+
+.ml-list-header {
+    padding: 12px 16px;
+    font-size: 12px;
+    color: var(--ml-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 1px solid var(--ml-border);
+    flex-shrink: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.ml-list-header span:nth-child(2) {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ml-text-primary);
+    flex: 1;
+    text-align: center;
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+.ml-list-scroll {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* ---------- 模组条目 ---------- */
+.ml-mod-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: background var(--ml-transition), border-color var(--ml-transition);
+    border-left: 3px solid transparent;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    gap: 10px;
+}
+
+.ml-mod-item:hover {
+    background: var(--ml-bg-hover);
+}
+
+.ml-mod-item.selected {
+    background: var(--ml-bg-selected);
+    border-left-color: var(--ml-accent);
+}
+
+/* ---------- Toggle 开关 ---------- */
+.ml-toggle {
+    position: relative;
+    width: 40px;
+    height: 22px;
+    border-radius: 11px;
+    background: var(--ml-danger-bg);
+    cursor: pointer;
+    transition: background 0.3s ease;
+    flex-shrink: 0;
+}
+
+.ml-toggle.on {
+    background: var(--ml-success);
+}
+
+.ml-toggle-thumb {
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--ml-text-primary);
+    top: 2px;
+    left: 2px;
+    transition: transform 0.3s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.ml-toggle.on .ml-toggle-thumb {
+    transform: translateX(18px);
+}
+
+/* ---------- 【V3.15.0 新增】依赖检测警告样式 ---------- */
+
+/* @base 缺失 - toggle-thumb 红色警告 */
+.ml-toggle-thumb.ml-dep-base-warning {
+    background: #ef4444 !important;
+    box-shadow: 0 0 6px rgba(239, 68, 68, 0.6), 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* @orderAfter 缺失 - toggle-thumb 黄色警告 */
+.ml-toggle-thumb.ml-dep-order-warning {
+    background: #f59e0b !important;
+    box-shadow: 0 0 6px rgba(245, 158, 11, 0.6), 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* 详情面板 - 依赖列表容器 */
+.ml-dep-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    line-height: 1.6;
+}
+
+/* 【V3.15.1 新增】依赖项行容器 */
+.ml-dep-item {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    padding: 2px 0;
+    flex-wrap: wrap;
+}
+
+/* 【V3.15.1 新增】依赖原因说明文本 */
+.ml-dep-reason {
+    font-size: 12px;
+    opacity: 0.85;
+    margin-left: 4px;
+    font-weight: 400;
+}
+
+/* 详情面板 - @base 缺失文本红色 */
+.ml-dep-text-base-missing {
+    color: #ef4444;
+    font-weight: 600;
+    padding: 1px 4px;
+    border-radius: 3px;
+    background: rgba(239, 68, 68, 0.1);
+}
+
+/* 详情面板 - @orderAfter 缺失文本黄色 */
+.ml-dep-text-order-missing {
+    color: #f59e0b;
+    font-weight: 600;
+    padding: 1px 4px;
+    border-radius: 3px;
+    background: rgba(245, 158, 11, 0.1);
+}
+
+/* 详情面板 - 依赖通过文本绿色 */
+.ml-dep-text-pass {
+    color: #22c55e;
+    padding: 1px 4px;
+    border-radius: 3px;
+    background: rgba(34, 197, 94, 0.1);
+}
+
+/* 详情面板 - @base 缺失标签红色 */
+.ml-dep-label-base-missing {
+    color: #ef4444 !important;
+    font-weight: 700;
+}
+
+/* 详情面板 - @orderAfter 缺失标签黄色 */
+.ml-dep-label-order-missing {
+    color: #f59e0b !important;
+    font-weight: 700;
+}
+
+/* ---------- 模组名称 ---------- */
+.ml-mod-name {
+    flex: 1;
+    font-size: 14px;
+    color: var(--ml-text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.4;
+}
+
+.ml-mod-name span {
+    /* @color 渲染的 span 继承行高 */
+    line-height: inherit;
+}
+
+/* ---------- 齿轮图标 ---------- */
+.ml-gear {
+    font-size: 20px;
+    color: var(--ml-text-muted);
+    cursor: pointer;
+    transition: color var(--ml-transition), transform var(--ml-transition);
+    flex-shrink: 0;
+    padding: 2px 4px;
+    border-radius: 4px;
+}
+
+.ml-gear:hover {
+    color: var(--ml-accent);
+    transform: rotate(45deg);
+}
+
+/* ========== 序号显示 ========== */
+.ml-order-text {
+    width: 40px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ml-text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    flex-shrink: 0;
+}
+
+.ml-order-input {
+    width: 40px;
+    height: 28px;
+    border: 1px solid var(--ml-border-light);
+    border-radius: 4px;
+    background: var(--ml-bg-tertiary);
+    color: var(--ml-text-primary);
+    font-size: 13px;
+    text-align: center;
+    flex-shrink: 0;
+    outline: none;
+    transition: all var(--ml-transition);
+}
+
+.ml-order-input:hover {
+    border-color: var(--ml-accent);
+}
+
+.ml-order-input:focus {
+    border-color: var(--ml-accent);
+    box-shadow: 0 0 0 2px rgba(var(--ml-accent-rgb), 0.2);
+}
+
+/* ========== 拖拽效果 ========== */
+.ml-mod-item.dragging {
+    opacity: 0.5;
+    transform: scale(0.97);
+    background: var(--ml-bg-tertiary) !important;
+}
+
+/* 拖放到上半部分：顶部边框提示 */
+.ml-mod-item.drag-over-top {
+    border-top: 2px solid var(--ml-accent);
+    background: var(--ml-bg-active);
+}
+
+/* 拖放到下半部分：底部边框提示 */
+.ml-mod-item.drag-over-bottom {
+    border-bottom: 2px solid var(--ml-accent);
+    background: var(--ml-bg-active);
+}
+
+/* ========== 未保存提示样式 ========== */
+.ml-unsaved-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--ml-warning);
+}
+
+.ml-unsaved-indicator.hidden {
+    display: none;
+}
+
+/* ---------- 详情面板 ---------- */
+.ml-detail-panel {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+    background: var(--ml-bg-primary);
+}
+
+.ml-detail-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--ml-text-muted);
+    font-size: 15px;
+}
+
+.ml-detail-section {
+    margin-bottom: 20px;
+}
+
+.ml-detail-label {
+    font-size: 11px;
+    color: var(--ml-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+}
+
+.ml-detail-value {
+    font-size: 15px;
+    color: var(--ml-text-primary);
+    line-height: 1.6;
+}
+
+.ml-detail-value span {
+    line-height: inherit;
+}
+
+.ml-detail-help {
+    font-size: 13px;
+    color: var(--ml-text-secondary);
+    line-height: 1.8;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.ml-detail-help span {
+    line-height: inherit;
+}
+
+.ml-detail-params {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ml-detail-param-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: var(--ml-bg-tertiary);
+    border-radius: var(--ml-radius-sm);
+    font-size: 13px;
+}
+
+.ml-detail-param-name {
+    color: var(--ml-text-secondary);
+    min-width: 100px;
+}
+
+.ml-detail-param-value {
+    color: var(--ml-param-default);
+    font-weight: 500;
+}
+
+.ml-detail-param-value.modified {
+    color: var(--ml-param-modified);
+    font-weight: 500;
+}
+
+.ml-detail-param-type {
+    color: var(--ml-text-muted);
+    font-size: 11px;
+    margin-left: auto;
+}
+
+/* ---------- 底部栏 ---------- */
+.ml-footer {
+    padding: 14px 24px;
+    background: var(--ml-bg-secondary);
+    border-top: 1px solid var(--ml-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+}
+
+.ml-restart-hint {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--ml-warning);
+    animation: mlPulse 2s ease infinite;
+}
+
+.ml-restart-hint.hidden {
+    display: none;
+}
+
+.ml-footer-actions {
+    display: flex;
+    gap: 10px;
+}
+
+/* ---------- 按钮 ---------- */
+.ml-btn {
+    padding: 8px 20px;
+    border-radius: var(--ml-radius-sm);
+    border: 1px solid transparent;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: var(--ml-font);
+    transition: all var(--ml-transition);
+    outline: none;
+}
+
+.ml-btn:focus-visible {
+    box-shadow: 0 0 0 2px var(--ml-accent);
+}
+
+.ml-btn-primary {
+    background: var(--ml-accent);
+    color: #fff;
+    border-color: var(--ml-accent);
+}
+
+.ml-btn-primary:hover {
+    background: var(--ml-accent-hover);
+    border-color: var(--ml-accent-hover);
+}
+
+.ml-btn-secondary {
+    background: var(--ml-bg-hover);
+    color: var(--ml-text-secondary);
+    border-color: var(--ml-border-light);
+}
+
+.ml-btn-secondary:hover {
+    background: var(--ml-bg-active);
+    color: var(--ml-text-primary);
+}
+
+.ml-btn-danger {
+    background: var(--ml-danger-bg);
+    color: var(--ml-danger);
+    border-color: rgba(var(--ml-danger-rgb), 0.3);
+}
+
+.ml-btn-danger:hover {
+    background: rgba(var(--ml-danger-rgb), 0.25);
+}
+
+.ml-btn-warning {
+    background: var(--ml-warning-bg);
+    color: var(--ml-warning);
+    border-color: rgba(var(--ml-warning-rgb), 0.3);
+}
+
+.ml-btn-warning:hover {
+    background: rgba(var(--ml-warning-rgb), 0.25);
+}
+
+/* ---------- 参数编辑模态框 ---------- */
+.ml-modal-overlay {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 10001;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: mlFadeIn 0.15s ease;
+    font-family: var(--ml-font);
+    color: var(--ml-text-primary);
+    user-select: none;
+}
+
+.ml-modal {
+    background: var(--ml-bg-primary);
+    border-radius: var(--ml-radius-lg);
+    border: 1px solid var(--ml-border-light);
+    box-shadow: var(--ml-shadow-lg);
+    width: 520px;
+    max-width: 92vw;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    animation: mlSlideUp 0.2s ease;
+    overflow: hidden;
+}
+
+.ml-modal-header {
+    padding: 18px 24px;
+    background: var(--ml-bg-secondary);
+    border-bottom: 1px solid var(--ml-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+}
+
+.ml-modal-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--ml-text-primary);
+}
+
+.ml-modal-close {
+    background: none;
+    border: none;
+    color: var(--ml-text-muted);
+    font-size: 22px;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+    transition: color var(--ml-transition);
+}
+
+.ml-modal-close:hover {
+    color: var(--ml-text-primary);
+}
+
+.ml-modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 24px;
+}
+
+.ml-modal-footer {
+    padding: 14px 24px;
+    background: var(--ml-bg-secondary);
+    border-top: 1px solid var(--ml-border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+/* ---------- 表单控件 ---------- */
+.ml-form-group {
+    margin-bottom: 18px;
+}
+
+.ml-form-group:last-child {
+    margin-bottom: 0;
+}
+
+.ml-form-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: var(--ml-text-secondary);
+}
+
+.ml-form-label-type {
+    font-size: 11px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--ml-bg-tertiary);
+    color: var(--ml-text-muted);
+}
+
+.ml-form-desc {
+    font-size: 11px;
+    color: var(--ml-text-muted);
+    margin-top: 4px;
+}
+
+.ml-form-default {
+    font-size: 11px;
+    color: var(--ml-text-muted);
+    margin-top: 2px;
+}
+
+.ml-form-input {
+    width: 100%;
+    padding: 9px 14px;
+    background: var(--ml-bg-hover);
+    border: 1px solid var(--ml-border-light);
+    border-radius: var(--ml-radius-sm);
+    color: var(--ml-text-primary);
+    font-size: 14px;
+    font-family: var(--ml-font);
+    outline: none;
+    transition: border-color var(--ml-transition), box-shadow var(--ml-transition);
+    box-sizing: border-box;
+}
+
+.ml-form-input:focus {
+    border-color: var(--ml-accent);
+    box-shadow: 0 0 0 2px rgba(var(--ml-accent-rgb), 0.2);
+}
+
+.ml-form-input::placeholder {
+    color: var(--ml-text-muted);
+}
+
+.ml-form-select {
+    width: 100%;
+    padding: 9px 14px;
+    background: var(--ml-bg-hover);
+    border: 1px solid var(--ml-border-light);
+    border-radius: var(--ml-radius-sm);
+    color: var(--ml-text-primary);
+    font-size: 14px;
+    font-family: var(--ml-font);
+    outline: none;
+    cursor: pointer;
+    transition: border-color var(--ml-transition);
+    box-sizing: border-box;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239a9ab0' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 32px;
+}
+
+.ml-form-select:focus {
+    border-color: var(--ml-accent);
+}
+
+.ml-form-select option {
+    background: var(--ml-bg-primary);
+    color: var(--ml-text-primary);
+}
+
+/* 布尔值行内切换 */
+.ml-form-toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.ml-form-toggle-status {
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.ml-form-toggle-status.on {
+    color: var(--ml-success);
+}
+
+.ml-form-toggle-status.off {
+    color: var(--ml-danger);
+}
+
+/* 数值输入行 */
+.ml-form-number-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ml-form-number-input {
+    flex: 1;
+}
+
+.ml-form-number-btn {
+    min-width: 70px;
+    height: 32px;
+    padding: 0 10px;
+    border-radius: var(--ml-radius-sm);
+    border: 1px solid var(--ml-border-light);
+    background: var(--ml-bg-hover);
+    color: var(--ml-text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--ml-transition);
+    white-space: nowrap;
+}
+
+.ml-form-number-btn:hover:not(.disabled) {
+    background: rgba(var(--ml-accent-rgb), 0.25);
+    border-color: var(--ml-accent);
+    color: var(--ml-accent);
+}
+
+.ml-form-number-btn.disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    background: rgba(var(--ml-danger-rgb), 0.08);
+}
+
+.ml-form-number-btn.disabled:hover {
+    background: rgba(var(--ml-danger-rgb), 0.08);
+    border-color: var(--ml-border-light);
+    color: var(--ml-text-secondary);
+}
+
+/* 数值滑动条 */
+.ml-form-slider-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.ml-form-slider-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.ml-form-slider-value {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ml-accent);
+    cursor: pointer;
+    padding: 2px 8px;
+    border-radius: 4px;
+    min-width: 40px;
+    text-align: center;
+    transition: background var(--ml-transition);
+}
+
+.ml-form-slider-value:hover {
+    background: rgba(var(--ml-accent-rgb), 0.15);
+}
+
+.ml-form-slider-range {
+    width: 100%;
+    height: 6px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--ml-bg-active);
+    border-radius: 3px;
+    outline: none;
+    cursor: pointer;
+}
+
+.ml-form-slider-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--ml-accent);
+    cursor: pointer;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    transition: transform 0.15s ease;
+}
+
+.ml-form-slider-range::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+}
+
+.ml-form-slider-range::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--ml-accent);
+    cursor: pointer;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.ml-form-slider-number-input {
+    width: 80px;
+    padding: 4px 8px;
+    background: var(--ml-bg-hover);
+    border: 1px solid var(--ml-accent);
+    border-radius: var(--ml-radius-sm);
+    color: var(--ml-text-primary);
+    font-size: 14px;
+    font-weight: 600;
+    text-align: center;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.ml-form-slider-bounds {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--ml-text-muted);
+}
+
+/* 长文本 textarea */
+.ml-form-textarea {
+    width: 100%;
+    min-height: 100px;
+    padding: 9px 14px;
+    background: var(--ml-bg-hover);
+    border: 1px solid var(--ml-border-light);
+    border-radius: var(--ml-radius-sm);
+    color: var(--ml-text-primary);
+    font-size: 14px;
+    font-family: var(--ml-font);
+    outline: none;
+    transition: border-color var(--ml-transition), box-shadow var(--ml-transition);
+    box-sizing: border-box;
+    white-space: pre;
+    font-family: monospace;
+    resize: vertical;
+}
+
+.ml-form-textarea:focus {
+    border-color: var(--ml-accent);
+    box-shadow: 0 0 0 2px rgba(var(--ml-accent-rgb), 0.2);
+}
+
+/* 数据库引用下拉 */
+.ml-form-db-hint {
+    font-size: 11px;
+    color: var(--ml-danger);
+    margin-top: 4px;
+    font-style: italic;
+}
+
+/* ---------- 标题画面按钮 ---------- */
+.ml-title-btn {
+    position: fixed;
+    z-index: 9998;
+    padding: 10px 18px;
+    background: var(--ml-bg-primary);
+    border: 1px solid var(--ml-border-light);
+    border-radius: var(--ml-radius);
+    color: var(--ml-text-primary);
+    font-size: 14px;
+    font-family: var(--ml-font);
+    cursor: pointer;
+    transition: all var(--ml-transition);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    user-select: none;
+    display: none;
+}
+
+.ml-title-btn:hover {
+    background: rgba(var(--ml-accent-rgb), 0.2);
+    border-color: var(--ml-accent);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+.ml-title-btn:active {
+    transform: translateY(0);
+}
+
+/* ---------- 自定义滚动条 ---------- */
+.ml-list-scroll::-webkit-scrollbar,
+.ml-detail-panel::-webkit-scrollbar,
+.ml-modal-body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.ml-list-scroll::-webkit-scrollbar-track,
+.ml-detail-panel::-webkit-scrollbar-track,
+.ml-modal-body::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.ml-list-scroll::-webkit-scrollbar-thumb,
+.ml-detail-panel::-webkit-scrollbar-thumb,
+.ml-modal-body::-webkit-scrollbar-thumb {
+    background: var(--ml-border-light);
+    border-radius: 3px;
+}
+
+.ml-list-scroll::-webkit-scrollbar-thumb:hover,
+.ml-detail-panel::-webkit-scrollbar-thumb:hover,
+.ml-modal-body::-webkit-scrollbar-thumb:hover {
+    background: var(--ml-accent);
+}
+
+/* ---------- 动画 ---------- */
+@keyframes mlFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes mlSlideUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes mlPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+/* ---------- 空状态 ---------- */
+.ml-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 40px;
+    color: var(--ml-text-muted);
+    text-align: center;
+}
+
+.ml-drop-zone {
+    border: 2px dashed var(--ml-border-light);
+    border-radius: var(--ml-radius-lg);
+    padding: 30px 40px;
+    margin-top: 20px;
+    transition: all var(--ml-transition);
+}
+
+.ml-drop-zone.drag-over {
+    border-color: var(--ml-accent);
+    background: var(--ml-bg-active);
+}
+
+.ml-drop-zone-icon {
+    font-size: 48px;
+    margin-bottom: 10px;
+}
+
+.ml-drop-zone-text {
+    font-size: 16px;
+    color: var(--ml-text-secondary);
+}
+
+.ml-drop-zone-hint {
+    font-size: 12px;
+    margin-top: 8px;
+}
+
+.ml-empty-state-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.4;
+}
+
+.ml-empty-state-text {
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+/* ================================================================
+   阶段2新增：struct 折叠面板 + table 表格列表 样式
+   ================================================================ */
+
+/* ---- 外层容器加宽（当模态框包含 struct/table 时通过 JS 添加此类） ---- */
+.ml-modal.ml-modal-wide {
+    width: 90vw !important;
+    max-width: 1200px !important;
+}
+
+/* ---- struct 折叠面板 ---- */
+.ml-struct-details {
+    border: 1px solid var(--ml-border);
+    border-radius: 6px;
+    margin: 4px 0;
+    transition: background 0.2s;
+}
+
+/* 一级折叠：带背景色和左边距 */
+.ml-struct-depth-1 {
+    padding-left: 15px;
+    background: var(--ml-bg-tertiary);
+}
+
+/* 二级折叠：透明背景，更大左边距 */
+.ml-struct-depth-2 {
+    padding-left: 30px;
+    background: transparent;
+}
+
+/* 三级及更深：最大 40px 左边距 */
+.ml-struct-depth-3 {
+    padding-left: 40px;
+    background: transparent;
+}
+
+.ml-struct-summary {
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 13px;
+    padding: 6px 10px;
+    user-select: none;
+    color: var(--ml-text-primary);
+    outline: none;
+}
+
+.ml-struct-summary:hover {
+    color: var(--ml-accent);
+}
+
+.ml-struct-summary::marker {
+    color: var(--ml-accent);
+}
+
+.ml-struct-body {
+    padding: 4px 0 8px 0;
+}
+
+.ml-struct-field {
+    margin: 4px 0;
+}
+
+.ml-struct-field .ml-form-label {
+    font-size: 12px;
+    margin-bottom: 2px;
+}
+
+.ml-struct-field .ml-form-label-type {
+    font-size: 10px;
+}
+
+.ml-struct-input {
+    max-width: 280px;
+}
+
+.ml-struct-select {
+    max-width: 280px;
+}
+
+/* ---- table 表格列表 ---- */
+.ml-table-container {
+    margin: 8px 0;
+    width: 100%;
+}
+
+.ml-table-scroll-wrapper {
+    overflow-x: auto;
+    width: 100%;
+    border: 1px solid var(--ml-border);
+    border-radius: 6px;
+}
+
+.ml-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    table-layout: auto;
+}
+
+.ml-table thead {
+    background: var(--ml-bg-hover);
+}
+
+.ml-table th {
+    padding: 6px 8px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 11px;
+    color: var(--ml-text-primary);
+    white-space: nowrap;
+    border-bottom: 2px solid var(--ml-border);
+}
+
+.ml-table-action-th {
+    text-align: center;
+    width: 90px;
+    min-width: 90px;
+}
+
+.ml-table-row {
+    border-bottom: 1px solid var(--ml-border);
+    transition: background 0.15s;
+}
+
+.ml-table-row:hover {
+    background: var(--ml-bg-hover);
+}
+
+.ml-table-cell {
+    padding: 4px 6px;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+.ml-table-action-cell {
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* 表格内微型输入框 */
+.ml-table-input {
+    width: 80px;
+    min-width: 60px;
+    max-width: 140px;
+    padding: 2px 4px;
+    font-size: 11px;
+    border: 1px solid var(--ml-border);
+    border-radius: 3px;
+    background: var(--ml-bg-tertiary);
+    color: var(--ml-text-primary);
+}
+
+.ml-table-input:focus {
+    border-color: var(--ml-accent);
+    outline: none;
+}
+
+.ml-table-number {
+    width: 60px;
+    min-width: 50px;
+    max-width: 90px;
+}
+
+/* 表格内微型色块 */
+.ml-table-color {
+    width: 28px;
+    height: 22px;
+    border: 1px solid var(--ml-border);
+    border-radius: 3px;
+    cursor: pointer;
+    padding: 0;
+}
+
+/* 表格内微型下拉框 */
+.ml-table-select {
+    max-width: 120px;
+    padding: 2px 4px;
+    font-size: 11px;
+    border: 1px solid var(--ml-border);
+    border-radius: 3px;
+    background: var(--ml-bg-tertiary);
+    color: var(--ml-text-primary);
+}
+
+.ml-table-select option { background: var(--ml-bg-primary); color: var(--ml-text-primary); }
+
+
+.ml-table-select:focus {
+    border-color: var(--ml-accent);
+    outline: none;
+}
+
+/* 表格内微型拨动开关 */
+.ml-table-switch {
+    position: relative;
+    display: inline-block;
+    width: 32px;
+    height: 18px;
+}
+
+.ml-table-switch .ml-form-switch-slider {
+    width: 32px;
+    height: 18px;
+}
+
+.ml-table-switch .ml-form-switch-slider::before {
+    height: 14px;
+    width: 14px;
+    left: 2px;
+    bottom: 2px;
+}
+
+.ml-table-switch input:checked + .ml-form-switch-slider::before {
+    transform: translateX(14px);
+}
+
+/* 表格操作按钮 */
+.ml-table-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: 1px solid var(--ml-border);
+    border-radius: 3px;
+    background: var(--ml-bg-tertiary);
+    color: var(--ml-text-primary);
+    cursor: pointer;
+    font-size: 10px;
+    margin: 0 1px;
+    padding: 0;
+    transition: all 0.15s;
+}
+
+.ml-table-action-btn:hover {
+    background: var(--ml-bg-hover);
+    border-color: var(--ml-accent);
+    color: var(--ml-accent);
+}
+
+.ml-table-delete-btn:hover {
+    background: var(--ml-danger-bg);
+    border-color: var(--ml-danger);
+    color: var(--ml-danger);
+}
+
+/* 表格只读降级提示 */
+.ml-table-readonly {
+    font-size: 10px;
+    color: var(--ml-text-muted);
+    font-style: italic;
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: inline-block;
+}
+
+/* 添加行按钮区域 */
+.ml-table-add-row {
+    margin-top: 6px;
+    display: flex;
+    justify-content: flex-start;
+}
+
+.ml-table-add-btn {
+    font-size: 12px;
+    padding: 4px 12px;
+}
+
+/* ---------- 更新日志查看器 ---------- */
+.ml-changelog-link {
+    color: var(--ml-accent);
+    cursor: pointer;
+    text-decoration: underline;
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 11px;
+    margin-left: 2px;
+}
+
+.ml-changelog-link:hover {
+    color: var(--ml-accent-hover, #64b5f6);
+}
+
+.ml-changelog-overlay {
+    z-index: 10002;
+}
+
+.ml-changelog-modal {
+    width: 720px;
+    max-width: 94vw;
+    max-height: 88vh;
+}
+
+.ml-changelog-body {
+    padding: 20px 28px;
+    line-height: 1.7;
+    color: var(--ml-text-primary);
+}
+
+.ml-changelog-body h1.ml-changelog-h1 {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--ml-text-primary);
+    margin: 8px 0 16px 0;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--ml-border);
+}
+
+.ml-changelog-body h2.ml-changelog-h2 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--ml-accent);
+    margin: 24px 0 12px 0;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--ml-border-light);
+}
+
+.ml-changelog-body h3.ml-changelog-h3 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ml-text-primary);
+    margin: 18px 0 8px 0;
+}
+
+.ml-changelog-body h4.ml-changelog-h4 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ml-text-secondary);
+    margin: 14px 0 6px 0;
+}
+
+.ml-changelog-body .ml-changelog-ul {
+    margin: 4px 0 12px 0;
+    padding-left: 24px;
+    list-style: disc;
+}
+
+.ml-changelog-body .ml-changelog-ul li {
+    margin: 3px 0;
+    font-size: 13px;
+    color: var(--ml-text-secondary);
+    line-height: 1.6;
+}
+
+.ml-changelog-body .ml-changelog-p {
+    margin: 4px 0;
+    font-size: 13px;
+    color: var(--ml-text-secondary);
+    line-height: 1.6;
+}
+
+.ml-changelog-body hr.ml-changelog-hr {
+    border: none;
+    border-top: 1px solid var(--ml-border);
+    margin: 20px 0;
+}
+
+.ml-changelog-body code {
+    background: var(--ml-bg-tertiary, rgba(255,255,255,0.1));
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 12px;
+}
+
+.ml-changelog-body strong {
+    color: var(--ml-text-primary);
+    font-weight: 600;
+}
+
+/* ⚙ 系统设置齿轮 */
+.ml-settings-gear {
+    font-size: 22px;
+    color: var(--ml-text-muted);
+    cursor: pointer;
+    transition: color var(--ml-transition), transform var(--ml-transition);
+    flex-shrink: 0;
+    padding: 2px 4px;
+    border-radius: 4px;
+    line-height: 1;
+}
+
+.ml-settings-gear:hover {
+    color: var(--ml-accent);
+    transform: rotate(60deg);
+}
+
+/* 系统设置下拉卡片 */
+.ml-settings-card {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 8px;
+    background: var(--ml-bg-primary);
+    border: 1px solid var(--ml-border-light);
+    border-radius: var(--ml-radius);
+    box-shadow: var(--ml-shadow-lg);
+    padding: 16px 20px;
+    min-width: 220px;
+    z-index: 10003;
+    animation: mlSlideDown 0.2s ease;
+}
+
+.ml-settings-item {
+    margin-bottom: 14px;
+}
+
+.ml-settings-item:last-child {
+    margin-bottom: 0;
+}
+
+.ml-settings-label {
+    display: block;
+    font-size: 12px;
+    color: var(--ml-text-muted);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.ml-settings-select {
+    width: 100%;
+}
+
+/* 主题切换按钮组 */
+.ml-settings-theme-btns {
+    display: flex;
+    gap: 6px;
+}
+
+.ml-settings-theme-btn {
+    flex: 1;
+    padding: 6px 12px;
+    border: 1px solid var(--ml-border-light);
+    border-radius: var(--ml-radius-sm);
+    background: var(--ml-bg-hover);
+    color: var(--ml-text-secondary);
+    font-size: 12px;
+    font-family: var(--ml-font);
+    cursor: pointer;
+    transition: all var(--ml-transition);
+    white-space: nowrap;
+}
+
+.ml-settings-theme-btn:hover {
+    background: var(--ml-bg-active);
+    color: var(--ml-text-primary);
+}
+
+.ml-settings-theme-btn.active {
+    background: rgba(var(--ml-accent-rgb), 0.2);
+    border-color: var(--ml-accent);
+    color: var(--ml-accent);
+    font-weight: 600;
+}
+
+@keyframes mlSlideDown {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
