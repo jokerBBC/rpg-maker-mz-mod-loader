@@ -1,29 +1,39 @@
-# RMMZ Mod Loader (RPG Maker MZ Mod Loader)
+# RMMZ Mod Loader (RPG Maker MZ Mod Loader) v4.0.0
 
-> A mod loader and in-game mod manager for RPG Maker MZ (RMMZ) games, with UI for enabling/disabling mods, editing plugin parameters, and reordering load order.
+> In-game mod manager for RPG Maker MZ (RMMZ): manage local mods and Steam Workshop mods — toggle, edit parameters, reorder with dependency checks, drag-and-drop install. Multilingual UI (Simplified Chinese / Traditional Chinese / English), dark/warm themes. Config saved in `mod_config.json` (not `plugins.js`).
+
+> RMMZ 模组管理器 v4：游戏内管理本地/Steam 创意工坊 Mod，开关、参数编辑、依赖检测与排序、拖放安装；多语言界面与双主题；配置写入 `mod_config.json`（不写 `plugins.js`）。
 
 RMMZ Mod Loader runs inside the game and provides an in-game menu to manage mods.  
-It only registers .js plugins into the plugin list; to inject data into the game, a separate data injection mod is required.
+It only registers `.js` plugins; to inject data into the game database at runtime, a separate data-injection mod is required.
 
-Key features:
-- In-game mod management (no need to edit plugins.js manually)
-- Enable/disable mods and edit their parameters
-- Reorder mod load order by drag-and-drop
-- Drag-and-drop installation of .js mods or a `mods/` folder
-- @text aliases for Chinese parameter names
-- @schema templates for struct/table parameters
+## Key features
+
+- In-game mod management (no external tools)
+- **Local mods** and **Steam Workshop mods** (scan `workshop/content/<AppID>/`)
+- Enable/disable mods; rich parameter editor (number, boolean, string, select, color, note, database refs, struct, table)
+- Reorder load order by drag-and-drop or index; `@base` / `@orderAfter` dependency checks
+- Drag-and-drop install of `.js` mods or a `mods/` folder (local mods only)
+- Multilingual UI: `config/language/zh_CN.json`, `zh_TW.json`, `en.json`
+- Dark / warm themes; preferences in `modloader_config.json`
+- Config persisted in `mod_config.json` — survives official `plugins.js` resets
+- `@text` aliases for localized parameter display names
+- `@define-schema` / `@schema` templates for struct/table parameters
 
 ## Documentation
 
-- [README (Chinese)](https://github.com/jokerBBC/RPG-maker-mz-mod-loader#readme): Overview, installation, usage
-- [Changelog](https://github.com/jokerBBC/RPG-maker-mz-mod-loader/blob/main/docs/modloader_CHANGELOG.md): Release history
+- [README (Chinese)](https://github.com/jokerBBC/rpg-maker-mz-mod-loader#readme): Overview, installation, usage
+- [README (English)](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/blob/main/README-en.md): English guide
+- [Changelog](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/blob/main/js/mods/docs/modloader_CHANGELOG.md): Release history
+- [Workshop author guide](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/blob/main/js/mods/docs/V4_workshop_%E4%BD%9C%E8%80%85%E8%A7%84%E8%8C%83.md): Workshop mod packaging (Chinese)
+- [ModLoader dev guide](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/blob/main/js/mods/docs/RMMZ_ModLoader_%E5%BC%80%E5%8F%91%E8%A7%84%E8%8C%83.md): Internal development spec (Chinese)
 
 ## Example Mods
 
-- [TestMod.js](https://github.com/jokerBBC/RPG-maker-mz-mod-loader/blob/main/js/mods/TestMod.js): Basic parameter type tests
-- [TestSchemaMod.js](https://github.com/jokerBBC/RPG-maker-mz-mod-loader/blob/main/js/mods/TestSchemaMod.js): struct/table and @schema examples
-- [mydrop.js](https://github.com/jokerBBC/RPG-maker-mz-mod-loader/blob/main/js/mods/mydrop.js): Practical mod – monster drop extensions
+- [TestMod.js](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/blob/main/js/mods/TestMod.js): Basic parameter type tests
+- [TestSchemaMod.js](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/blob/main/js/mods/TestSchemaMod.js): struct/table and @schema examples
+- [mydrop.js](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/blob/main/js/mods/mydrop.js): Practical mod – monster drop extensions
 
 ## Optional
 
-- [LICENSE](https://github.com/jokerBBC/RPG-maker-mz-mod-loader/blob/main/LICENSE): MIT License
+- [LICENSE](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/blob/main/LICENSE): MIT License
