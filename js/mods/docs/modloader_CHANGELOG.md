@@ -1,5 +1,26 @@
 # ModLoader 更新日志
 
+## V4.1.1 (2026-05-31)
+
+### mod_config 旧键兼容
+
+- **新增**：读取时兼容 V3.x 本地键 `../mods/<脚本基名>`（含 V1 布尔值 `true`/`false` 条目），映射到 `local:<包名>:<脚本基名>`
+- **行为**：保存/删除后全量重写 config，旧键自动清除，玩家无需跑 `migrate-mod-config-keys.js`
+- **文案**：mods 文件夹导入提示改为「检测到导入 mods 文件夹」；无效拖放提示改为「拖放安装仅支持：.js 文件或 mods 文件夹！」
+- **清理**：移除工坊 Mod 删除时永不触发的只读弹窗死代码（删除模式下本就不显示垃圾箱）
+
+## V4.1.0 (2026-05-30)
+
+### 统一包结构（破坏性变更）
+
+- **本地**：Mod 脚本迁至 `js/mods/_localmods/<包名>/` 包根；配置键 `local:<包名>:<脚本基名>`
+- **工坊**：取消 `js/mods/` 子目录，脚本与 `preview.png`、`modloader.json` 均在订阅包根
+- **共用**：`discoverPackageScripts` 扫描包根一层 `.js`；本地/工坊均支持 preview 缩略 + 点击弹窗
+- **安装**：拖/选单个 `.js` → `_localmods/<基名>/<基名>.js`；整 mods 文件夹仍复制到 `js/mods/` 根
+- **删除**：本地 Mod **整包删除** `_localmods/<包名>/`；多脚本包确认框列出全部脚本；删除后重排 order 并写回 config
+- **迁移**：`tools/migrate-local-mods-to-localmods.js`、`tools/migrate-mod-config-keys.js`（不内置管理器）
+- **文档**：`docs/V4.1_unified_package_plan.md`、[`使用手册.md`](使用手册.md)
+
 ## V4.0.1 (2026-05-30)
 
 ### 工坊规范收紧

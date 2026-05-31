@@ -199,7 +199,7 @@ js/mods/_workshop/<publishedFileId>/   → junction 指向上述工坊包内 js/
 
 | 文档 | 用途 |
 |------|------|
-| `docs/V4_workshop_作者规范.md` | 游戏作者开启工坊、包结构、自测 |
+| `docs/V4_workshop_作者规范.md` | 已迁移至 [使用手册.md](使用手册.md) |
 | `docs/modloader_CHANGELOG.md` | 版本变更 |
 | `docs/guide/README.md` | 玩家/整合包说明 |
 | `docs/RMMZ_ModLoader_开发规范.md` | ModLoader 维护者架构 |

@@ -2,7 +2,7 @@
  * @target MZ
  * @plugindesc 游戏内模组管理器（DOM化UI & 现代交互 & 拖放添加Mod & 滑动条/长文本/数据库引用）
  * @author joker创意 / GLM核心代码
- * @version V4.0.1
+ * @version V4.1.1
  *
  * @param Mod Button X
  * @type number
@@ -111,7 +111,7 @@
     // 1. 基础配置与日志系统
     // ================================================================
     const ModName = "ModLoader";
-    const VERSION = "V4.0.1";
+    const VERSION = "V4.1.1";
     const DEBUG_LEVEL = 0;
 
     const log = (level, ...args) => {
@@ -153,6 +153,7 @@
     const fs = require('fs');
     const pathMod = require('path');
     const MODS_DIR = pathMod.join(process.cwd(), 'js', 'mods');
+    const LOCALMODS_DIR = pathMod.join(MODS_DIR, '_localmods');
     const WORKSHOP_BRIDGE_DIR = pathMod.join(MODS_DIR, '_workshop');
     const CONFIG_PATH = pathMod.join(MODS_DIR, 'mod_config.json');
     const PLUGINS_PATH = pathMod.join(process.cwd(), 'js', 'plugins.js');
@@ -248,15 +249,38 @@
     }
 
     function loadConfig() {
-        if (!fs.existsSync(CONFIG_PATH)) return { plugins: [] };
+        if (!fs.existsSync(CONFIG_PATH)) return {};
         try {
             const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
-            if (!config.plugins) config.plugins = [];
-            return config;
+            return config && typeof config === 'object' ? config : {};
         } catch (e) {
             log(1, "加载配置失败", e);
-            return { plugins: [] };
+            return {};
         }
+    }
+
+    /**
+     * V3.x 本地 Mod 配置键：../mods/<脚本基名>
+     * V4.1+ 本地 Mod 配置键：local:<包名>:<脚本基名>
+     * 读取时兼容旧键；保存时仅写入新键（saveAllChanges / persistModListToConfig）
+     */
+    function resolveModConfigEntry(config, modId, scriptBaseName) {
+        if (!config) return undefined;
+        if (Object.prototype.hasOwnProperty.call(config, modId)) {
+            return config[modId];
+        }
+        if (scriptBaseName) {
+            const legacyKey = '../mods/' + scriptBaseName;
+            if (Object.prototype.hasOwnProperty.call(config, legacyKey)) {
+                log(3, 'mod_config 兼容旧键:', legacyKey, '→', modId);
+                return config[legacyKey];
+            }
+        }
+        return undefined;
+    }
+
+    function isModConfigMetaKey(key) {
+        return key === 'plugins';
     }
 
     // ================================================================
@@ -771,7 +795,7 @@
         }
         
         // 构建清单
-        let listText = '';
+        let listText = t('info.format.detectedModsFolderImport') + '\n\n';
         if (newFiles.length > 0) {
             listText += '✨ ' + t('info.format.新增mod') + '（' + newFiles.length + '个）:\n';
             listText += newFiles.map(f => '  - ' + f).join('\n');
@@ -782,10 +806,7 @@
             listText += updateFiles.map(f => '  - ' + f).join('\n');
             listText += '\n\n';
         }
-        if (newFiles.length === 0 && updateFiles.length === 0) {
-            listText += t('info.format.未检测到js文件变化');
-        }
-        listText += '\n' + t('info.format.会覆盖整个mods文件夹');
+        listText += t('info.format.会覆盖整个mods文件夹');
         
         const hasUpdates = updateFiles.length > 0;
         
@@ -810,6 +831,7 @@
                             let currentMaxOrder = 0;
                             
                             for (const modId in config) {
+                                if (isModConfigMetaKey(modId)) continue;
                                 if (config[modId] && typeof config[modId] === 'object' && config[modId].order !== undefined) {
                                     if (config[modId].order > currentMaxOrder) {
                                         currentMaxOrder = config[modId].order;
@@ -819,13 +841,14 @@
                             
                             for (const mod of _modData) {
                                 const modId = mod.id;
-                                if (!config[modId] || typeof config[modId] === 'boolean') {
+                                const scriptBaseName = mod.fileName ? pathMod.parse(mod.fileName).name : null;
+                                const existing = resolveModConfigEntry(config, modId, scriptBaseName);
+                                if (existing === undefined) {
                                     currentMaxOrder++;
-                                    if (typeof config[modId] === 'boolean') {
-                                        config[modId] = { status: config[modId], order: currentMaxOrder, params: {} };
-                                    } else {
-                                        config[modId] = { status: false, order: currentMaxOrder, params: {} };
-                                    }
+                                    config[modId] = { status: false, order: currentMaxOrder, params: {} };
+                                } else if (typeof existing === 'boolean') {
+                                    currentMaxOrder++;
+                                    config[modId] = { status: existing, order: currentMaxOrder, params: {} };
                                 }
                             }
                             
@@ -872,7 +895,7 @@
             const file = fileItem.file;
             if (file.name.toLowerCase().endsWith('.js')) {
                 jsFiles.push(file);
-                const destPath = pathMod.join(MODS_DIR, file.name);
+                const destPath = getLocalModInstallPath(file.name);
                 if (fs.existsSync(destPath)) {
                     updateFiles.push(file);
                 } else {
@@ -956,8 +979,9 @@
         let successCount = 0;
 
         for (const file of files) {
-            const destPath = pathMod.join(MODS_DIR, file.name);
+            const destPath = getLocalModInstallPath(file.name);
             try {
+                ensureDir(pathMod.dirname(destPath));
                 await copyFileFromDataTransfer(file, destPath);
                 successCount++;
                 log(3, "成功导入:", file.name);
@@ -975,6 +999,7 @@
         
         // 先找出已存在mod的最大order
         for (const modId in config) {
+            if (isModConfigMetaKey(modId)) continue;
             if (config[modId] && typeof config[modId] === 'object' && config[modId].order !== undefined) {
                 if (config[modId].order > currentMaxOrder) {
                     currentMaxOrder = config[modId].order;
@@ -985,14 +1010,14 @@
         // 给新mod分配order
         for (const mod of _modData) {
             const modId = mod.id;
-            if (!config[modId] || typeof config[modId] === 'boolean') {
-                // 新mod，排在最后
+            const scriptBaseName = mod.fileName ? pathMod.parse(mod.fileName).name : null;
+            const existing = resolveModConfigEntry(config, modId, scriptBaseName);
+            if (existing === undefined) {
                 currentMaxOrder++;
-                if (typeof config[modId] === 'boolean') {
-                    config[modId] = { status: config[modId], order: currentMaxOrder, params: {} };
-                } else {
-                    config[modId] = { status: false, order: currentMaxOrder, params: {} };
-                }
+                config[modId] = { status: false, order: currentMaxOrder, params: {} };
+            } else if (typeof existing === 'boolean') {
+                currentMaxOrder++;
+                config[modId] = { status: existing, order: currentMaxOrder, params: {} };
             }
         }
         
@@ -1299,9 +1324,9 @@
     /**
      * 从 mod_config 读取 status/params/order 并构建 Mod 条目公共字段
      */
-    function applyModConfigToEntry(modId, filePath, fileName, displayName, config, defaultOrder) {
+    function applyModConfigToEntry(modId, filePath, fileName, displayName, config, defaultOrder, scriptBaseName) {
         const info = parseModInfo(filePath);
-        let modConfig = config[modId];
+        let modConfig = resolveModConfigEntry(config, modId, scriptBaseName);
         let status = false;
         let currentParams = {};
         let order = defaultOrder;
@@ -1372,67 +1397,85 @@
     }
 
     /**
-     * modloader.json entries 仅允许 js/mods 下的 .js 文件名（禁止路径，防目录穿越桥接）
+     * modloader.json entries 仅允许包根下的 .js 文件名（禁止路径，防目录穿越）
      */
-    function resolveWorkshopEntryFileName(entry) {
+    function resolvePackageEntryFileName(entry) {
         const raw = String(entry).trim();
         if (!raw) return null;
         if (/[\\/]/.test(raw) || raw.indexOf('..') !== -1) {
-            log(2, '工坊 entries 忽略非法路径项（仅允许文件名）: ' + raw);
+            log(2, '包 entries 忽略非法路径项（仅允许文件名）: ' + raw);
             return null;
         }
         const fileName = pathMod.basename(raw);
         if (!fileName.toLowerCase().endsWith('.js') || fileName === 'ModLoader.js') {
-            log(2, '工坊 entries 忽略无效项（须为 .js 文件名）: ' + raw);
+            log(2, '包 entries 忽略无效项（须为 .js 文件名）: ' + raw);
             return null;
         }
         return fileName;
     }
 
     /**
-     * 发现工坊包内的脚本列表（modloader.json entries → js/mods/*.js；不再扫描包根目录）
+     * 发现 Mod 包内脚本（modloader.json entries → 包根 *.js；不递归子目录）
      */
-    function discoverWorkshopScripts(root) {
+    function discoverPackageScripts(packageRoot) {
         const scripts = [];
-        const manifest = readWorkshopManifest(root);
+        const manifest = readWorkshopManifest(packageRoot);
 
         if (manifest && Array.isArray(manifest.entries) && manifest.entries.length > 0) {
             for (const entry of manifest.entries) {
-                const fileName = resolveWorkshopEntryFileName(entry);
+                const fileName = resolvePackageEntryFileName(entry);
                 if (!fileName) continue;
-                const relPath = 'js/mods/' + fileName;
-                const absPath = pathMod.join(root, relPath);
+                const absPath = pathMod.join(packageRoot, fileName);
                 if (fs.existsSync(absPath)) {
                     scripts.push({
-                        relPath: relPath,
+                        relPath: fileName,
                         absPath: absPath,
                         title: null
                     });
                 } else {
-                    log(2, '工坊 entries 文件不存在: ' + relPath);
+                    log(2, '包 entries 文件不存在: ' + fileName);
                 }
             }
             return scripts;
         }
 
-        const modsSubDir = pathMod.join(root, 'js', 'mods');
-        if (fs.existsSync(modsSubDir)) {
-            const files = fs.readdirSync(modsSubDir).filter(file => file.endsWith('.js') && file !== 'ModLoader.js');
+        try {
+            const files = fs.readdirSync(packageRoot).filter(file => file.endsWith('.js') && file !== 'ModLoader.js');
             for (const file of files) {
                 scripts.push({
-                    relPath: 'js/mods/' + file,
-                    absPath: pathMod.join(modsSubDir, file),
+                    relPath: file,
+                    absPath: pathMod.join(packageRoot, file),
                     title: null
                 });
             }
+        } catch (e) {
+            log(2, '扫描包目录失败: ' + packageRoot, e.message);
         }
         return scripts;
     }
 
-    /** 工坊包 preview.png（与 modloader.json 同目录）→ data URL，供详情区展示 */
-    function getWorkshopPreviewPath(workshopRoot) {
-        if (!workshopRoot) return null;
-        const previewPath = pathMod.join(workshopRoot, 'preview.png');
+    function discoverWorkshopScripts(root) {
+        return discoverPackageScripts(root);
+    }
+
+    function buildLocalModId(packageName, scriptBaseName) {
+        return 'local:' + packageName + ':' + scriptBaseName;
+    }
+
+    function buildLocalLoadPath(packageName, scriptBaseName) {
+        return '../mods/_localmods/' + packageName + '/' + scriptBaseName;
+    }
+
+    function getLocalModInstallPath(scriptFileName) {
+        const baseName = pathMod.parse(scriptFileName).name;
+        const packageDir = pathMod.join(LOCALMODS_DIR, baseName);
+        return pathMod.join(packageDir, scriptFileName);
+    }
+
+    /** 包根 preview.png */
+    function getPackagePreviewPath(packageRoot) {
+        if (!packageRoot) return null;
+        const previewPath = pathMod.join(packageRoot, 'preview.png');
         return fs.existsSync(previewPath) ? previewPath : null;
     }
 
@@ -1456,12 +1499,12 @@
         return 'file:///' + encodeURI(normalized).replace(/^\/+/, '');
     }
 
-    /** 点击缩略图：NW.js 新窗口打开原图（与拖入图片到游戏窗口的行为一致） */
-    function openWorkshopPreviewImage(workshopRoot) {
-        const previewPath = getWorkshopPreviewPath(workshopRoot);
+    /** 点击缩略图：NW.js 新窗口打开原图 */
+    function openPackagePreviewImage(packageRoot) {
+        const previewPath = getPackagePreviewPath(packageRoot);
         if (!previewPath) return;
         if (typeof nw !== 'object') {
-            log(2, '非 NW.js 环境，无法弹窗预览工坊图片');
+            log(2, '非 NW.js 环境，无法弹窗预览图片');
             return;
         }
         try {
@@ -1486,26 +1529,32 @@
             }, function(newWin) {
                 if (newWin) newWin.focus();
             });
-            log(3, '工坊预览图弹窗:', previewPath);
+            log(3, '预览图弹窗:', previewPath);
         } catch (e) {
-            log(2, '打开工坊预览图失败: ' + previewPath, e.message);
+            log(2, '打开预览图失败: ' + previewPath, e.message);
         }
     }
 
-    function readWorkshopPreviewDataUrl(workshopRoot) {
-        const previewPath = getWorkshopPreviewPath(workshopRoot);
+    function readPackagePreviewDataUrl(packageRoot) {
+        const previewPath = getPackagePreviewPath(packageRoot);
         if (!previewPath) return null;
         try {
             return 'data:image/png;base64,' + fs.readFileSync(previewPath).toString('base64');
         } catch (e) {
-            log(2, '读取工坊 preview.png 失败: ' + previewPath, e.message);
+            log(2, '读取 preview.png 失败: ' + previewPath, e.message);
             return null;
         }
     }
 
-    function buildWorkshopPreviewHtml(mod) {
-        if (mod.source !== 'workshop') return '';
-        const dataUrl = readWorkshopPreviewDataUrl(mod.workshopRoot);
+    function getModPackageRoot(mod) {
+        if (!mod) return null;
+        return mod.packageRoot || mod.workshopRoot || null;
+    }
+
+    function buildModPreviewHtml(mod) {
+        if (mod.source !== 'workshop' && mod.source !== 'local') return '';
+        const packageRoot = getModPackageRoot(mod);
+        const dataUrl = readPackagePreviewDataUrl(packageRoot);
         let inner;
         let extraClass = '';
         let titleAttr = '';
@@ -1522,6 +1571,7 @@
     function getConfigMaxOrder(config) {
         let max = 0;
         Object.keys(config).forEach(key => {
+            if (isModConfigMetaKey(key)) return;
             const entry = config[key];
             if (entry && typeof entry === 'object' && entry.order !== undefined) {
                 max = Math.max(max, Number(entry.order) || 0);
@@ -1530,8 +1580,8 @@
         return max;
     }
 
-    function allocDefaultOrderForMod(config, orderState, modId) {
-        const entry = config[modId];
+    function allocDefaultOrderForMod(config, orderState, modId, scriptBaseName) {
+        const entry = resolveModConfigEntry(config, modId, scriptBaseName);
         if (entry && typeof entry === 'object' && entry.order !== undefined) {
             return entry.order;
         }
@@ -1566,19 +1616,12 @@
         const bridgeDir = pathMod.join(WORKSHOP_BRIDGE_DIR, String(fileId));
         removePathSafe(bridgeDir);
 
-        const modsSubDir = pathMod.join(root, 'js', 'mods');
-        const allUnderJsMods = scripts.every(s =>
-            String(s.relPath).replace(/\\/g, '/').indexOf('js/mods/') === 0
-        );
-
-        if (allUnderJsMods && fs.existsSync(modsSubDir)) {
-            try {
-                fs.symlinkSync(modsSubDir, bridgeDir, 'junction');
-                return true;
-            } catch (e) {
-                log(2, '工坊 junction 失败，改用逐文件桥接: ' + fileId, e.message);
-                removePathSafe(bridgeDir);
-            }
+        try {
+            fs.symlinkSync(root, bridgeDir, 'junction');
+            return true;
+        } catch (e) {
+            log(2, '工坊包根 junction 失败，改用逐文件桥接: ' + fileId, e.message);
+            removePathSafe(bridgeDir);
         }
 
         ensureDir(bridgeDir);
@@ -1606,33 +1649,51 @@
     }
 
     function scanLocalMods(config, orderState) {
-        ensureDir(MODS_DIR);
+        ensureDir(LOCALMODS_DIR);
         const mods = [];
         try {
-            const files = fs.readdirSync(MODS_DIR).filter(file => file.endsWith('.js') && file !== 'ModLoader.js');
-            files.forEach(file => {
-                const filePath = pathMod.join(MODS_DIR, file);
-                const modId = '../mods/' + pathMod.parse(file).name;
-                const entry = applyModConfigToEntry(
-                    modId,
-                    filePath,
-                    file,
-                    pathMod.parse(file).name,
-                    config,
-                    allocDefaultOrderForMod(config, orderState, modId)
-                );
-                mods.push(Object.assign(entry, {
-                    loadPath: modId,
-                    source: 'local',
-                    workshopId: null,
-                    workshopRoot: null,
-                    subscribed: true,
-                    readOnly: false,
-                    installState: 'ready'
-                }));
-            });
+            const packageDirs = fs.readdirSync(LOCALMODS_DIR, { withFileTypes: true })
+                .filter(entry => entry.isDirectory())
+                .map(entry => entry.name);
+
+            for (const packageName of packageDirs) {
+                const packageRoot = pathMod.join(LOCALMODS_DIR, packageName);
+                const scripts = discoverPackageScripts(packageRoot);
+                if (scripts.length === 0) continue;
+
+                const manifest = readWorkshopManifest(packageRoot);
+                const packageTitle = manifest && manifest.title ? manifest.title : null;
+
+                for (const script of scripts) {
+                    const scriptBaseName = pathMod.parse(script.relPath).name;
+                    const modId = buildLocalModId(packageName, scriptBaseName);
+                    const loadPath = buildLocalLoadPath(packageName, scriptBaseName);
+                    const displayName = script.title || scriptBaseName;
+                    const entry = applyModConfigToEntry(
+                        modId,
+                        script.absPath,
+                        pathMod.basename(script.relPath),
+                        displayName,
+                        config,
+                        allocDefaultOrderForMod(config, orderState, modId, scriptBaseName),
+                        scriptBaseName
+                    );
+                    mods.push(Object.assign(entry, {
+                        loadPath: loadPath,
+                        source: 'local',
+                        workshopId: null,
+                        workshopRoot: null,
+                        localPackageName: packageName,
+                        localPackageTitle: packageTitle || '',
+                        packageRoot: packageRoot,
+                        subscribed: true,
+                        readOnly: false,
+                        installState: 'ready'
+                    }));
+                }
+            }
         } catch (e) {
-            log(1, '扫描本地 Mod 目录失败', e);
+            log(1, '扫描本地 Mod 包目录失败', e);
         }
         return mods;
     }
@@ -1679,7 +1740,8 @@
                     pathMod.basename(script.relPath),
                     displayName,
                     config,
-                    allocDefaultOrderForMod(config, orderState, modId)
+                    allocDefaultOrderForMod(config, orderState, modId, scriptBaseName),
+                    scriptBaseName
                 );
                 mods.push(Object.assign(entry, {
                     loadPath: loadPath,
@@ -1687,6 +1749,7 @@
                     workshopId: fileIdStr,
                     workshopPackageTitle: packageTitle || '',
                     workshopRoot: root,
+                    packageRoot: root,
                     subscribed: true,
                     readOnly: true,
                     installState: installState
@@ -1890,6 +1953,12 @@
                 modLookup[fileNameNoExt] = { mod, index, status: mod.status };
             }
             if (mod.id.startsWith('ws:')) {
+                const parts = mod.id.split(':');
+                if (parts.length >= 3) {
+                    modLookup[parts[2]] = { mod, index, status: mod.status };
+                }
+            }
+            if (mod.id.startsWith('local:')) {
                 const parts = mod.id.split(':');
                 if (parts.length >= 3) {
                     modLookup[parts[2]] = { mod, index, status: mod.status };
@@ -3833,7 +3902,7 @@
             `;
         }
 
-        const workshopPreviewHtml = buildWorkshopPreviewHtml(mod);
+        const workshopPreviewHtml = buildModPreviewHtml(mod);
         const detailHeaderRowClass = workshopPreviewHtml ? ' ml-detail-header-row' : '';
 
         panel.innerHTML = `
@@ -3866,11 +3935,14 @@
         `;
         
         const previewEl = panel.querySelector('.ml-workshop-preview-clickable');
-        if (previewEl && mod.workshopRoot) {
-            previewEl.addEventListener('click', function(e) {
-                e.stopPropagation();
-                openWorkshopPreviewImage(mod.workshopRoot);
-            });
+        if (previewEl) {
+            const packageRoot = getModPackageRoot(mod);
+            if (packageRoot) {
+                previewEl.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    openPackagePreviewImage(packageRoot);
+                });
+            }
         }
 
         // 切换时滚动条重置到最顶部
@@ -3914,6 +3986,26 @@
         if (unsavedHint) {
             unsavedHint.classList.toggle('hidden', !_hasUnsavedChanges);
         }
+    }
+
+    /**
+     * 将当前 _modData 全量写入 mod_config（含连续 order）
+     */
+    function persistModListToConfig() {
+        const config = {};
+        _modData.forEach(mod => {
+            config[mod.id] = {
+                status: mod.status,
+                params: mod.currentParams,
+                order: mod.order
+            };
+        });
+        saveConfig(config);
+    }
+
+    function getLocalModsInPackage(packageName) {
+        if (!packageName) return [];
+        return _modData.filter(m => m.source === 'local' && m.localPackageName === packageName);
     }
 
     /**
@@ -6211,20 +6303,24 @@
     }
 
     /**
-     * 删除模组
+     * 删除模组（本地：整包删除 _localmods/<包名>/）
      */
     function deleteMod(index) {
         const mod = _modData[index];
         if (!mod) return;
 
-        if (mod.readOnly) {
-            showConfirmDialog(
-                t('dialog.error'),
-                t('workshop.readOnly'),
-                [{ text: t('dialog.ok'), class: 'ml-btn-primary', action: hideConfirmDialog }]
-            );
-            return;
+        const packageName = mod.localPackageName;
+        const packageMods = getLocalModsInPackage(packageName);
+        const packageRoot = mod.packageRoot;
+
+        let msg = '';
+        if (packageMods.length > 1) {
+            msg += t('delete.packageWarning') + '\n';
+            msg += packageMods.map(m => '  • ' + m.displayName).join('\n') + '\n\n';
+        } else {
+            msg += t('delete.folderWarning') + '\n\n';
         }
+        msg += t('dialog.deleteConfirmMsg').replace('{name}', mod.displayName);
 
         let extraWarning = '';
         if (_hasUnsavedChanges) {
@@ -6233,7 +6329,7 @@
 
         showConfirmDialog(
             t('dialog.confirmDelete'),
-            t('dialog.deleteConfirmMsg').replace('{name}', mod.displayName) + extraWarning,
+            msg + extraWarning,
             [
                 { text: t('button.cancel'), class: "ml-btn-secondary", action: hideConfirmDialog },
                 {
@@ -6242,40 +6338,36 @@
                     action: async () => {
                         hideConfirmDialog();
                         try {
-                            // 如果有未保存，先保存
                             if (_hasUnsavedChanges) {
                                 saveAllChanges();
                             }
 
-                            // 删除文件
-                            const filePath = pathMod.join(MODS_DIR, mod.fileName);
-                            log(3, "删除文件:", filePath);
-                            if (fs.existsSync(filePath)) {
-                                fs.unlinkSync(filePath);
+                            if (packageRoot && fs.existsSync(packageRoot)) {
+                                log(3, '删除本地 Mod 包目录:', packageRoot);
+                                removePathSafe(packageRoot);
                             }
 
-                            // 从配置中删除
-                            const config = loadConfig();
-                            delete config[mod.id];
-                            saveConfig(config);
-
                             _modData = scanAllMods();
+                            reassignOrders();
+                            persistModListToConfig();
 
-                            // 【V3.15.0 新增】删除后刷新依赖检测
                             refreshDependencyCheck();
-
-                            // 重新渲染
                             renderModList();
                             updateCounts();
 
-                            log(3, "模组已删除:", mod.displayName);
+                            if (_selectedIndex >= _modData.length) {
+                                _selectedIndex = _modData.length > 0 ? 0 : -1;
+                            }
+                            renderDetail(_selectedIndex >= 0 ? _modData[_selectedIndex] : null);
+
+                            log(3, '本地 Mod 包已删除:', packageName || mod.displayName);
                             showConfirmDialog(
                                 t('dialog.success'),
                                 t('dialog.deletedMod').replace('{name}', mod.displayName),
                                 [{ text: t('dialog.ok'), class: "ml-btn-primary", action: hideConfirmDialog }]
                             );
                         } catch (err) {
-                            log(1, "删除模组失败:", err);
+                            log(1, '删除模组失败:', err);
                             showConfirmDialog(
                                 t('dialog.error'),
                                 t('dialog.deleteFailed'),

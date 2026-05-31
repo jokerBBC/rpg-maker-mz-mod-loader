@@ -1,0 +1,8 @@
+{
+  "title": "多脚本工坊包（V4 自测）",
+  "entries": [
+    "WorkshopMultiCore.js",
+    "WorkshopMultiFeatA.js",
+    "WorkshopMultiFeatB.js"
+  ]
+}

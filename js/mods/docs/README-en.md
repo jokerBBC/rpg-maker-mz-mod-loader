@@ -36,7 +36,7 @@ A powerful RPG Maker MZ mod manager that lets you enable/disable, edit parameter
 
 Main screen
 
-![Main UI](js/mods/docs/img/主界面.png)
+![Main UI](img/主界面.png)
 
 </div>
 
@@ -44,7 +44,7 @@ Main screen
 
 Parameter editor
 
-![Parameter editor](js/mods/docs/img/参数界面-一般.png)
+![Parameter editor](img/参数界面-一般.png)
 
 </div>
 
@@ -52,7 +52,7 @@ Parameter editor
 
 Parameter editor — nested struct
 
-![Nested struct editor](js/mods/docs/img/参数界面-多级套娃.png)
+![Nested struct editor](img/参数界面-多级套娃.png)
 
 </div>
 
@@ -60,7 +60,7 @@ Parameter editor — nested struct
 
 Parameter editor — table
 
-![Table editor](js/mods/docs/img/参数界面-表格.png)
+![Table editor](img/参数界面-表格.png)
 
 </div>
 
@@ -68,7 +68,7 @@ Parameter editor — table
 
 Install screen
 
-![Install screen](js/mods/docs/img/安装.png)
+![Install screen](img/安装.png)
 
 </div>
 
@@ -76,7 +76,7 @@ Install screen
 
 Delete mode & sort mode
 
-![Delete and sort modes](js/mods/docs/img/排序与删除.png)
+![Delete and sort modes](img/排序与删除.png)
 
 </div>
 
