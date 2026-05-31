@@ -25,14 +25,14 @@ It only registers `.js` plugins; to inject data into the game database at runtim
 - [README (Chinese)](https://github.com/jokerBBC/rpg-maker-mz-mod-loader#readme): Overview, installation, usage
 - [README (English)](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/blob/main/README-en.md): English guide
 - [Changelog](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/blob/main/js/mods/docs/modloader_CHANGELOG.md): Release history
-- [Workshop author guide](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/blob/main/js/mods/docs/V4_workshop_%E4%BD%9C%E8%80%85%E8%A7%84%E8%8C%83.md): Workshop mod packaging (Chinese)
+- [User guide (Chinese)](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/blob/main/js/mods/docs/%E4%BD%BF%E7%94%A8%E6%89%8B%E5%86%8C.md): Player / mod author manual (includes Workshop packaging)
 - [ModLoader dev guide](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/blob/main/js/mods/docs/RMMZ_ModLoader_%E5%BC%80%E5%8F%91%E8%A7%84%E8%8C%83.md): Internal development spec (Chinese)
 
 ## Example Mods
 
-- [TestMod.js](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/blob/main/js/mods/TestMod.js): Basic parameter type tests
-- [TestSchemaMod.js](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/blob/main/js/mods/TestSchemaMod.js): struct/table and @schema examples
-- [mydrop.js](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/blob/main/js/mods/mydrop.js): Practical mod – monster drop extensions
+- [TestMod.js](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/blob/main/js/mods/_localmods/TestMod/TestMod.js): Basic parameter type tests
+- [TestSchemaMod.js](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/blob/main/js/mods/_localmods/TestSchemaMod/TestSchemaMod.js): struct/table and @schema examples
+- [mydrop.js](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/blob/main/js/mods/_localmods/mydrop/mydrop.js): Practical mod – monster drop extensions
 
 ## Optional
 
