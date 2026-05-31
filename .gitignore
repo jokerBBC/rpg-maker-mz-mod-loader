@@ -1,2 +1,3 @@
-# Local helper — not part of the mod distribution
-restore-readme-symlinks.ps1
+# Local IDE / OS
+.DS_Store
+Thumbs.db
