@@ -82,18 +82,22 @@ js/mods/_workshop/<publishedFileId>/   → junction 指向上述工坊包内 js/
     "enabled": true,
     "steamAppId": "4379740",
     "steamLibraryPath": ""
+  },
+  "piracyDetection": {
+    "enabled": false
   }
 }
 ```
 
 | 字段 | 说明 |
 |------|------|
-| `enabled` | `false`：不扫描工坊目录，创意工坊筛选提示「游戏未开启创意工坊功能」，隐藏「刷新工坊」；`true`：扫描并桥接 |
-| `steamAppId` | 与 `steam_appid.txt`、Steamworks 工坊后台一致；**发行必改** |
-| `steamLibraryPath` | 空则从 `process.cwd()` 上溯找 `steamapps`；多库或非默认盘可填库根 |
+| `workshop.enabled` | `false`：不扫描工坊目录，创意工坊筛选提示「游戏未开启创意工坊功能」，隐藏「刷新工坊」；`true`：扫描并桥接 |
+| `workshop.steamAppId` | 与 `steam_appid.txt`、Steamworks 工坊后台一致；**发行必改** |
+| `workshop.steamLibraryPath` | 空则从 `process.cwd()` 上溯找 `steamapps`；多库或非默认盘可填库根 |
+| `piracyDetection.enabled` | `false`（默认）：不检测；`true`：非正版环境打开管理器时弹窗并阻止（文案见 `showPiracyWarning()`） |
 
-- 启动时 `ensureModLoaderConfigFile()` 生成/补全 `workshop` 段
-- 游戏作者通过**随包推送**的 `modloader_config.json` 控制玩家侧是否开启工坊；源码内 `DEFAULT_WORKSHOP_CONFIG` 仅供联调默认
+- 启动时 `ensureModLoaderConfigFile()` 生成/补全 `workshop`、`piracyDetection` 段
+- 游戏作者通过**随包推送**的 `modloader_config.json` 控制玩家侧工坊与盗版检测；源码内 `DEFAULT_WORKSHOP_CONFIG` / `DEFAULT_PIRACY_DETECTION_CONFIG` 仅供联调默认
 
 ### mod_config.json 键名
 

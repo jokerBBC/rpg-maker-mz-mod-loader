@@ -2,17 +2,7 @@
  * @target MZ
  * @plugindesc 游戏内模组管理器（DOM化UI & 现代交互 & 拖放添加Mod & 滑动条/长文本/数据库引用）
  * @author joker创意 / GLM核心代码
- * @version V4.1.1
- *
- * @param Mod Button X
- * @type number
- * @default 20
- * @desc 模组管理按钮距离屏幕左侧的 X 坐标
- *
- * @param Mod Button Y
- * @type number
- * @default 20
- * @desc 模组管理按钮距离屏幕顶部的 Y 坐标
+ * @version V4.1.2
  *
  * @help
  * 【功能及使用方式】
@@ -51,15 +41,6 @@
  * 【铁律合规性自检】
  * [✓] 本补丁已通过铁律合规检查：无顶层 $dataXxx 依赖 / 所有 Alias 均已做前置存在性检查 / 所有使用的参数均已配置 @default。
  *
- * 【使用Mod守则】
- * 1.使用Mod时出现bug，必先检查是否按Mod说明使用，不按说明使用Mod作者将不予理睬。
- * 2.按Mod说明使用的，关闭相关Mod（不知道哪些相关就全关了）并F5刷新。
- * 3.发现依然能复现bug的群里@游戏作者，发现bug消失了说明是Mod原因不要骚扰游戏作者。
- * 4.确认是Mod的bug可以@Mod作者，提供详细测试过程的描述和截图，Mod作者将尽力而为。
- * 5.若Mod作者已脱坑，Mod因版本更新失效了，你可以试着自己找Ai修复并发布到群里。
- * 6.至少看一遍整合包中的使用说明，"常见问题排查"区域的问题，Mod作者将不予理睬。
- * 7.使用本Mod即视为同意上述内容。
- * 
  * 【开源协议】
  * ============================================================================
  * MIT License (MIT 许可证)
@@ -122,30 +103,9 @@
         else if (level === 3) console.log(prefix, '[INFO]', ...args);
     };
 
-    // ================================================================
-    // 2. 插件参数读取
-    // ================================================================
-    let BUTTON_X = 20;
-    let BUTTON_Y = 20;
-
-    void (function readPluginParams() {
-        try {
-            if (typeof $plugins !== 'undefined' && Array.isArray($plugins)) {
-                for (const p of $plugins) {
-                    if (p.name && p.name.includes('ModLoader') && p.parameters) {
-                        const bx = p.parameters['Mod Button X'];
-                        const by = p.parameters['Mod Button Y'];
-                        if (bx !== undefined) BUTTON_X = Number(bx) || 20;
-                        if (by !== undefined) BUTTON_Y = Number(by) || 20;
-                        log(3, "插件参数读取完成", { BUTTON_X, BUTTON_Y });
-                        break;
-                    }
-                }
-            }
-        } catch (e) {
-            log(1, "读取插件参数异常", e);
-        }
-    })();
+    // 模组管理按钮位置（直接改此处数值即可）
+    const BUTTON_X = 20;
+    const BUTTON_Y = 20;
 
     // ================================================================
     // 3. Node.js 模块与路径
@@ -165,6 +125,10 @@
         steamAppId: '4379740',
         // Steam 库根目录：留空则从游戏安装路径向上自动查找 steamapps；多库盘符或非默认库时填库根，如 "D:/SteamLibrary" 或 "E:/Games/Steam"
         steamLibraryPath: ''
+    };
+    // 盗版环境检测：默认关闭；游戏作者发布更新时在 modloader_config.json 设 enabled: true 即可开启
+    const DEFAULT_PIRACY_DETECTION_CONFIG = {
+        enabled: false
     };
     const LANGUAGE_DIR = pathMod.join(MODS_DIR, 'config', 'language');
     let _currentLanguage = 'zh_CN';
@@ -231,12 +195,14 @@
     }
 
     function showPiracyWarning() {
+        const mlConfig = loadModLoaderConfig();
+        if (!mlConfig.piracyDetection || !mlConfig.piracyDetection.enabled) return false;
         const result = detectPiracy();
         if (!result.detected) return false;
         showConfirmDialog(
-            '\u26a0\ufe0f \u63d0\u793a',
-            '\u68c0\u6d4b\u5230\u5f53\u524d\u4e3a\u975e Steam \u6b63\u7248\u73af\u5883\uff0cModLoader \u6700\u65b0\u7248\u65e0\u6cd5\u4f7f\u7528\u3002\n\n\u76d7\u7248\u73af\u5883\u8bf7\u4f7f\u7528 V3.1 \u65e7\u7248\u6574\u5408\u5305\uff0c\u4f46\u8be5\u7248\u672c\u5df2\u505c\u6b62\u66f4\u65b0\uff0c\u51fa\u73b0 Bug \u8bf7\u81ea\u884c\u89e3\u51b3\uff0c\u4e0d\u518d\u63a5\u53d7\u53cd\u9988\u3002\n\n\u611f\u8c22\u7406\u89e3\u3002',
-            [{ text: '\u6211\u77e5\u9053\u4e86', class: 'ml-btn-primary', action: () => hideConfirmDialog() }]
+            '⚠️ 提示',
+            '检测到当前为非 Steam 正版环境，ModLoader 最新版无法使用。\n\n盗版环境请使用旧版管理器，但该版本已停止更新，出现 Bug 请自行解决，不再接受反馈。\n\n感谢理解。',
+            [{ text: '我知道了', class: 'ml-btn-primary', action: () => hideConfirmDialog() }]
         );
         return true;
     }
@@ -363,7 +329,8 @@
         return {
             ml_theme: 'dark',
             ml_language: 'zh_CN',
-            workshop: Object.assign({}, DEFAULT_WORKSHOP_CONFIG)
+            workshop: Object.assign({}, DEFAULT_WORKSHOP_CONFIG),
+            piracyDetection: Object.assign({}, DEFAULT_PIRACY_DETECTION_CONFIG)
         };
     }
 
@@ -381,8 +348,22 @@
         return { merged, changed: changed || !existingWorkshop };
     }
 
+    function mergePiracyDetectionConfigSection(existingPiracyDetection) {
+        const merged = Object.assign({}, DEFAULT_PIRACY_DETECTION_CONFIG, existingPiracyDetection || {});
+        const defaults = getDefaultModLoaderConfig().piracyDetection;
+        let changed = false;
+        for (const key of Object.keys(defaults)) {
+            if (existingPiracyDetection && existingPiracyDetection[key] !== undefined) continue;
+            if (merged[key] !== defaults[key]) {
+                merged[key] = defaults[key];
+                changed = true;
+            }
+        }
+        return { merged, changed: changed || !existingPiracyDetection };
+    }
+
     /**
-     * 首次启动或旧版配置缺少 workshop 段时，补全并写入 modloader_config.json
+     * 首次启动或旧版配置缺少 workshop / piracyDetection 段时，补全并写入 modloader_config.json
      */
     function ensureModLoaderConfigFile() {
         try {
@@ -402,11 +383,13 @@
             }
             const raw = JSON.parse(fs.readFileSync(MODLOADER_CONFIG_PATH, 'utf-8'));
             const workshopMerge = mergeWorkshopConfigSection(raw.workshop);
-            if (workshopMerge.changed) {
+            const piracyMerge = mergePiracyDetectionConfigSection(raw.piracyDetection);
+            if (workshopMerge.changed || piracyMerge.changed) {
                 raw.workshop = workshopMerge.merged;
+                raw.piracyDetection = piracyMerge.merged;
                 fs.writeFileSync(MODLOADER_CONFIG_PATH, JSON.stringify(raw, null, 2), 'utf-8');
                 invalidateWorkshopConfigCache();
-                log(3, '已为 modloader_config.json 补全 workshop 段');
+                log(3, '已为 modloader_config.json 补全缺失配置段');
             }
         } catch (e) {
             log(2, '确保 modloader_config.json 失败: ' + e.message);
@@ -424,7 +407,8 @@
                 return {
                     ml_theme: parsed.ml_theme !== undefined ? parsed.ml_theme : defaults.ml_theme,
                     ml_language: parsed.ml_language !== undefined ? parsed.ml_language : defaults.ml_language,
-                    workshop: Object.assign({}, defaults.workshop, parsed.workshop || {})
+                    workshop: Object.assign({}, defaults.workshop, parsed.workshop || {}),
+                    piracyDetection: Object.assign({}, defaults.piracyDetection, parsed.piracyDetection || {})
                 };
             }
         } catch (e) {
@@ -440,7 +424,8 @@
             var mergedConfig = {
                 ml_theme: config.ml_theme !== undefined ? config.ml_theme : existingConfig.ml_theme,
                 ml_language: config.ml_language !== undefined ? config.ml_language : existingConfig.ml_language,
-                workshop: Object.assign({}, existingConfig.workshop, config.workshop || {})
+                workshop: Object.assign({}, existingConfig.workshop, config.workshop || {}),
+                piracyDetection: Object.assign({}, existingConfig.piracyDetection, config.piracyDetection || {})
             };
             fs.writeFileSync(MODLOADER_CONFIG_PATH, JSON.stringify(mergedConfig, null, 2), 'utf-8');
             invalidateWorkshopConfigCache();

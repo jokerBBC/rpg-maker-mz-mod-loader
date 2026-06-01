@@ -1,5 +1,13 @@
 # ModLoader 更新日志
 
+## V4.1.2 (2026-05-31)
+
+### 配置调整
+
+- **变更**：盗版环境检测改为 `modloader_config.json` → `piracyDetection.enabled` 控制，**默认关闭**；游戏作者发布更新时设为 `true` 即可开启
+- **变更**：检测开启时的提示文案改为源码内明文中文（`showPiracyWarning()`），便于游戏作者自行修改
+- **移除**：插件参数 `Mod Button X/Y`（RMMZ 插件管理器无法读取，懒得修了）；标题入口按钮位置改在 `ModLoader.js` 内 `BUTTON_X` / `BUTTON_Y` 常量硬编码
+
 ## V4.1.1 (2026-05-31)
 
 ### mod_config 旧键兼容

@@ -92,6 +92,7 @@ Steam 订阅 → workshop/content/<AppID>/<fileId>/（包根 .js）
 | 配置       | 路径                                                |
 | -------- | ------------------------------------------------- |
 | 工坊设置     | `config/modloader_config.json` → `workshop` 段     |
+| 盗版检测     | `config/modloader_config.json` → `piracyDetection.enabled`（默认 `false`） |
 | 本地 Mod 键 | `local:<包名>:<脚本基名>`                               |
 | 工坊 Mod 键 | `ws:<fileId>:<脚本基名>`                              |
 | 运行时桥接    | `js/mods/_workshop/<fileId>/`（junction，gitignore） |
