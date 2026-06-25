@@ -7,9 +7,9 @@ In-game mod manager **V4.1.2**
 A powerful RPG Maker MZ mod manager for **local mods** and **Steam Workshop mods** — toggles, parameters, load order, and dependency checks, all in-game. **Multilingual UI** (Simplified Chinese / Traditional Chinese / English).
 
 > **Runtime environment**: Mod configuration is saved in `mod_config.json` 
-and is **no longer written** to `plugins.js`, so mod toggles and parameters survive official plugin updates. 
-> **Steam Workshop** requires a legitimate Steam install path to resolve Workshop directories
-> **piracy detection** is off by default — game authors can enable it in `modloader_config.json` as needed.
+and is **no longer written** to `plugins.js`, so mod toggles and parameters survive official plugin updates.   
+> **Steam Workshop** requires a legitimate Steam install path to resolve Workshop directories  
+> **piracy detection** is off by default — game authors can enable it in `modloader_config.json` as needed.  
 
 ***
 
