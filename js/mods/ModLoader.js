@@ -2,7 +2,7 @@
  * @target MZ
  * @plugindesc 游戏内模组管理器（DOM化UI & 现代交互 & 拖放添加Mod & 滑动条/长文本/数据库引用）
  * @author joker创意 / GLM核心代码
- * @version V4.1.2
+ * @version V4.1.3
  *
  * @help
  * 【功能及使用方式】
@@ -92,7 +92,7 @@
     // 1. 基础配置与日志系统
     // ================================================================
     const ModName = "ModLoader";
-    const VERSION = "V4.1.2";
+    const VERSION = "V4.1.3";
     const DEBUG_LEVEL = 0;
 
     const log = (level, ...args) => {
@@ -2125,6 +2125,36 @@
                 log(2, 'Mod loadPath 重复，跳过:', loadPath);
                 continue;
             }
+
+            // @base 依赖守卫：如果 @base 声明的依赖未启用，跳过加载以防崩溃
+            if (mod.baseList && mod.baseList.length > 0) {
+                var missingBase = null;
+                for (var bi = 0; bi < mod.baseList.length; bi++) {
+                    var baseName = mod.baseList[bi];
+                    var baseLoaded = PluginManager._scripts.includes(baseName);
+                    if (!baseLoaded) {
+                        // 检查是否在本次待加载列表中
+                        var baseInQueue = enabled.some(function(e) {
+                            var eName = typeof Utils !== 'undefined'
+                                ? Utils.extractFileName(e.loadPath || e.id)
+                                : e.displayName;
+                            return eName === baseName;
+                        });
+                        if (!baseInQueue) {
+                            missingBase = baseName;
+                            break;
+                        }
+                    }
+                }
+                if (missingBase) {
+                    var skipName = typeof Utils !== 'undefined'
+                        ? Utils.extractFileName(loadPath)
+                        : mod.displayName;
+                    log(1, `[依赖守卫] 跳过 ${skipName}：@base 依赖 "${missingBase}" 未启用`);
+                    continue;
+                }
+            }
+
             loadedPaths.add(loadPath);
 
             const pluginName = typeof Utils !== 'undefined'
@@ -2806,6 +2836,41 @@
             styleEl.textContent = cssContent;
             document.head.appendChild(styleEl);
 
+            // 冲突日志 CSS — 独立注入，不受外部 modloader.css 影响
+            var clCss = document.createElement('style');
+            clCss.id = 'ml-cl-styles';
+            clCss.textContent =
+                '.ml-cl-btn{position:fixed;bottom:16px;right:16px;z-index:2147483647;width:44px;height:44px;border-radius:12px;border:1px solid rgba(255,255,255,0.15);background:rgba(18,18,32,0.92);color:#e8e8ec;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,0.4);transition:all 0.2s ease;backdrop-filter:blur(8px);font-family:"Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif;user-select:none;}' +
+                '.ml-cl-btn:hover{background:rgba(28,28,48,0.98);border-color:rgba(255,255,255,0.25);transform:scale(1.05);}' +
+                '.ml-cl-btn .ml-cl-badge{position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;border-radius:8px;background:#ef5350;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px;line-height:1;}' +
+                '.ml-cl-panel{position:fixed;bottom:70px;right:16px;z-index:2147483647;width:460px;max-height:75vh;border-radius:14px;border:1px solid rgba(255,255,255,0.15);background:rgba(18,18,32,0.98);box-shadow:0 20px 60px rgba(0,0,0,0.6);display:none;flex-direction:column;overflow:hidden;backdrop-filter:blur(12px);font-family:"Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif;color:#e8e8ec;user-select:none;}' +
+                '.ml-cl-panel.ml-cl-open{display:flex;animation:mlSlideUp 0.2s ease;}' +
+                '.ml-cl-header{padding:14px 16px 10px;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;justify-content:space-between;align-items:center;}' +
+                '.ml-cl-header h3{margin:0;font-size:14px;font-weight:600;color:#e8e8ec;}' +
+                '.ml-cl-close{background:none;border:none;color:#9a9ab0;font-size:18px;cursor:pointer;padding:2px 6px;border-radius:4px;line-height:1;}' +
+                '.ml-cl-close:hover{background:rgba(255,255,255,0.08);color:#e8e8ec;}' +
+                '.ml-cl-body{flex:1;overflow-y:auto;padding:8px 0;}' +
+                '.ml-cl-empty{padding:24px 16px;text-align:center;color:#666680;font-size:13px;}' +
+                '.ml-cl-summary{padding:10px 16px 8px;margin:4px 12px 8px;border-radius:8px;background:rgba(255,167,38,0.10);border:1px solid rgba(255,167,38,0.20);font-size:12px;line-height:1.6;color:#ffa726;}' +
+                '.ml-cl-summary b{color:#ffb74d;font-size:14px;}' +
+                '.ml-cl-item{padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.06);}' +
+                '.ml-cl-item:last-child{border-bottom:none;}' +
+                '.ml-cl-item-head{display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap;}' +
+                '.ml-cl-tag{font-size:11px;padding:2px 7px;border-radius:4px;font-weight:600;line-height:1.5;}' +
+                '.ml-cl-tag-type{background:rgba(74,158,255,0.15);color:#5cb0ff;}' +
+                '.ml-cl-tag-id{background:rgba(255,255,255,0.08);color:#9a9ab0;}' +
+                '.ml-cl-tag-field{background:rgba(255,167,38,0.15);color:#ffa726;}' +
+                '.ml-cl-result{display:flex;align-items:center;gap:8px;padding:4px 0;margin-bottom:4px;}' +
+                '.ml-cl-winner-name{color:#4caf50;font-weight:600;font-size:12px;white-space:nowrap;}' +
+                '.ml-cl-winner-val{color:#e8e8ec;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}' +
+                '.ml-cl-overridden{border-left:2px solid rgba(255,255,255,0.08);margin-left:4px;padding-left:8px;}' +
+                '.ml-cl-mod-row{display:flex;align-items:center;gap:6px;font-size:11px;padding:2px 0;}' +
+                '.ml-cl-override-icon{color:#666680;font-size:12px;}' +
+                '.ml-cl-mod-name{color:#9a9ab0;font-weight:500;}' +
+                '.ml-cl-mod-val{color:#666680;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;}' +
+                '.ml-cl-overridden-tag{color:#ef5350;font-size:10px;font-weight:600;margin-left:auto;padding:1px 4px;border-radius:3px;background:rgba(239,83,80,0.10);}';
+            document.head.appendChild(clCss);
+
             log(3, 'CSS 样式注入完成，当前主题: ' + _currentTheme);
         }
     
@@ -3278,6 +3343,9 @@
         }
 
         log(3, "模组管理器已打开，共", _modData.length, "个模组");
+
+        // 显示冲突日志按钮（仅管理器打开时可见）
+        if (_clBtn) { _clBtn.style.display = 'flex'; _refreshClBadge(); }
     }
 
 
@@ -3291,6 +3359,9 @@
         if (_overlay) {
             _overlay.style.display = 'none';
         }
+
+        // 隐藏冲突日志按钮
+        if (_clBtn) _clBtn.style.display = 'none';
         
         unbindAllWheelListeners();//滚轮修复
         // 恢复 RMMZ 输入
@@ -6529,7 +6600,211 @@
             _currentLanguage = 'zh_CN';
         }
         setupTitleButton();
+        setupConflictLogUI();
     });
+
+    // ================================================================
+    // 12. 冲突日志公共 API & UI
+    // ================================================================
+
+    var _logEntries = [];  // { icon, label, getReport }
+    var _clBtn = null;
+    var _clPanel = null;
+    var _clOpen = false;
+
+    /**
+     * 供前置 Mod 注册冲突日志入口
+     * @param {{ icon: string, label: string, getReport: Function }} entry
+     */
+    function registerLogEntry(entry) {
+        if (!entry || typeof entry.getReport !== 'function') {
+            log(1, 'registerLogEntry: invalid entry');
+            return;
+        }
+        _logEntries.push({
+            icon: entry.icon || '⚠',
+            label: entry.label || '日志',
+            getReport: entry.getReport
+        });
+        log(2, 'Registered log entry:', entry.label);
+        _refreshClBadge();
+    }
+
+    function setupConflictLogUI() {
+        // 清理旧引用（可能已脱离 DOM）
+        _clBtn = null;
+        _clPanel = null;
+        _clOpen = false;
+
+        // 创建/重建按钮
+        _clBtn = document.createElement('button');
+        _clBtn.className = 'ml-cl-btn';
+        _clBtn.id = 'ml-cl-btn';
+        _clBtn.title = 'Mod 数据冲突日志';
+        _clBtn.innerHTML = '<span>⚠</span><span class="ml-cl-badge" style="display:none">0</span>';
+        _clBtn.style.display = 'none';
+        _clBtn.addEventListener('click', _toggleClPanel);
+        document.body.appendChild(_clBtn);
+
+        // 创建/重建面板
+        _clPanel = document.createElement('div');
+        _clPanel.className = 'ml-cl-panel';
+        _clPanel.id = 'ml-cl-panel';
+        _clPanel.innerHTML =
+            '<div class="ml-cl-header">' +
+                '<h3>数据冲突日志</h3>' +
+                '<button class="ml-cl-close" title="关闭">&times;</button>' +
+            '</div>' +
+            '<div class="ml-cl-body"><div class="ml-cl-empty">暂无冲突记录</div></div>';
+        _clPanel.querySelector('.ml-cl-close').addEventListener('click', function() {
+            _clPanel.classList.remove('ml-cl-open');
+            _clOpen = false;
+        });
+        document.body.appendChild(_clPanel);
+    }
+
+    // 持久化：RMMZ canvas 创建或场景切换可能移除/遮盖 DOM 元素
+    // 每 2 秒检查：不存在则重建，存在则移到 body 末尾（确保 z-index 堆叠最高）
+    setInterval(function() {
+        var btn = document.getElementById('ml-cl-btn');
+        var panel = document.getElementById('ml-cl-panel');
+
+        if (!btn || !panel) {
+            // 重建整个 UI
+            setupConflictLogUI();
+            // 重建后根据管理器状态决定是否显示按钮
+            if (_overlay && _overlay.style.display !== 'none') {
+                if (_clBtn) _clBtn.style.display = 'flex';
+                _refreshClBadge();
+            }
+        } else {
+            // 确保按钮和面板在 body 最末尾（最高 z-index 堆叠）
+            var lastChild = document.body.lastElementChild;
+            if (lastChild && lastChild !== panel && lastChild !== btn) {
+                document.body.appendChild(btn);
+                document.body.appendChild(panel);
+            }
+        }
+    }, 2000);
+
+    function _toggleClPanel() {
+        _clOpen = !_clOpen;
+        if (_clOpen) {
+            _clPanel.classList.add('ml-cl-open');
+            _renderClReport();
+        } else {
+            _clPanel.classList.remove('ml-cl-open');
+        }
+    }
+
+    function _refreshClBadge() {
+        if (!_clBtn) return;
+        var totalConflicts = 0;
+        for (var i = 0; i < _logEntries.length; i++) {
+            try {
+                var report = _logEntries[i].getReport();
+                if (Array.isArray(report)) totalConflicts += report.length;
+            } catch (e) { /* ignore */ }
+        }
+        var badge = _clBtn.querySelector('.ml-cl-badge');
+        if (badge) {
+            if (totalConflicts > 0) {
+                badge.textContent = totalConflicts > 99 ? '99+' : String(totalConflicts);
+                badge.style.display = 'flex';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+    }
+
+    function _renderClReport() {
+        if (!_clPanel) return;
+        var body = _clPanel.querySelector('.ml-cl-body');
+        if (!body) return;
+
+        var allItems = [];
+        for (var i = 0; i < _logEntries.length; i++) {
+            try {
+                var report = _logEntries[i].getReport();
+                if (Array.isArray(report)) {
+                    for (var j = 0; j < report.length; j++) {
+                        allItems.push(report[j]);
+                    }
+                }
+            } catch (e) { /* ignore */ }
+        }
+
+        if (allItems.length === 0) {
+            body.innerHTML = '<div class="ml-cl-empty">✅ 无冲突，所有 Mod 数据合并正常</div>';
+            return;
+        }
+
+        // 摘要：玩家友好
+        var html = '<div class="ml-cl-summary">';
+        html += '⚠ 发现 <b>' + allItems.length + '</b> 处数据冲突<br>';
+        html += '多个 Mod 修改了同一数据，已自动按排序决定生效项';
+        html += '</div>';
+
+        for (var k = 0; k < allItems.length; k++) {
+            var item = allItems[k];
+            var typeName = item.typeName || item.dataType || '?';
+            var fieldName = item.fieldName || item.field || '?';
+            var winnerName = item.winnerName || item.winner || '未知';
+            var winnerValue = item.winnerValue != null ? String(item.winnerValue) : '';
+
+            html += '<div class="ml-cl-item">';
+
+            // 标题行：类型 + ID + 字段
+            html += '<div class="ml-cl-item-head">';
+            html += '<span class="ml-cl-tag ml-cl-tag-type">' + _esc(typeName) + '</span>';
+            html += '<span class="ml-cl-tag ml-cl-tag-id">#' + _esc(String(item.id || 0)) + '</span>';
+            html += '<span class="ml-cl-tag ml-cl-tag-field">' + _esc(fieldName) + '</span>';
+            html += '</div>';
+
+            // 生效值
+            html += '<div class="ml-cl-result">';
+            html += '<span class="ml-cl-winner-name">✓ ' + _esc(winnerName) + '</span>';
+            html += '<span class="ml-cl-winner-val">' + _esc(_truncate(winnerValue, 50)) + '</span>';
+            html += '</div>';
+
+            // 被覆盖的 Mod
+            if (Array.isArray(item.losers) && item.losers.length > 0) {
+                html += '<div class="ml-cl-overridden">';
+                for (var m = 0; m < item.losers.length; m++) {
+                    var loser = item.losers[m];
+                    var loserVal = loser.value != null ? String(loser.value) : '';
+                    html += '<div class="ml-cl-mod-row">';
+                    html += '<span class="ml-cl-override-icon">↳</span>';
+                    html += '<span class="ml-cl-mod-name">' + _esc(loser.name) + '</span>';
+                    html += '<span class="ml-cl-mod-val">' + _esc(_truncate(loserVal, 40)) + '</span>';
+                    html += '<span class="ml-cl-overridden-tag">已被覆盖</span>';
+                    html += '</div>';
+                }
+                html += '</div>';
+            }
+
+            html += '</div>';
+        }
+        body.innerHTML = html;
+    }
+
+    function _esc(str) {
+        var d = document.createElement('span');
+        d.textContent = str;
+        return d.innerHTML;
+    }
+
+    function _truncate(str, max) {
+        return str.length > max ? str.substring(0, max) + '…' : str;
+    }
+
+    // 导出公共 API
+    window.ModLoader = {
+        version: VERSION,
+        registerLogEntry: registerLogEntry,
+        refreshConflictLog: _refreshClBadge
+    };
+
     log(3, `ModLoader ${VERSION} 初始化完成`);
 
 })();

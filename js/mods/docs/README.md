@@ -1,8 +1,10 @@
 # RMMZ ModLoader
 
-游戏内模组管理器 **V4.1.2**
+游戏内模组管理器 **V4.1.3**
 
 一款功能强大的 RPG Maker MZ 模组管理器，支持在游戏内管理 **本地 Mod** 与 **Steam 创意工坊 Mod** 的开启/关闭、参数编辑、排序与依赖检测。**现已支持多语言界面**（简体中文 / 繁體中文 / English）。
+
+> **V4.1.3 前置 Mod**：新增 **ModDataLoader**（数据库 merge / replace / add、manifest 声明式注入）与 **ModResourceLoader**（资源替换 / 新增、modId 别名），采用 **ModLoader → 前置 Mod → 功能 Mod** 三层架构；游戏专属兼容（加密、YEP 等）通过可插拔 **GameAdapter** 适配，便于不同游戏做插件微调。**部分测试已完成**，详见下方 [开发资源 · 前置 Mod](#前置-modv413-部分测试完成)。
 
 > **运行环境**：Mod 配置保存在 `mod_config.json`  
 > **不再写入**： `plugins.js`，游戏更新官方插件后 Mod 开关与参数不会丢失  
@@ -13,7 +15,7 @@
 
 ## ✨ 实际运用案例
 
-- 使用 RMMZ ModLoader V4.1.2 做 Mod 的游戏「挂机升级打怪兽」攻略站（含 Mod 管理器使用教程 · [飞书链接](https://qcnhq5e2tphh.feishu.cn/wiki/XH1jwdX5uil2ookoEF8cpN1AnJf)）
+- 使用 RMMZ ModLoader V4.1.3 做 Mod 的游戏「挂机升级打怪兽」攻略站（含 Mod 管理器使用教程 · [飞书链接](https://qcnhq5e2tphh.feishu.cn/wiki/XH1jwdX5uil2ookoEF8cpN1AnJf)）
 - 基于 RMMZ ModLoader V4 的「绯月仙行录」游戏微调版运用实例（[百度贴吧 1](https://tieba.baidu.com/p/10810499585?fr=personpage) · [百度贴吧 2](https://tieba.baidu.com/p/10813947286?fr=personpage)）
 
 ## ✨ 功能特性
@@ -24,7 +26,8 @@
 | 🛒 **Steam 创意工坊** | 扫描 `workshop/content/<AppID>/`（AppID 可配置）；筛选、刷新；本地与工坊统一包结构 |
 | 📦 **统一包结构** | 本地 `_localmods/<包名>/` 与工坊订阅包根目录布局一致（V4.1） |
 | ⚙️ **参数编辑** | 数值、开关、文本、单选、颜色、长文本、数据库引用、struct、table |
-| 🔀 **排序与依赖** | 拖拽/序号排序；`@base` / `@orderAfter` 依赖检测 |
+| 🔀 **排序与依赖** | 拖拽/序号排序；`@base` / `@orderAfter` 依赖检测；缺失 `@base` 时自动跳过加载（依赖守卫） |
+| ⚠️ **冲突日志面板** | 管理器打开时右下角 ⚠ 按钮 + 可展开面板，显示 Mod 数据冲突摘要（胜者/已被覆盖方 + 中文字段名） |
 | 📥 **拖放安装** | 拖放 `.js` 或整个 `mods` 文件夹（仅本地 Mod） |
 | 🖼️ **预览图** | 包根 `preview.png`；详情缩略 + 点击弹窗大图 |
 | 🛡️ **配置兼容** | V4.1.1 读取 V3.x `../mods/` 旧键；保存一次自动升级为新键 |
@@ -133,6 +136,8 @@ js/mods/
 │   ├── modloader_config.json
 │   └── language/
 ├── _localmods/                     # 本地 Mod 包
+│   ├── ModDataLoader/              # 数据前置（merge/replace/add）
+│   ├── ModResourceLoader/          # 资源前置（替换/新增）
 │   └── <包名>/
 │       ├── <脚本>.js
 │       ├── preview.png             # 可选
@@ -159,13 +164,29 @@ Steam 工坊订阅包（与 `_localmods` 同布局，脚本在包根）：
 
 ## 📖 开发资源
 
+### 前置 Mod（V4.1.3 · 部分测试完成）
+
+ModLoader 仅管理 `.js` 插件的开关、排序与参数；**数据库与游戏资源的替换 / 新增**由独立前置 Mod 承担。功能 Mod 通过 `@base ModDataLoader` / `@base ModResourceLoader` 声明依赖；换游戏时主要增删 **GameAdapter** 兼容层，核心 API 保持通用。
+
+| 前置 Mod | 能力概要 |
+| --- | --- |
+| **ModDataLoader** | 字段级 merge、整条 replace、新增条目、地图 event 级浅合并；`modloader.json` 的 `data.records` / `data.patches` 零代码注入；stableKey 智能 ID 迁移；冲突报告对接 ModLoader 日志面板 |
+| **ModResourceLoader** | `modloader.json` 的 `resources` 声明式替换；`loadBitmap(modId, path)` 加载 Mod 自带图片；modId 别名（本地 / 工坊包名变化时仍可用）；可选加密绕过 |
+
+示例包：`_localmods/TestMDL-V2`（数据）、`_localmods/TestMRL-V2`（资源）。
+
 | 资源 | 说明 |
 | --- | --- |
 | [使用手册.md](使用手册.md) | 游戏制作者 / 玩家 / Mod 作者完整指南 |
 | [RMMZ_ModLoader_开发规范.md](RMMZ_ModLoader_开发规范.md) | ModLoader 自身开发规范 |
-| [V4.1_测试文档.md](V4.1_测试文档.md) | V4.1 功能测试清单 |
+| [调用规范.md](前置Mod更新日志等/调用规范.md) | 前置 Mod 调用规范（数据 + 资源，Mod 作者必读） |
+| [数据和资源前置Mod-V2-需求规格书.md](前置Mod更新日志等/数据和资源前置Mod-V2-需求规格书.md) | 前置 Mod V2 架构、API 与 MVP 规格 |
+| [ModDataLoader_CHANGELOG.md](前置Mod更新日志等/ModDataLoader_CHANGELOG.md) | ModDataLoader 更新日志 |
+| [ModResourceLoader_CHANGELOG.md](前置Mod更新日志等/ModResourceLoader_CHANGELOG.md) | ModResourceLoader 更新日志 |
+| [前置Mod测试清单.md](前置Mod更新日志等/前置Mod测试清单.md) | 前置 Mod 功能测试清单（部分项已通过） |
+| [V4.1_测试文档.md](V4.1_测试文档.md) | ModLoader V4.1 功能测试清单 |
 | [V4.1_unified_package_plan.md](V4.1_unified_package_plan.md) | V4.1 实施计划 |
-| [modloader_CHANGELOG.md](modloader_CHANGELOG.md) | 完整更新日志 |
+| [modloader_CHANGELOG.md](modloader_CHANGELOG.md) | ModLoader 完整更新日志 |
 
 ***
 
@@ -226,4 +247,4 @@ MIT License — 详见 [LICENSE](LICENSE)
 
 ***
 
-**版本**: V4.1.2 | **更新日期**: 2026-06-25
+**版本**: V4.1.3 | **更新日期**: 2026-06-25

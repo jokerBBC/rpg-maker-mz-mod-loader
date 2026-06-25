@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "title": "ModDataLoader V2 测试包",
+  "entries": ["TestMDL-V2.js"],
+  "data": {
+    "enabled": true,
+    "records": [
+      { "file": "data/TestItems.json", "type": "items", "format": "array" }
+    ],
+    "patches": [
+      { "target": "Items", "index": 1, "merge": { "name": "[MDL-V2]manifest改名" } }
+    ]
+  }
+}

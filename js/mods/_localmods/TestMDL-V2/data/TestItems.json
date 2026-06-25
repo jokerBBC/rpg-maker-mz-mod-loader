@@ -1,0 +1,24 @@
+[
+  null,
+  {
+    "id": 620,
+    "name": "[MDL-V2]manifest记录测试",
+    "iconIndex": 176,
+    "description": "从 modloader.json data.records 自动加载的测试物品",
+    "itypeId": 1,
+    "price": 50,
+    "consumable": true,
+    "occasion": 0,
+    "animationId": 0,
+    "hitType": 0,
+    "damage": { "type": 0, "elementId": 0, "formula": "0", "variance": 0, "critical": false },
+    "effects": [],
+    "params": [0, 0, 0, 0, 0, 0, 0, 0],
+    "repeats": 1,
+    "scope": 0,
+    "speed": 0,
+    "successRate": 100,
+    "tpGain": 0,
+    "note": "<Not Independent Item>\n<颜色:0>\n<类型:物品>"
+  }
+]
