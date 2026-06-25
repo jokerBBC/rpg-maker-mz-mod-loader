@@ -2,7 +2,7 @@
 
 > **[中文版 README](README.md)**
 
-In-game mod manager **V4.1.1**
+In-game mod manager **V4.1.2**
 
 A powerful RPG Maker MZ mod manager for **local mods** and **Steam Workshop mods** — toggles, parameters, load order, and dependency checks, all in-game. **Multilingual UI** (Simplified Chinese / Traditional Chinese / English).
 
@@ -85,4 +85,4 @@ Press **F5** after changing toggles, parameters, or load order. Subscribe/unsubs
 
 MIT License — see [LICENSE](LICENSE)
 
-**Version**: V4.1.1 | **Updated**: 2026-05-31
+**Version**: V4.1.2 | **Updated**: 2026-06-25

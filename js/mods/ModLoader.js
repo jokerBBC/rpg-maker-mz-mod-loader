@@ -92,7 +92,7 @@
     // 1. 基础配置与日志系统
     // ================================================================
     const ModName = "ModLoader";
-    const VERSION = "V4.1.1";
+    const VERSION = "V4.1.2";
     const DEBUG_LEVEL = 0;
 
     const log = (level, ...args) => {
