@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>📄 MD 阅读器</title>
+
+    <!-- highlight.js 代码高亮 (亮色 + 暗色主题) -->
+    <link rel="stylesheet" id="hljs-light" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" />
+    <link rel="stylesheet" id="hljs-dark" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" disabled />
+
+    <!-- marked.js 和 highlight.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js">
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js">
+    </script>
+
+    <style>
+        /* ===== CSS Variables ===== */
+        :root {
+            --bg: #f8f9fa;
+            --bg-card: #ffffff;
+            --bg-toolbar: #ffffff;
+            --text: #1e1e2f;
+            --text-secondary: #4a4a5a;
+            --border: #e9ecef;
+            --shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+            --radius: 12px;
+            --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+            --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", "Consolas", monospace;
+            --max-width: 860px;
+            --code-bg: #f4f4f8;
+            --code-border: #e2e2ea;
+            --blockquote-border: #d0d0d8;
+            --table-border: #dcdce4;
+            --table-stripe: #f4f4f8;
+            --link: #2563eb;
+            --link-hover: #1d4ed8;
+            --btn-bg: #f0f0f4;
+            --btn-hover: #e4e4ea;
+            --btn-text: #1e1e2f;
+            --drop-zone-border: #d0d0d8;
+            --drop-zone-bg: #f4f4f8;
+            --scrollbar-track: #f0f0f4;
+            --scrollbar-thumb: #c0c0cc;
+        }
+
+        [data-theme="dark"] {
+            --bg: #12121a;
+            --bg-card: #1c1c28;
+            --bg-toolbar: #1a1a26;
+            --text: #e6e6f0;
+            --text-secondary: #a8a8b8;
+            --border: #2a2a3a;
+            --shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+            --code-bg: #26263a;
+            --code-border: #33334a;
+            --blockquote-border: #44445a;
+            --table-border: #33334a;
+            --table-stripe: #26263a;
+            --link: #60a5fa;
+            --link-hover: #93bbfc;
+            --btn-bg: #2a2a3e;
+            --btn-hover: #3a3a52;
+            --btn-text: #e6e6f0;
+            --drop-zone-border: #3a3a52;
+            --drop-zone-bg: #1a1a2a;
+            --scrollbar-track: #1a1a28;
+            --scrollbar-thumb: #3a3a52;
+        }
+
+        /* ===== Reset & Base ===== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            height: 100%;
+            font-family: var(--font-body);
+            background: var(--bg);
+            color: var(--text);
+            transition: background 0.25s ease, color 0.25s ease;
+        }
+
+        /* ===== Scrollbar ===== */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--scrollbar-track);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--scrollbar-thumb);
+            border-radius: 3px;
+        }
+
+        /* ===== Layout ===== */
+        #app {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            max-height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ===== Toolbar ===== */
+        #toolbar {
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 24px;
+            background: var(--bg-toolbar);
+            border-bottom: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            transition: background 0.25s ease, border 0.25s ease;
+            z-index: 10;
+            flex-wrap: wrap;
+            gap: 8px 12px;
+        }
+
+        .toolbar-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+        }
+
+        .toolbar-left .brand {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+            color: var(--text);
+            white-space: nowrap;
+        }
+        .toolbar-left .brand span {
+            color: var(--text-secondary);
+            font-weight: 400;
+        }
+
+        .file-name {
+            font-size: 14px;
+            color: var(--text-secondary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 280px;
+            padding: 4px 12px;
+            background: var(--bg);
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            transition: background 0.25s ease;
+        }
+        .file-name.empty {
+            color: var(--text-secondary);
+            opacity: 0.5;
+            font-style: italic;
+        }
+
+        .toolbar-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        /* ===== Buttons ===== */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 7px 16px;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            font-family: var(--font-body);
+            background: var(--btn-bg);
+            color: var(--btn-text);
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
+            user-select: none;
+            white-space: nowrap;
+        }
+        .btn:hover {
+            background: var(--btn-hover);
+        }
+        .btn:active {
+            transform: scale(0.96);
+        }
+
+        .btn-icon {
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            border-radius: 50%;
+            font-size: 18px;
+            background: transparent;
+            color: var(--text-secondary);
+        }
+        .btn-icon:hover {
+            background: var(--btn-bg);
+            color: var(--text);
+        }
+
+        .btn-primary {
+            background: var(--link);
+            color: #fff;
+        }
+        .btn-primary:hover {
+            background: var(--link-hover);
+            color: #fff;
+        }
+
+        /* file input hidden */
+        #file-input {
+            display: none;
+        }
+
+        /* ===== Main Content ===== */
+        #main {
+            flex: 1;
+            overflow-y: auto;
+            padding: 28px 24px 40px;
+            background: var(--bg);
+            transition: background 0.25s ease;
+        }
+
+        #content {
+            max-width: var(--max-width);
+            margin: 0 auto;
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            padding: 40px 48px;
+            box-shadow: var(--shadow);
+            transition: background 0.25s ease, box-shadow 0.25s ease;
+            min-height: 200px;
+            word-wrap: break-word;
+        }
+
+        /* ===== Empty State ===== */
+        #empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 20px;
+            text-align: center;
+            color: var(--text-secondary);
+            min-height: 300px;
+        }
+        #empty-state .icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+            opacity: 0.6;
+        }
+        #empty-state h2 {
+            font-size: 22px;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 8px;
+        }
+        #empty-state p {
+            font-size: 15px;
+            color: var(--text-secondary);
+            max-width: 400px;
+            line-height: 1.7;
+        }
+        #empty-state .drop-hint {
+            margin-top: 18px;
+            padding: 20px 40px;
+            border: 2px dashed var(--drop-zone-border);
+            border-radius: var(--radius);
+            background: var(--drop-zone-bg);
+            font-size: 14px;
+            transition: border 0.25s ease, background 0.25s ease;
+        }
+        #empty-state .drop-hint strong {
+            color: var(--text);
+        }
+
+        /* ===== Markdown 渲染样式 ===== */
+        #content h1,
+        #content h2,
+        #content h3,
+        #content h4,
+        #content h5,
+        #content h6 {
+            margin-top: 1.8em;
+            margin-bottom: 0.6em;
+            font-weight: 700;
+            line-height: 1.3;
+            letter-spacing: -0.02em;
+            color: var(--text);
+        }
+        #content h1 {
+            font-size: 2em;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 0.3em;
+            margin-top: 0.2em;
+        }
+        #content h2 {
+            font-size: 1.6em;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.25em;
+        }
+        #content h3 {
+            font-size: 1.3em;
+        }
+        #content h4 {
+            font-size: 1.1em;
+        }
+        #content h5 {
+            font-size: 1em;
+        }
+        #content h6 {
+            font-size: 0.95em;
+            color: var(--text-secondary);
+        }
+
+        #content p {
+            margin: 1em 0;
+            line-height: 1.8;
+            color: var(--text);
+        }
+
+        #content a {
+            color: var(--link);
+            text-decoration: none;
+            border-bottom: 1px solid transparent;
+            transition: border-color 0.2s ease, color 0.2s ease;
+        }
+        #content a:hover {
+            color: var(--link-hover);
+            border-bottom-color: var(--link-hover);
+        }
+
+        #content ul,
+        #content ol {
+            padding-left: 1.8em;
+            margin: 0.8em 0;
+            line-height: 1.8;
+        }
+        #content li {
+            margin: 0.2em 0;
+        }
+        #content li>ul,
+        #content li>ol {
+            margin: 0.2em 0;
+        }
+
+        #content blockquote {
+            margin: 1.2em 0;
+            padding: 0.8em 1.2em;
+            border-left: 4px solid var(--blockquote-border);
+            background: var(--bg);
+            border-radius: 0 8px 8px 0;
+            color: var(--text-secondary);
+            transition: background 0.25s ease;
+        }
+        #content blockquote p {
+            margin: 0.4em 0;
+        }
+
+        #content code {
+            font-family: var(--font-mono);
+            font-size: 0.9em;
+            padding: 0.2em 0.5em;
+            border-radius: 4px;
+            background: var(--code-bg);
+            color: var(--text);
+            transition: background 0.25s ease;
+        }
+
+        #content pre {
+            margin: 1.2em 0;
+            padding: 0;
+            border-radius: 10px;
+            background: var(--code-bg);
+            border: 1px solid var(--code-border);
+            overflow-x: auto;
+            transition: background 0.25s ease, border 0.25s ease;
+        }
+        #content pre code {
+            display: block;
+            padding: 16px 20px;
+            font-size: 0.88em;
+            line-height: 1.7;
+            background: transparent;
+            border-radius: 0;
+            color: var(--text);
+            overflow-x: auto;
+            font-family: var(--font-mono);
+        }
+        /* hljs 覆盖：让代码块内文字颜色继承 */
+        #content pre code.hljs {
+            background: transparent !important;
+            color: var(--text) !important;
+        }
+
+        #content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.2em 0;
+            font-size: 0.95em;
+            overflow-x: auto;
+            display: block;
+        }
+        #content table th,
+        #content table td {
+            padding: 10px 14px;
+            border: 1px solid var(--table-border);
+            text-align: left;
+        }
+        #content table th {
+            background: var(--table-stripe);
+            font-weight: 600;
+            color: var(--text);
+        }
+        #content table tr:nth-child(even) {
+            background: var(--table-stripe);
+        }
+        #content table tr:hover {
+            background: var(--bg);
+        }
+
+        #content img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin: 1em 0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        }
+
+        #content hr {
+            border: none;
+            border-top: 2px solid var(--border);
+            margin: 2em 0;
+        }
+
+        #content .task-list-item {
+            list-style: none;
+            margin-left: -1.2em;
+        }
+        #content .task-list-item input[type="checkbox"] {
+            margin-right: 0.5em;
+            accent-color: var(--link);
+            transform: scale(1.1);
+            cursor: default;
+        }
+
+        /* ===== Footer stats ===== */
+        #stats {
+            max-width: var(--max-width);
+            margin: 12px auto 0;
+            padding: 0 12px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            opacity: 0.6;
+            text-align: right;
+            transition: color 0.25s ease;
+            user-select: none;
+        }
+
+        /* ===== Responsive ===== */
+        @media (max-width: 720px) {
+            #toolbar {
+                padding: 8px 16px;
+            }
+            .toolbar-left .brand {
+                font-size: 15px;
+            }
+            .file-name {
+                max-width: 140px;
+                font-size: 12px;
+                padding: 2px 10px;
+            }
+            #content {
+                padding: 24px 20px;
+                border-radius: 8px;
+            }
+            #main {
+                padding: 16px 12px 28px;
+            }
+            #empty-state .drop-hint {
+                padding: 14px 20px;
+                font-size: 13px;
+            }
+            #empty-state .icon {
+                font-size: 44px;
+            }
+            #empty-state h2 {
+                font-size: 18px;
+            }
+            .btn {
+                font-size: 12px;
+                padding: 5px 12px;
+            }
+            .btn-icon {
+                width: 32px;
+                height: 32px;
+                font-size: 16px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            #toolbar {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 6px;
+            }
+            .toolbar-left {
+                justify-content: space-between;
+            }
+            .toolbar-right {
+                justify-content: flex-end;
+            }
+            .file-name {
+                max-width: 100px;
+            }
+            #content {
+                padding: 18px 14px;
+            }
+        }
+
+        /* ===== Drag-over 状态 ===== */
+        #app.dragover #main {
+            background: var(--drop-zone-bg);
+        }
+        #app.dragover #empty-state .drop-hint {
+            border-color: var(--link);
+            background: var(--bg-card);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+        }
+        #app.dragover #content {
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+        }
+
+        /* ===== 打印 ===== */
+        @media print {
+            #toolbar {
+                display: none !important;
+            }
+            #main {
+                padding: 0 !important;
+                background: #fff !important;
+            }
+            #content {
+                box-shadow: none !important;
+                border-radius: 0 !important;
+                padding: 40px !important;
+                max-width: 100% !important;
+            }
+            #stats {
+                display: none !important;
+            }
+            body {
+                background: #fff !important;
+                color: #000 !important;
+            }
+            [data-theme="dark"] #content {
+                color: #000 !important;
+                background: #fff !important;
+            }
+            [data-theme="dark"] #content code {
+                background: #f4f4f8 !important;
+                color: #1e1e2f !important;
+            }
+            [data-theme="dark"] #content pre code {
+                color: #1e1e2f !important;
+            }
+            [data-theme="dark"] #content pre {
+                background: #f4f4f8 !important;
+                border-color: #e2e2ea !important;
+            }
+            [data-theme="dark"] #content table th {
+                background: #f4f4f8 !important;
+            }
+            [data-theme="dark"] #content table tr:nth-child(even) {
+                background: #f4f4f8 !important;
+            }
+            [data-theme="dark"] #content blockquote {
+                background: #f8f9fa !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app">
+        <!-- ===== 工具栏 ===== -->
+        <header id="toolbar">
+            <div class="toolbar-left">
+                <div class="brand">📄 MD <span>阅读器</span></div>
+                <span class="file-name empty" id="fileName">未打开文件</span>
+            </div>
+            <div class="toolbar-right">
+                <button class="btn btn-icon" id="themeToggle" title="切换主题" aria-label="切换主题">🌙</button>
+                <button class="btn btn-primary" id="openBtn">📂 打开文件</button>
+                <input type="file" id="file-input" accept=".md,.markdown,.mkd,.mdown,.txt" />
+            </div>
+        </header>
+
+        <!-- ===== 主内容 ===== -->
+        <main id="main">
+            <div id="content">
+                <!-- 空状态 -->
+                <div id="empty-state">
+                    <div class="icon">📝</div>
+                    <h2>打开 Markdown 文件</h2>
+                    <p>选择或拖拽 <strong>.md</strong> 文件到本页面，即可开始阅读。</p>
+                    <div class="drop-hint">
+                        🖱️ 拖拽文件到此处 &nbsp;·&nbsp; 或点击右上角 <strong>「打开文件」</strong>
+                    </div>
+                </div>
+            </div>
+            <div id="stats"></div>
+        </main>
+    </div>
+
+    <script>
+        (function() {
+            'use strict';
+
+            // ===== DOM 引用 =====
+            const app = document.getElementById('app');
+            const content = document.getElementById('content');
+            const fileNameEl = document.getElementById('fileName');
+            const fileInput = document.getElementById('file-input');
+            const openBtn = document.getElementById('openBtn');
+            const themeToggle = document.getElementById('themeToggle');
+            const statsEl = document.getElementById('stats');
+
+            // ===== 状态 =====
+            let currentFile = null; // { name, text }
+            let theme = localStorage.getItem('md-reader-theme') || 'light';
+
+            // ===== 初始化主题 =====
+            function applyTheme(t) {
+                theme = t;
+                document.documentElement.setAttribute('data-theme', t);
+                localStorage.setItem('md-reader-theme', t);
+
+                // 切换 highlight.js 样式
+                const light = document.getElementById('hljs-light');
+                const dark = document.getElementById('hljs-dark');
+                if (t === 'dark') {
+                    light.disabled = true;
+                    dark.disabled = false;
+                    themeToggle.textContent = '☀️';
+                    themeToggle.title = '切换到亮色';
+                } else {
+                    light.disabled = false;
+                    dark.disabled = true;
+                    themeToggle.textContent = '🌙';
+                    themeToggle.title = '切换到暗色';
+                }
+            }
+            applyTheme(theme);
+
+            themeToggle.addEventListener('click', () => {
+                applyTheme(theme === 'light' ? 'dark' : 'light');
+                // 重新渲染以更新代码高亮配色（hljs 已切换，无需重绘）
+            });
+
+            // ===== Marked 配置 =====
+            const renderer = new marked.Renderer();
+
+            // 让链接在新窗口打开（可选）
+            renderer.link = function(href, title, text) {
+                const t = title ? ` title="${title}"` : '';
+                return `<a href="${href}" target="_blank" rel="noopener noreferrer"${t}>${text}</a>`;
+            };
+
+            marked.setOptions({
+                renderer: renderer,
+                highlight: function(code, lang) {
+                    if (lang && hljs.getLanguage(lang)) {
+                        try {
+                            return hljs.highlight(code, { language: lang }).value;
+                        } catch (_) { /* fall through */ }
+                    }
+                    return code;
+                },
+                gfm: true,
+                breaks: true,
+                pedantic: false,
+                smartLists: true,
+                smartypants: false,
+                xhtml: false,
+            });
+
+            // ===== 渲染 =====
+            function renderMarkdown(text) {
+                if (!text || text.trim() === '') {
+                    content.innerHTML = `
+                        <div id="empty-state">
+                            <div class="icon">📄</div>
+                            <h2>文件为空</h2>
+                            <p>当前文件没有任何内容，请选择其他文件。</p>
+                        </div>
+                    `;
+                    statsEl.textContent = '';
+                    return;
+                }
+
+                try {
+                    const html = marked.parse(text);
+                    content.innerHTML = html;
+                    // 统计
+                    const lines = text.split('\n').length;
+                    const chars = text.length;
+                    const words = text.split(/\s+/).filter(w => w.length > 0).length;
+                    statsEl.textContent = `${words} 词 · ${lines} 行 · ${chars} 字符`;
+                } catch (err) {
+                    content.innerHTML = `
+                        <div style="color:#e74c3c;padding:40px;text-align:center;">
+                            <h3>⚠️ 渲染出错</h3>
+                            <p style="color:var(--text-secondary);">${err.message}</p>
+                            <pre style="text-align:left;background:var(--code-bg);padding:16px;border-radius:8px;overflow:auto;font-size:13px;margin-top:12px;">${text.substring(0, 800)}${text.length > 800 ? '\n... (截断)' : ''}</pre>
+                        </div>
+                    `;
+                    statsEl.textContent = '';
+                }
+            }
+
+            // ===== 加载文件 =====
+            function loadFile(file) {
+                if (!file) return;
+                // 检查文件类型（扩展名）
+                const name = file.name;
+                const ext = name.split('.').pop().toLowerCase();
+                const valid = ['md', 'markdown', 'mkd', 'mdown', 'txt'];
+                if (!valid.includes(ext)) {
+                    alert('请选择 .md / .markdown / .txt 文件。\n当前文件: ' + name);
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const text = e.target.result;
+                    currentFile = { name, text };
+                    fileNameEl.textContent = name;
+                    fileNameEl.className = 'file-name';
+                    renderMarkdown(text);
+                };
+                reader.onerror = function() {
+                    alert('读取文件失败，请重试。');
+                };
+                reader.readAsText(file, 'UTF-8');
+            }
+
+            // ===== 打开文件选择器 =====
+            openBtn.addEventListener('click', () => {
+                fileInput.click();
+            });
+
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    loadFile(e.target.files[0]);
+                }
+                fileInput.value = ''; // 允许重复选择同一文件
+            });
+
+            // ===== 拖拽支持 =====
+            let dragCounter = 0;
+
+            app.addEventListener('dragenter', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dragCounter++;
+                app.classList.add('dragover');
+            });
+
+            app.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dragCounter--;
+                if (dragCounter === 0) {
+                    app.classList.remove('dragover');
+                }
+            });
+
+            app.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+
+            app.addEventListener('drop', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dragCounter = 0;
+                app.classList.remove('dragover');
+
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    const file = files[0];
+                    const ext = file.name.split('.').pop().toLowerCase();
+                    const valid = ['md', 'markdown', 'mkd', 'mdown', 'txt'];
+                    if (!valid.includes(ext)) {
+                        alert('请拖拽 .md / .markdown / .txt 文件。');
+                        return;
+                    }
+                    loadFile(file);
+                }
+            });
+
+            // ===== 键盘快捷键 =====
+            document.addEventListener('keydown', (e) => {
+                // Ctrl+O 打开文件
+                if ((e.ctrlKey || e.metaKey) && e.key === 'o') {
+                    e.preventDefault();
+                    fileInput.click();
+                }
+                // Ctrl+Shift+T 切换主题
+                if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 't' || e.key === 'T')) {
+                    e.preventDefault();
+                    themeToggle.click();
+                }
+            });
+
+            // ===== 页面加载后检查是否有 URL 参数 ?file=...（非必须，但可扩展） =====
+            // 不做自动加载，保持纯净
+
+            // ===== 如果用户曾经打开过文件，可以尝试从 localStorage 恢复？ =====
+            // 不自动恢复，避免隐私问题
+
+            console.log('📄 MD 阅读器已启动 — 拖拽或选择 .md 文件开始阅读');
+            console.log('💡 快捷键: Ctrl+O 打开 | Ctrl+Shift+T 切换主题');
+
+            // 额外: 如果内容为空，确保空状态显示
+            if (!currentFile) {
+                // 已经默认显示空状态
+            }
+
+            // 当窗口尺寸变化时，不用做特殊处理
+
+        })();
+    </script>
+
+</body>
+</html>
