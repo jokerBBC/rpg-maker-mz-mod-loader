@@ -4,9 +4,17 @@
 
 一款功能强大的 RPG Maker MZ 模组管理器，支持在游戏内管理 **本地 Mod** 与 **Steam 创意工坊 Mod** 的开启/关闭、参数编辑、排序与依赖检测。**现已支持多语言界面**（简体中文 / 繁體中文 / English）。
 
-> **运行环境**：Mod 配置保存在 `mod_config.json`，**不再写入** `plugins.js`，游戏更新官方插件后 Mod 开关与参数不会丢失。**创意工坊**需 Steam 正版安装路径才能解析工坊目录；**盗版环境检测**默认关闭，游戏作者可在 `modloader_config.json` 中按需开启。
+> **运行环境**：Mod 配置保存在 `mod_config.json`
+**不再写入**： `plugins.js`，游戏更新官方插件后 Mod 开关与参数不会丢失
+**创意工坊**：需 Steam 正版安装路径才能解析工坊目录
+**盗版环境检测**：默认关闭，游戏作者可在 `modloader_config.json` 中按需开启。
 
 ***
+
+## ✨ 实际运用案例
+
+- 使用 RMMZ ModLoader V4.1.2 做 Mod 的游戏「挂机升级打怪兽」攻略站（含 Mod 管理器使用教程 · [飞书链接](https://qcnhq5e2tphh.feishu.cn/wiki/XH1jwdX5uil2ookoEF8cpN1AnJf)）
+- 基于 RMMZ ModLoader V4 的「绯月仙行录」游戏微调版运用实例（[百度贴吧 1](https://tieba.baidu.com/p/10810499585?fr=personpage) · [百度贴吧 2](https://tieba.baidu.com/p/10813947286?fr=personpage)）
 
 ## ✨ 功能特性
 

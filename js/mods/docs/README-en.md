@@ -6,7 +6,17 @@ In-game mod manager **V4.1.2**
 
 A powerful RPG Maker MZ mod manager that lets you enable/disable, edit parameters, reorder, and check dependencies for **local mods** and **Steam Workshop mods** — all from inside the game. **Multilingual UI** is supported (Simplified Chinese / Traditional Chinese / English).
 
-> **Runtime requirement**: Since V3.16.1, only **Steam legitimate** install paths are supported (preparing for Steam Workshop integration). Mod configuration is saved in `mod_config.json` and is **no longer written** to `plugins.js`, so mod toggles and parameters survive official plugin updates.
+> **Runtime environment**: Mod configuration is saved in `mod_config.json` ,
+and is **no longer written** to `plugins.js`, so mod toggles and parameters survive official plugin updates. 
+**Steam Workshop** requires a legitimate Steam install path to resolve Workshop directories.
+**piracy detection** is off by default — game authors can enable it in `modloader_config.json` as needed.
+
+***
+
+## ✨ Real-world examples
+
+- Guide/wiki for the game *Idle Level Up & Fight Monsters* using RMMZ ModLoader V4.1.2 (includes mod manager tutorial · [Feishu link](https://qcnhq5e2tphh.feishu.cn/wiki/XH1jwdX5uil2ookoEF8cpN1AnJf))
+- Fine-tuning examples for *Crimson Moon Immortal Journey* based on RMMZ ModLoader V4 ([Baidu Tieba post 1](https://tieba.baidu.com/p/10810499585?fr=personpage) · [Baidu Tieba post 2](https://tieba.baidu.com/p/10813947286?fr=personpage))
 
 ***
 

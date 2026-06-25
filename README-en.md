@@ -6,7 +6,17 @@ In-game mod manager **V4.1.2**
 
 A powerful RPG Maker MZ mod manager for **local mods** and **Steam Workshop mods** — toggles, parameters, load order, and dependency checks, all in-game. **Multilingual UI** (Simplified Chinese / Traditional Chinese / English).
 
-> **Runtime requirement**: Steam legitimate install paths only since V3.16.1. Config is saved in `mod_config.json`, **not** `plugins.js`.
+> **Runtime environment**: Mod configuration is saved in `mod_config.json` 
+and is **no longer written** to `plugins.js`, so mod toggles and parameters survive official plugin updates. 
+**Steam Workshop** requires a legitimate Steam install path to resolve Workshop directories
+**piracy detection** is off by default — game authors can enable it in `modloader_config.json` as needed.
+
+***
+
+## ✨ Real-world examples
+
+- Guide/wiki for the game *Idle Level Up & Fight Monsters* using RMMZ ModLoader V4.1.2 (includes mod manager tutorial · [Feishu link](https://qcnhq5e2tphh.feishu.cn/wiki/XH1jwdX5uil2ookoEF8cpN1AnJf))
+- Fine-tuning examples for *Crimson Moon Immortal Journey* based on RMMZ ModLoader V4 ([Baidu Tieba post 1](https://tieba.baidu.com/p/10810499585?fr=personpage) · [Baidu Tieba post 2](https://tieba.baidu.com/p/10813947286?fr=personpage))
 
 ***
 
@@ -15,19 +25,19 @@ A powerful RPG Maker MZ mod manager for **local mods** and **Steam Workshop mods
 | Feature | Description |
 | --- | --- |
 | 🎮 **In-game management** | Manage mod toggles, parameters, and load order without external tools |
-| 🛒 **Steam Workshop** | Scans `workshop/content/<AppID>/`; filter, refresh; unified local/Workshop package layout |
+| 🛒 **Steam Workshop** | Scans `workshop/content/<AppID>/` (AppID configurable); filter, refresh; unified local/Workshop package layout |
 | 📦 **Unified package layout** | Local `_localmods/<package>/` matches Workshop subscription root (V4.1) |
 | ⚙️ **Parameter editor** | number, boolean, string, select, color, note, database refs, struct, table |
 | 🔀 **Order & dependencies** | Drag/index reordering; `@base` / `@orderAfter` checks |
 | 📥 **Drag-and-drop install** | Drop `.js` or a `mods/` folder (local mods only) |
 | 🖼️ **Preview images** | `preview.png` at package root; thumbnail + full-size popup |
-| 🛡️ **Config compatibility** | V4.1.1 reads legacy V3.x keys; one save migrates to new keys |
+| 🛡️ **Config compatibility** | V4.1.1 reads legacy V3.x `../mods/` keys; one save migrates to new keys |
 | 🌐 **Multilingual** | Simplified Chinese / Traditional Chinese / English |
 | 🎨 **Dual themes** | Dark / warm |
 
 ***
 
-## ✨ UI Screenshots
+## ✨ UI Screenshots (Dark / Warm themes)
 
 <div align="center">
 
