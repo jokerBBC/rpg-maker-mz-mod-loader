@@ -1,11 +1,11 @@
 /*:
  * @target MZ
- * @plugindesc V2.0.0 资源替换前置Mod —— 为功能Mod提供图片/音频替换API与加密绕过
+ * @plugindesc V2.0.1 资源替换前置Mod —— 为功能Mod提供图片/音频替换API与加密绕过
  * @author joker创意
  *
  * @help
  * ┌────────────────────────────┐
- * │  ModResourceLoader V2.0.0  │
+ * │  ModResourceLoader V2.0.1  │
  * │  资源替换前置Mod            │
  * └────────────────────────────┘
  *
@@ -36,6 +36,7 @@
  * ModResourceLoader.registerImage(folder, filename, modUrl)
  * ModResourceLoader.registerAudio(folder, filename, modUrl)
  * ModResourceLoader.getResourceRegistry()
+ * ModResourceLoader.getConflictReport()
  *
  * @param debugLevel
  * @text 调试等级
@@ -73,7 +74,7 @@
     // ═══════════════════════════════════════════════════════════
 
     const MOD_NAME = 'ModResourceLoader';
-    const VERSION = 'V2.0.0';
+    const VERSION = 'V2.0.1';
 
     // ═══════════════════════════════════════════════════════════
     //  Logging
@@ -124,10 +125,16 @@
 
     /**
      * 资源注册表
-     * Map<resourceKey, {url, modName, order}>
+     * Map<resourceKey, {url, modName, order, source}>
      * key 格式: 'img:folder:filename' 或 'audio:folder:filename'
      */
     const _resourceRegistry = new Map();
+
+    /**
+     * 冲突日志
+     * Map<resourceKey, { type, folder, filename, touches: [{modName, order, url, regSource}] }>
+     */
+    const _conflictLog = new Map();
 
     /** Mod 资源 URL 集合（用于加密绕过检测） */
     const _modResourceUrls = new Set();
@@ -242,12 +249,14 @@
     /**
      * 扫描所有启用 Mod 的 modloader.json，处理 resources 声明
      * 替换走声明（零代码），ModResourceLoader 自己知道每个 mod 的目录
+     * 按 mod_config.order 升序处理，后写覆盖先写（order 大者生效）
      */
     function _scanResourceManifests() {
         const basePath = resolveModsBasePath();
         const configData = readJsonFile(basePath + 'mod_config.json');
         if (!configData) return;
 
+        const enabledMods = [];
         for (const configKey of Object.keys(configData)) {
             const config = configData[configKey];
             if (!config || config.status !== true) continue;
@@ -264,6 +273,19 @@
             } else {
                 continue;
             }
+
+            enabledMods.push({
+                configKey,
+                packageName,
+                modDir,
+                order: typeof config.order === 'number' ? config.order : 999
+            });
+        }
+
+        enabledMods.sort((a, b) => a.order - b.order);
+
+        for (const mod of enabledMods) {
+            const { packageName, modDir, order } = mod;
 
             // 记录 mod 基础路径（供 loadBitmap API 使用）
             _modPaths[packageName] = modDir;
@@ -287,7 +309,6 @@
                     continue;
                 }
                 const fullUrl = modDir + replacementPath;
-                _modResourceUrls.add(fullUrl);
 
                 // 解析 originalPath → folder + filename
                 // 例如 "img/菜单/现实时间图标" → folder="img/菜单/", filename="现实时间图标"
@@ -301,12 +322,7 @@
 
                 // 判断类型
                 const type = folder.startsWith('audio/') ? 'audio' : 'img';
-                const key = makeResourceKey(type, folder, filename);
-                _resourceRegistry.set(key, {
-                    url: fullUrl,
-                    modName: packageName,
-                    source: 'manifest'
-                });
+                _setResourceEntry(type, folder, filename, fullUrl, packageName, order, 'manifest');
 
                 log(1, `Manifest resource: ${packageName} → ${folder}${filename} ⇒ ${fullUrl}`);
             }
@@ -341,8 +357,91 @@
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  Resource Registration
+    //  Resource Registration & Conflict Tracking
     // ═══════════════════════════════════════════════════════════
+
+    function _trackResourceTouch(type, folder, filename, url, modName, order, regSource) {
+        const key = makeResourceKey(type, folder, filename);
+        if (!_conflictLog.has(key)) {
+            _conflictLog.set(key, { type, folder, filename, touches: [] });
+        }
+        _conflictLog.get(key).touches.push({
+            modName: modName || '未知Mod',
+            order: typeof order === 'number' ? order : 999,
+            url: url || '',
+            regSource: regSource || 'api'
+        });
+    }
+
+    function _setResourceEntry(type, folder, filename, url, modName, order, regSource) {
+        const key = makeResourceKey(type, folder, filename);
+        _trackResourceTouch(type, folder, filename, url, modName, order, regSource);
+        _resourceRegistry.set(key, {
+            url,
+            modName: modName || 'unknown',
+            order: typeof order === 'number' ? order : 999,
+            source: regSource || 'api'
+        });
+        _modResourceUrls.add(url);
+    }
+
+    function _getConflictReport() {
+        const report = [];
+        const typeNames = { img: '图片', audio: '音频' };
+
+        for (const [, entry] of _conflictLog) {
+            if (entry.touches.length < 2) continue;
+
+            // 按 modName:regSource 去重：同 mod 不同来源视为独立条目
+            const modMap = new Map();
+            for (const touch of entry.touches) {
+                const name = `${touch.modName || '未知Mod'} (${touch.regSource || 'api'})`;
+                const existing = modMap.get(name);
+                if (!existing || touch.order >= existing.order) {
+                    modMap.set(name, touch);
+                }
+            }
+
+            const uniqueMods = Array.from(modMap.values());
+            if (uniqueMods.length < 2) continue;
+
+            // 检查是否有实际冲突（不同 URL）
+            const urls = uniqueMods.map(t => String(t.url || ''));
+            if (new Set(urls).size <= 1) continue;
+
+            const sorted = uniqueMods.slice().sort((a, b) => a.order - b.order);
+            const winner = sorted[sorted.length - 1];
+            const losers = sorted.slice(0, -1);
+            const path = (entry.folder || '') + (entry.filename || '');
+            const _srcLabel = (t) => `${t.modName || '未知Mod'} (${t.regSource || 'api'})`;
+
+            report.push({
+                resourceKey: makeResourceKey(entry.type, entry.folder, entry.filename),
+                type: entry.type,
+                typeName: typeNames[entry.type] || entry.type || '?',
+                folder: entry.folder,
+                filename: entry.filename,
+                path,
+                winnerName: _srcLabel(winner),
+                winnerUrl: winner.url,
+                winnerValue: winner.url,
+                losers: losers.map(l => ({
+                    name: _srcLabel(l),
+                    url: l.url,
+                    value: l.url
+                })),
+                mods: sorted.map(t => ({
+                    name: _srcLabel(t),
+                    modName: t.modName,
+                    order: t.order,
+                    url: t.url,
+                    regSource: t.regSource
+                })),
+                winner: winner.modName
+            });
+        }
+        return report;
+    }
 
     function registerImage(folder, filename, modUrl) {
         registerResource('img', folder, filename, modUrl);
@@ -372,15 +471,8 @@
             error(`registerResource: unsafe URL '${modUrl}'`); return;
         }
 
-        const key = makeResourceKey(type, folder, filename);
-        _resourceRegistry.set(key, {
-            url: modUrl,
-            modName: 'unknown', // 简化：资源前置不追踪 order
-            source: getCallerInfo()
-        });
-        _modResourceUrls.add(modUrl);
-
-        log(1, `Registered ${type}: ${folder}${filename} → ${modUrl}`);
+        _setResourceEntry(type, folder, filename, modUrl, 'unknown', 999, 'api');
+        log(1, `Registered ${type}: ${folder}${filename} → ${modUrl} (${getCallerInfo()})`);
     }
 
     function _getModResourceUrl(type, folder, filename) {
@@ -549,11 +641,14 @@
                 result[key] = {
                     url: entry.url,
                     modName: entry.modName,
+                    order: entry.order,
                     source: entry.source
                 };
             }
             return result;
-        }
+        },
+
+        getConflictReport: _getConflictReport
     };
 
     // 导出全局 API
@@ -564,6 +659,119 @@
 
     // 安装 Hook
     installHooks();
+
+    // ── 冲突日志面板内容（由 ModLoader 空壳托管，本前置负责渲染） ──
+    function _escHtml(str) {
+        const d = document.createElement('span');
+        d.textContent = str == null ? '' : String(str);
+        return d.innerHTML;
+    }
+
+    function _truncateStr(str, max) {
+        str = str == null ? '' : String(str);
+        return str.length > max ? str.substring(0, max) + '…' : str;
+    }
+
+    function _ensureConflictStyles() {
+        if (document.getElementById('mrl-conflict-styles')) return;
+        const style = document.createElement('style');
+        style.id = 'mrl-conflict-styles';
+        style.textContent =
+            '.mrl-cl-empty{padding:24px 16px;text-align:center;color:var(--ml-text-muted,#666680);font-size:13px;}' +
+            '.mrl-cl-summary{padding:10px 16px 8px;margin:4px 12px 8px;border-radius:8px;background:rgba(255,167,38,0.10);border:1px solid rgba(255,167,38,0.20);font-size:12px;line-height:1.6;color:#ffa726;}' +
+            '.mrl-cl-summary b{color:#ffb74d;font-size:14px;}' +
+            '.mrl-cl-item{padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.06);}' +
+            '.mrl-cl-item:last-child{border-bottom:none;}' +
+            '.mrl-cl-item-head{display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap;}' +
+            '.mrl-cl-tag{font-size:11px;padding:2px 7px;border-radius:4px;font-weight:600;line-height:1.5;}' +
+            '.mrl-cl-tag-type{background:rgba(74,158,255,0.15);color:#5cb0ff;}' +
+            '.mrl-cl-tag-path{background:rgba(255,167,38,0.15);color:#ffa726;}' +
+            '.mrl-cl-result{display:flex;align-items:center;gap:8px;padding:4px 0;margin-bottom:4px;}' +
+            '.mrl-cl-winner-name{color:#4caf50;font-weight:600;font-size:12px;white-space:nowrap;}' +
+            '.mrl-cl-winner-val{color:var(--ml-text-primary,#e8e8ec);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}' +
+            '.mrl-cl-overridden{border-left:2px solid rgba(255,255,255,0.08);margin-left:4px;padding-left:8px;}' +
+            '.mrl-cl-mod-row{display:flex;align-items:center;gap:6px;font-size:11px;padding:2px 0;}' +
+            '.mrl-cl-override-icon{color:#666680;font-size:12px;}' +
+            '.mrl-cl-mod-name{color:#9a9ab0;font-weight:500;}' +
+            '.mrl-cl-mod-val{color:#666680;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px;}' +
+            '.mrl-cl-overridden-tag{color:#ef5350;font-size:10px;font-weight:600;margin-left:auto;padding:1px 4px;border-radius:3px;background:rgba(239,83,80,0.10);}';
+        document.head.appendChild(style);
+    }
+
+    function _renderConflictPanel(container) {
+        if (!container) return;
+        _ensureConflictStyles();
+        const items = _getConflictReport();
+        if (!items.length) {
+            container.innerHTML = '<div class="mrl-cl-empty">✅ 无冲突，所有 Mod 资源替换正常</div>';
+            return;
+        }
+
+        let html = '<div class="mrl-cl-summary">';
+        html += '⚠ 发现 <b>' + items.length + '</b> 处资源冲突<br>';
+        html += '多个 Mod 替换了同一资源，已自动按排序决定生效项';
+        html += '</div>';
+
+        for (let k = 0; k < items.length; k++) {
+            const item = items[k];
+            const typeName = item.typeName || item.type || '?';
+            const path = item.path || ((item.folder || '') + (item.filename || ''));
+            const winnerName = item.winnerName || item.winner || '未知';
+            const winnerUrl = item.winnerUrl != null ? String(item.winnerUrl) : '';
+
+            html += '<div class="mrl-cl-item">';
+            html += '<div class="mrl-cl-item-head">';
+            html += '<span class="mrl-cl-tag mrl-cl-tag-type">' + _escHtml(typeName) + '</span>';
+            html += '<span class="mrl-cl-tag mrl-cl-tag-path">' + _escHtml(path) + '</span>';
+            html += '</div>';
+
+            html += '<div class="mrl-cl-result">';
+            html += '<span class="mrl-cl-winner-name">✓ ' + _escHtml(winnerName) + '</span>';
+            html += '<span class="mrl-cl-winner-val">' + _escHtml(_truncateStr(winnerUrl, 60)) + '</span>';
+            html += '</div>';
+
+            if (Array.isArray(item.losers) && item.losers.length > 0) {
+                html += '<div class="mrl-cl-overridden">';
+                for (let m = 0; m < item.losers.length; m++) {
+                    const loser = item.losers[m];
+                    const loserUrl = loser.url != null ? String(loser.url) : '';
+                    html += '<div class="mrl-cl-mod-row">';
+                    html += '<span class="mrl-cl-override-icon">↳</span>';
+                    html += '<span class="mrl-cl-mod-name">' + _escHtml(loser.name) + '</span>';
+                    html += '<span class="mrl-cl-mod-val">' + _escHtml(_truncateStr(loserUrl, 50)) + '</span>';
+                    html += '<span class="mrl-cl-overridden-tag">已被覆盖</span>';
+                    html += '</div>';
+                }
+                html += '</div>';
+            }
+
+            html += '</div>';
+        }
+        container.innerHTML = html;
+    }
+
+    function _registerConflictLogEntry() {
+        if (!window.ModLoader || typeof window.ModLoader.registerLogEntry !== 'function') return false;
+        window.ModLoader.registerLogEntry({
+            id: 'ModResourceLoader',
+            label: '资源冲突日志',
+            getConflictCount: function() {
+                return _getConflictReport().length;
+            },
+            render: _renderConflictPanel
+        });
+        return true;
+    }
+
+    if (_registerConflictLogEntry()) {
+        log(1, 'Registered conflict log entry with ModLoader');
+    } else {
+        window.addEventListener('load', () => {
+            if (_registerConflictLogEntry()) {
+                log(1, 'Registered conflict log entry with ModLoader (deferred)');
+            }
+        });
+    }
 
     log(1, `${MOD_NAME} ${VERSION} loaded successfully`);
 

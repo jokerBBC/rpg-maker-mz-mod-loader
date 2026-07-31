@@ -1,11 +1,11 @@
 /*:
  * @target MZ
- * @plugindesc V2.0.0 数据合并前置Mod —— 为功能Mod提供数据库合并、地图修改、冲突检测与智能ID迁移API
+ * @plugindesc V2.0.1 数据合并前置Mod —— 为功能Mod提供数据库合并、地图修改、冲突检测与智能ID迁移API
  * @author joker创意
  *
  * @help
  * ┌────────────────────────────┐
- * │  ModDataLoader V2.0.0      │
+ * │  ModDataLoader V2.0.1      │
  * │  数据合并前置Mod            │
  * └────────────────────────────┘
  *
@@ -61,7 +61,7 @@
     // ═══════════════════════════════════════════════════════════
 
     const MOD_NAME = 'ModDataLoader';
-    const VERSION = 'V2.0.0';
+    const VERSION = 'V2.0.1';
     const STABLE_KEY_PREFIX = 'MDL:sk:';
     const STABLE_KEY_REGEX = /<MDL:sk:([^>]+)>/;
 
@@ -1332,24 +1332,117 @@
     // 安装 Hook
     installHooks();
 
-    // 向 ModLoader 注册冲突日志入口
-    if (window.ModLoader && typeof window.ModLoader.registerLogEntry === 'function') {
+    // ── 冲突日志面板内容（由 ModLoader 空壳托管，本前置负责渲染） ──
+    function _escHtml(str) {
+        const d = document.createElement('span');
+        d.textContent = str == null ? '' : String(str);
+        return d.innerHTML;
+    }
+
+    function _truncateStr(str, max) {
+        str = str == null ? '' : String(str);
+        return str.length > max ? str.substring(0, max) + '…' : str;
+    }
+
+    function _ensureConflictStyles() {
+        if (document.getElementById('mdl-conflict-styles')) return;
+        const style = document.createElement('style');
+        style.id = 'mdl-conflict-styles';
+        style.textContent =
+            '.mdl-cl-empty{padding:24px 16px;text-align:center;color:var(--ml-text-muted,#666680);font-size:13px;}' +
+            '.mdl-cl-summary{padding:10px 16px 8px;margin:4px 12px 8px;border-radius:8px;background:rgba(255,167,38,0.10);border:1px solid rgba(255,167,38,0.20);font-size:12px;line-height:1.6;color:#ffa726;}' +
+            '.mdl-cl-summary b{color:#ffb74d;font-size:14px;}' +
+            '.mdl-cl-item{padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.06);}' +
+            '.mdl-cl-item:last-child{border-bottom:none;}' +
+            '.mdl-cl-item-head{display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap;}' +
+            '.mdl-cl-tag{font-size:11px;padding:2px 7px;border-radius:4px;font-weight:600;line-height:1.5;}' +
+            '.mdl-cl-tag-type{background:rgba(74,158,255,0.15);color:#5cb0ff;}' +
+            '.mdl-cl-tag-id{background:rgba(255,255,255,0.08);color:#9a9ab0;}' +
+            '.mdl-cl-tag-field{background:rgba(255,167,38,0.15);color:#ffa726;}' +
+            '.mdl-cl-result{display:flex;align-items:center;gap:8px;padding:4px 0;margin-bottom:4px;}' +
+            '.mdl-cl-winner-name{color:#4caf50;font-weight:600;font-size:12px;white-space:nowrap;}' +
+            '.mdl-cl-winner-val{color:var(--ml-text-primary,#e8e8ec);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}' +
+            '.mdl-cl-overridden{border-left:2px solid rgba(255,255,255,0.08);margin-left:4px;padding-left:8px;}' +
+            '.mdl-cl-mod-row{display:flex;align-items:center;gap:6px;font-size:11px;padding:2px 0;}' +
+            '.mdl-cl-override-icon{color:#666680;font-size:12px;}' +
+            '.mdl-cl-mod-name{color:#9a9ab0;font-weight:500;}' +
+            '.mdl-cl-mod-val{color:#666680;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;}' +
+            '.mdl-cl-overridden-tag{color:#ef5350;font-size:10px;font-weight:600;margin-left:auto;padding:1px 4px;border-radius:3px;background:rgba(239,83,80,0.10);}';
+        document.head.appendChild(style);
+    }
+
+    function _renderConflictPanel(container) {
+        if (!container) return;
+        _ensureConflictStyles();
+        const items = _getConflictReport();
+        if (!items.length) {
+            container.innerHTML = '<div class="mdl-cl-empty">✅ 无冲突，所有 Mod 数据合并正常</div>';
+            return;
+        }
+
+        let html = '<div class="mdl-cl-summary">';
+        html += '⚠ 发现 <b>' + items.length + '</b> 处数据冲突<br>';
+        html += '多个 Mod 修改了同一数据，已自动按排序决定生效项';
+        html += '</div>';
+
+        for (let k = 0; k < items.length; k++) {
+            const item = items[k];
+            const typeName = item.typeName || item.dataType || '?';
+            const fieldName = item.fieldName || item.field || '?';
+            const winnerName = item.winnerName || item.winner || '未知';
+            const winnerValue = item.winnerValue != null ? String(item.winnerValue) : '';
+
+            html += '<div class="mdl-cl-item">';
+            html += '<div class="mdl-cl-item-head">';
+            html += '<span class="mdl-cl-tag mdl-cl-tag-type">' + _escHtml(typeName) + '</span>';
+            html += '<span class="mdl-cl-tag mdl-cl-tag-id">#' + _escHtml(String(item.id || 0)) + '</span>';
+            html += '<span class="mdl-cl-tag mdl-cl-tag-field">' + _escHtml(fieldName) + '</span>';
+            html += '</div>';
+
+            html += '<div class="mdl-cl-result">';
+            html += '<span class="mdl-cl-winner-name">✓ ' + _escHtml(winnerName) + '</span>';
+            html += '<span class="mdl-cl-winner-val">' + _escHtml(_truncateStr(winnerValue, 50)) + '</span>';
+            html += '</div>';
+
+            if (Array.isArray(item.losers) && item.losers.length > 0) {
+                html += '<div class="mdl-cl-overridden">';
+                for (let m = 0; m < item.losers.length; m++) {
+                    const loser = item.losers[m];
+                    const loserVal = loser.value != null ? String(loser.value) : '';
+                    html += '<div class="mdl-cl-mod-row">';
+                    html += '<span class="mdl-cl-override-icon">↳</span>';
+                    html += '<span class="mdl-cl-mod-name">' + _escHtml(loser.name) + '</span>';
+                    html += '<span class="mdl-cl-mod-val">' + _escHtml(_truncateStr(loserVal, 40)) + '</span>';
+                    html += '<span class="mdl-cl-overridden-tag">已被覆盖</span>';
+                    html += '</div>';
+                }
+                html += '</div>';
+            }
+
+            html += '</div>';
+        }
+        container.innerHTML = html;
+    }
+
+    function _registerConflictLogEntry() {
+        if (!window.ModLoader || typeof window.ModLoader.registerLogEntry !== 'function') return false;
         window.ModLoader.registerLogEntry({
-            icon: '⚠',
-            label: '数据冲突',
-            getReport: _getConflictReport
+            id: 'ModDataLoader',
+            label: '数据冲突日志',
+            getConflictCount: function() {
+                return _getConflictReport().length;
+            },
+            render: _renderConflictPanel
         });
+        return true;
+    }
+
+    // 向 ModLoader 注册冲突日志入口
+    if (_registerConflictLogEntry()) {
         log(1, 'Registered conflict log entry with ModLoader');
     } else {
-        // ModLoader 可能尚未就绪，延迟注册
-        const _origOnLoad = window.addEventListener;
         window.addEventListener('load', () => {
-            if (window.ModLoader && typeof window.ModLoader.registerLogEntry === 'function') {
-                window.ModLoader.registerLogEntry({
-                    icon: '⚠',
-                    label: '数据冲突',
-                    getReport: _getConflictReport
-                });
+            if (_registerConflictLogEntry()) {
                 log(1, 'Registered conflict log entry with ModLoader (deferred)');
             }
         });

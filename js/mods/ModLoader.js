@@ -2,7 +2,7 @@
  * @target MZ
  * @plugindesc 游戏内模组管理器（DOM化UI & 现代交互 & 拖放添加Mod & 滑动条/长文本/数据库引用）
  * @author joker创意 / GLM核心代码
- * @version V4.1.3
+ * @version V4.1.13
  *
  * @help
  * 【功能及使用方式】
@@ -17,7 +17,7 @@
  * 9. 支持导入Mod、删除Mod、排序Mod
  * 10. Mod 运行时加载，不再写入 plugins.js（仅 mod_config.json 为配置源）
  * 11.支持一键全关Mod
- * 12.标签读取支持：@version @base @orderAfter @orderBefore @author @help
+ * 12.标签读取支持：@version @base @orderAfter @orderBefore（仅供玩家参考）@author @help
  * 13.依赖检测：自动检测@base/@orderAfter前置插件是否满足，UI颜色警告提示
  * 
  * 【前置必要操作 - 两种模式】
@@ -89,10 +89,14 @@
     'use strict';
 
     // ================================================================
-    // 1. 基础配置与日志系统
+    // 模块 1 · 运行时基础（常量 / 日志 / Node.js 模块 / 路径 / 默认配置）
+    // ----------------------------------------------------------------
+    // 含：1.1 常量与日志 · 1.2 Node 模块 / 路径 / 默认配置（含 libs 目录）
     // ================================================================
+
+    // ---- 1.1 常量、版本与日志 ----
     const ModName = "ModLoader";
-    const VERSION = "V4.1.3";
+    const VERSION = "V4.1.13";
     const DEBUG_LEVEL = 0;
 
     const log = (level, ...args) => {
@@ -107,14 +111,17 @@
     const BUTTON_X = 20;
     const BUTTON_Y = 20;
 
-    // ================================================================
-    // 3. Node.js 模块与路径
-    // ================================================================
+    // ---- 1.2 Node.js 模块、路径与默认配置 ----
     const fs = require('fs');
     const pathMod = require('path');
     const MODS_DIR = pathMod.join(process.cwd(), 'js', 'mods');
     const LOCALMODS_DIR = pathMod.join(MODS_DIR, '_localmods');
     const WORKSHOP_BRIDGE_DIR = pathMod.join(MODS_DIR, '_workshop');
+    const LIBS_DIR = pathMod.join(MODS_DIR, 'libs');
+    // 依赖库：由管理器点名加载，不作为扩展脚本执行
+    const LIBS_VENDOR_FILES = {
+        'marked.min.js': true
+    };
     const CONFIG_PATH = pathMod.join(MODS_DIR, 'mod_config.json');
     const PLUGINS_PATH = pathMod.join(process.cwd(), 'js', 'plugins.js');
     const MODLOADER_CONFIG_PATH = pathMod.join(MODS_DIR, 'config', 'modloader_config.json');
@@ -126,90 +133,17 @@
         // Steam 库根目录：留空则从游戏安装路径向上自动查找 steamapps；多库盘符或非默认库时填库根，如 "D:/SteamLibrary" 或 "E:/Games/Steam"
         steamLibraryPath: ''
     };
-    // 盗版环境检测：默认关闭；游戏作者发布更新时在 modloader_config.json 设 enabled: true 即可开启
-    const DEFAULT_PIRACY_DETECTION_CONFIG = {
-        enabled: false
-    };
     const LANGUAGE_DIR = pathMod.join(MODS_DIR, 'config', 'language');
     let _currentLanguage = 'zh_CN';
     let _languageConfigs = {};
-    // ================================================================
-    // 3.5 盗版环境检测（路径结构 + 文件指纹双重检测）
-    // ================================================================
-    let _piracyCacheResult = null;
-
-    function detectPiracy() {
-        if (_piracyCacheResult !== null) return _piracyCacheResult;
-        try {
-            const cwd = process.cwd();
-            const checks = [];
-            const norm = sep => cwd.replace(/\\/g, sep).toLowerCase();
-
-            // ---- 主检测：Steam 安装路径结构 ----
-            // 正版 Steam 必然安装在 <任意位置>/steamapps/common/<游戏名>/
-            // 盗版解压后通常放在 下载/桌面/游戏合集 等位置，路径不含 steamapps\common
-            // 即使盗版用户刻意伪造目录结构，也需要额外建 2 层文件夹，增加成本
-            const forward = norm('/');
-            const steamPathPattern = /[/\\]steamapps[/\\]common[/\\][^/\\]+$/;
-            if (!steamPathPattern.test(forward)) {
-                checks.push({
-                    name: 'NonSteamPath',
-                    reason: '当前路径不是 Steam 安装目录'
-                });
-            }
-
-            // ---- 辅助检测：已知盗版工具残留文件 ----
-            const libDir = pathMod.join(cwd, 'lib');
-            if (fs.existsSync(libDir)) {
-                const libFiles = fs.readdirSync(libDir).map(f => f.toLowerCase());
-                const libSet = new Set(libFiles);
-                if (libSet.has('steamclient_loader_x64.exe'))
-                    checks.push({ name: 'GSE-Loader', reason: 'lib/ 下存在 GSE 加载器' });
-                if (fs.existsSync(pathMod.join(libDir, 'steamclient.dll')) && !libSet.has('steam_api.dll.bak'))
-                    checks.push({ name: 'GSE-Client32', reason: 'lib/ 下存在 GSE steamclient' });
-                if (fs.existsSync(pathMod.join(libDir, 'steamclient64.dll')) && !libSet.has('steam_api64.dll.bak'))
-                    checks.push({ name: 'GSE-Client64', reason: 'lib/ 下存在 GSE steamclient64' });
-                if (fs.existsSync(pathMod.join(libDir, 'steam_settings')))
-                    checks.push({ name: 'Goldberg', reason: 'lib/ 下存在 Goldberg 配置目录' });
-                if (libSet.has('steam_api.dll.bak') || libSet.has('steam_api64.dll.bak'))
-                    checks.push({ name: 'Goldberg-Bak', reason: 'lib/ 下存在 DLL 备份（Goldberg 替换痕迹）' });
-            }
-            // 根目录也可能直接丢 GSE 文件（截图确认的情况）
-            const rootFiles = fs.readdirSync(cwd).map(f => f.toLowerCase());
-            const rootSet = new Set(rootFiles);
-            if (rootSet.has('steamclient_loader_x64.exe'))
-                checks.push({ name: 'GSE-RootLoader', reason: '根目录存在 GSE 加载器' });
-            if (rootSet.has('steamclient.dll') || rootSet.has('steamclient64.dll'))
-                checks.push({ name: 'GSE-RootClient', reason: '根目录存在 GSE steamclient' });
-
-            _piracyCacheResult = checks.length > 0 ? { detected: true, details: checks } : { detected: false, details: [] };
-            if (_piracyCacheResult.detected) {
-                log(1, "检测到非正版环境:", _piracyCacheResult.details.map(d => d.name + '(' + d.reason + ')').join(' | '));
-            }
-            return _piracyCacheResult;
-        } catch (e) {
-            log(2, "环境检测异常（默认放行）:", e.message);
-            _piracyCacheResult = { detected: false, details: [] };
-            return _piracyCacheResult;
-        }
-    }
-
-    function showPiracyWarning() {
-        const mlConfig = loadModLoaderConfig();
-        if (!mlConfig.piracyDetection || !mlConfig.piracyDetection.enabled) return false;
-        const result = detectPiracy();
-        if (!result.detected) return false;
-        showConfirmDialog(
-            '⚠️ 提示',
-            '检测到当前为非 Steam 正版环境，ModLoader 最新版无法使用。\n\n盗版环境请使用旧版管理器，但该版本已停止更新，出现 Bug 请自行解决，不再接受反馈。\n\n感谢理解。',
-            [{ text: '我知道了', class: 'ml-btn-primary', action: () => hideConfirmDialog() }]
-        );
-        return true;
-    }
 
     // ================================================================
-    // 4. 配置与文件操作（纯逻辑，无UI依赖）
+    // 模块 2 · 配置与文件操作（纯逻辑，无UI依赖）
+    // ----------------------------------------------------------------
+    // 含：2.1 mod_config 读写 · 2.2 语言包系统 · 2.3 modloader_config 与工坊配置
     // ================================================================
+
+    // ---- 2.1 mod_config.json 读写（loadConfig / saveConfig / resolveModConfigEntry） ----
     function ensureDir(dir) {
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     }
@@ -222,6 +156,16 @@
         } catch (e) {
             log(1, "加载配置失败", e);
             return {};
+        }
+    }
+
+    function saveConfig(config) {
+        ensureDir(MODS_DIR);
+        try {
+            fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8');
+            log(3, "配置已保存", CONFIG_PATH);
+        } catch (e) {
+            log(1, "保存配置失败", e);
         }
     }
 
@@ -249,9 +193,7 @@
         return key === 'plugins';
     }
 
-    // ================================================================
-    // 语言包系统
-    // ================================================================
+    // ---- 2.2 语言包系统（i18n：loadLanguageConfigs / t / setLanguage） ----
     function loadLanguageConfigs() {
         _languageConfigs = {};
         try {
@@ -315,10 +257,7 @@
         log(3, '语言切换为: ' + langCode);
     }
 
-    function getCurrentLanguage() {
-        return _currentLanguage;
-    }
-
+    // ---- 2.3 modloader_config.json 与工坊配置（含 Steam 路径解析） ----
     let _workshopConfigCache = null;
 
     function invalidateWorkshopConfigCache() {
@@ -329,8 +268,7 @@
         return {
             ml_theme: 'dark',
             ml_language: 'zh_CN',
-            workshop: Object.assign({}, DEFAULT_WORKSHOP_CONFIG),
-            piracyDetection: Object.assign({}, DEFAULT_PIRACY_DETECTION_CONFIG)
+            workshop: Object.assign({}, DEFAULT_WORKSHOP_CONFIG)
         };
     }
 
@@ -348,22 +286,8 @@
         return { merged, changed: changed || !existingWorkshop };
     }
 
-    function mergePiracyDetectionConfigSection(existingPiracyDetection) {
-        const merged = Object.assign({}, DEFAULT_PIRACY_DETECTION_CONFIG, existingPiracyDetection || {});
-        const defaults = getDefaultModLoaderConfig().piracyDetection;
-        let changed = false;
-        for (const key of Object.keys(defaults)) {
-            if (existingPiracyDetection && existingPiracyDetection[key] !== undefined) continue;
-            if (merged[key] !== defaults[key]) {
-                merged[key] = defaults[key];
-                changed = true;
-            }
-        }
-        return { merged, changed: changed || !existingPiracyDetection };
-    }
-
     /**
-     * 首次启动或旧版配置缺少 workshop / piracyDetection 段时，补全并写入 modloader_config.json
+     * 首次启动或旧版配置缺少 workshop 段时，补全并写入 modloader_config.json
      */
     function ensureModLoaderConfigFile() {
         try {
@@ -383,10 +307,8 @@
             }
             const raw = JSON.parse(fs.readFileSync(MODLOADER_CONFIG_PATH, 'utf-8'));
             const workshopMerge = mergeWorkshopConfigSection(raw.workshop);
-            const piracyMerge = mergePiracyDetectionConfigSection(raw.piracyDetection);
-            if (workshopMerge.changed || piracyMerge.changed) {
+            if (workshopMerge.changed) {
                 raw.workshop = workshopMerge.merged;
-                raw.piracyDetection = piracyMerge.merged;
                 fs.writeFileSync(MODLOADER_CONFIG_PATH, JSON.stringify(raw, null, 2), 'utf-8');
                 invalidateWorkshopConfigCache();
                 log(3, '已为 modloader_config.json 补全缺失配置段');
@@ -407,8 +329,7 @@
                 return {
                     ml_theme: parsed.ml_theme !== undefined ? parsed.ml_theme : defaults.ml_theme,
                     ml_language: parsed.ml_language !== undefined ? parsed.ml_language : defaults.ml_language,
-                    workshop: Object.assign({}, defaults.workshop, parsed.workshop || {}),
-                    piracyDetection: Object.assign({}, defaults.piracyDetection, parsed.piracyDetection || {})
+                    workshop: Object.assign({}, defaults.workshop, parsed.workshop || {})
                 };
             }
         } catch (e) {
@@ -424,8 +345,7 @@
             var mergedConfig = {
                 ml_theme: config.ml_theme !== undefined ? config.ml_theme : existingConfig.ml_theme,
                 ml_language: config.ml_language !== undefined ? config.ml_language : existingConfig.ml_language,
-                workshop: Object.assign({}, existingConfig.workshop, config.workshop || {}),
-                piracyDetection: Object.assign({}, existingConfig.piracyDetection, config.piracyDetection || {})
+                workshop: Object.assign({}, existingConfig.workshop, config.workshop || {})
             };
             fs.writeFileSync(MODLOADER_CONFIG_PATH, JSON.stringify(mergedConfig, null, 2), 'utf-8');
             invalidateWorkshopConfigCache();
@@ -473,26 +393,14 @@
     }
 
     // ================================================================
-    // 拖放添加 Mod 功能
+    // 模块 3 · 文件导入（拖放：文件夹 / .js 文件）
+    // ----------------------------------------------------------------
+    // 含：3.1 拖放收集 · 3.2 落地复制 · 3.3 写回配置并刷新 UI
+    // 依赖：模块 1（路径/日志）、模块 2（saveConfig）、模块 5（scanAllMods 等）、
+    //       模块 6（对话框 / 列表渲染）。当前与 UI 耦合，不宜单独拆文件。
     // ================================================================
 
-    /**
-     * 递归复制文件夹
-     */
-    function copyDirRecursive(src, dest) {
-        ensureDir(dest);
-        const entries = fs.readdirSync(src, { withFileTypes: true });
-        for (const entry of entries) {
-            const srcPath = pathMod.join(src, entry.name);
-            const destPath = pathMod.join(dest, entry.name);
-            if (entry.isDirectory()) {
-                copyDirRecursive(srcPath, destPath);
-            } else {
-                fs.copyFileSync(srcPath, destPath);
-            }
-        }
-    }
-
+    // ---- 3.1 拖放收集（collectFiles / handleDropEvent） ----
     /**
      * 收集拖放内容中的所有文件（递归文件夹）
      */
@@ -679,6 +587,7 @@
         }
     }
 
+    // ---- 3.2 落地复制（copyFolderRecursive / handleModsFolderDrop / handleJsFilesDrop） ----
     /**
      * 递归复制文件夹
      */
@@ -839,7 +748,7 @@
                             
                             saveConfig(config);
                             _modData = scanAllMods();
-                            // 【V3.15.0 新增】安装后刷新依赖检测
+                            // 安装后刷新依赖检测
                             refreshDependencyCheck();
                             renderModList();
                             updateCounts();
@@ -959,6 +868,7 @@
         );
     }
 
+    // ---- 3.3 写回配置并刷新 UI（importFiles） ----
     async function importFiles(files) {
         log(3, "=== importFiles ===");
         let successCount = 0;
@@ -1010,7 +920,6 @@
         
         // 重新扫描并渲染
         _modData = scanAllMods();
-        // 【V3.15.0 新增】安装后刷新依赖检测
         refreshDependencyCheck();
         renderModList();
         updateCounts();
@@ -1071,14 +980,70 @@
         });
     }
 
-    function saveConfig(config) {
-        ensureDir(MODS_DIR);
-        try {
-            fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8');
-            log(3, "配置已保存", CONFIG_PATH);
-        } catch (e) {
-            log(1, "保存配置失败", e);
+    // ================================================================
+    // 模块 4 · Mod 元数据与 Schema 解析
+    // ----------------------------------------------------------------
+    // 含：4.1 note 换行归一 · 4.2 Schema 默认值 · 4.3 头部标签解析 ·
+    //     4.4 配置回填（applyModConfigToEntry）
+    // 依赖：模块 1（日志/路径）、模块 2（配置读取 / t()）、以及模块 6.1 中的
+    //       类型判定与校验（isNoteType / isDatabaseType / isValidColor）；
+    //       另调用模块 5.4 的 parseDependencyList（拆分 baseList / orderAfterList）。
+    // order 由调用方（模块 5）传入，本模块不依赖扫描/排序分配工具。
+    // 与 6.1 共享类型工具，拆文件时须一并带走或上移类型工具。
+    // ================================================================
+
+    // ---- 4.1 note / multiline_string 换行归一 ----
+    /**
+     * note / multiline_string：把 @default 或旧配置里的字面量 \n 还原为真换行。
+     * 已是真换行的字符串不受影响。不使用官方 note 的 JSON 包装格式。
+     */
+    function normalizeNoteNewlines(text) {
+        if (text == null || typeof text !== 'string') return text;
+        return text.replace(/\\n/g, '\n');
+    }
+
+    /**
+     * 递归归一 struct 内 note/multiline_string 的字面量 \n（与顶层 note 一致）
+     */
+    function normalizeNoteFieldsInStructObject(obj, schemaFields) {
+        if (!obj || typeof obj !== 'object' || !Array.isArray(schemaFields)) return obj;
+        for (let i = 0; i < schemaFields.length; i++) {
+            const field = schemaFields[i];
+            if (!field || !field.name || !Object.prototype.hasOwnProperty.call(obj, field.name)) continue;
+            const key = field.name;
+            if (isNoteType(field.type)) {
+                obj[key] = normalizeNoteNewlines(String(obj[key] == null ? '' : obj[key]));
+            } else if (field.type === 'struct') {
+                const raw = obj[key];
+                const wasString = typeof raw === 'string';
+                let nested = raw;
+                if (wasString) {
+                    try { nested = JSON.parse(raw); } catch (e) { continue; }
+                }
+                if (!nested || typeof nested !== 'object') continue;
+                const subSchema = (field.schema && _schemaDictionary[field.schema])
+                    || field.schemaFields
+                    || [];
+                normalizeNoteFieldsInStructObject(nested, subSchema);
+                obj[key] = wasString ? JSON.stringify(nested) : nested;
+            }
         }
+        return obj;
+    }
+
+    /** 对 struct 参数字符串/对象做 note 换行归一，保持原值形态（字符串仍返回字符串） */
+    function normalizeNoteFieldsInStructParam(value, schemaFields) {
+        if (value == null || value === '') return value;
+        const wasString = typeof value === 'string';
+        let obj;
+        try {
+            obj = wasString ? JSON.parse(value) : value;
+        } catch (e) {
+            return value;
+        }
+        if (!obj || typeof obj !== 'object') return value;
+        normalizeNoteFieldsInStructObject(obj, schemaFields || []);
+        return wasString ? JSON.stringify(obj) : obj;
     }
 
     function standardizeDefault(val, type) {
@@ -1087,9 +1052,13 @@
             if (lowerVal === 'true' || lowerVal === '1' || lowerVal === 'on') return 'true';
             return 'false';
         }
+        if (isNoteType(type)) {
+            return normalizeNoteNewlines(String(val));
+        }
         return val;
     }
 
+    // ---- 4.2 Schema 字典与默认值生成 ----
     /**
      * 递归生成 struct/table 的默认值
      * 根据 Schema 模板中子参数的 default 递归拼装成嵌套 JSON 对象
@@ -1144,7 +1113,11 @@
                         type: (item.type || 'string').toLowerCase(),
                         text: item.text || item.name || item.param || '',
                         desc: item.desc || '',
-                        default: item.default !== undefined ? String(item.default) : undefined,
+                        default: item.default !== undefined
+                            ? (isNoteType((item.type || 'string').toLowerCase())
+                                ? normalizeNoteNewlines(String(item.default))
+                                : String(item.default))
+                            : undefined,
                         min: item.min !== undefined ? Number(item.min) : undefined,
                         max: item.max !== undefined ? Number(item.max) : undefined,
                         step: item.step !== undefined ? Number(item.step) : undefined,
@@ -1161,6 +1134,7 @@
         }
     }
 
+    // ---- 4.3 头部标签解析（parseModInfo / @param / @define-schema） ----
     function parseModInfo(filePath) {
         try {
             const content = fs.readFileSync(filePath, 'utf-8');
@@ -1184,9 +1158,8 @@
             }
             metaContent = cleanedLines.join('\n');
 
-            // ---- 阶段2新增：先扫描 @define-schema 定义，存入全局字典 ----
+            // 先扫描 @define-schema 定义，存入全局字典
             parseSchemaDefinitions(metaContent);
-            // ---- 阶段2新增结束 ----
 
             const helpBlockMatch = metaContent.match(/@help\s*\n([\s\S]*?)(?=\n@|\n\*\/|$)/);
             const helpContent = helpBlockMatch ? helpBlockMatch[1].trim() : "";
@@ -1217,7 +1190,7 @@
                     rawName = rawName.replace(/\{.*?\}\s*/, '');
                     const dashIndex = rawName.indexOf(' - ');
                     if (dashIndex > 0) rawName = rawName.substring(0, dashIndex).trim();
-                    // 阶段2新增：text 字段默认等于 name（后续 @text 可覆盖）
+                    // text 默认等于 name（后续 @text 可覆盖）
                     currentParam = { name: rawName, type: "string", text: rawName, desc: "", default: undefined, min: undefined, max: undefined, step: undefined, options: [], schema: undefined };
                     continue;
                 }
@@ -1229,9 +1202,7 @@
                     const maxMatch = line.match(/@max\s+(.+)$/);
                     const stepMatch = line.match(/@step\s+(.+)$/);
                     const optionMatch = line.match(/@option\s+(.+)$/);
-                    // ---- 阶段2新增：@text 标签解析 ----
                     const textMatch = line.match(/@text\s+(.+)$/);
-                    // ---- 阶段2新增：@schema 标签解析 ----
                     const schemaMatch = line.match(/@schema\s+(.+)$/);
 
                     if (typeMatch) currentParam.type = typeMatch[1].trim().toLowerCase();
@@ -1247,7 +1218,7 @@
             }
             if (currentParam) paramBlocks.push(currentParam);
 
-            // ---- 阶段2新增：为 struct/table 类型解析 schema 子参数并自动生成默认值 ----
+            // 为 struct/table 解析 schema 子参数并自动生成默认值
             for (let p of paramBlocks) {
                 if ((p.type === 'struct' || p.type === 'table') && p.schema) {
                     const schemaFields = _schemaDictionary[p.schema];
@@ -1272,7 +1243,20 @@
                     }
                 }
             }
-            // ---- 阶段2新增结束 ----
+
+            // note 默认值：若 @default 写在 @type 之前，补做一次换行还原
+            for (let p of paramBlocks) {
+                if (isNoteType(p.type) && typeof p.default === 'string') {
+                    p.default = normalizeNoteNewlines(p.default);
+                }
+                if (p.schemaFields) {
+                    p.schemaFields.forEach(f => {
+                        if (isNoteType(f.type) && typeof f.default === 'string') {
+                            f.default = normalizeNoteNewlines(f.default);
+                        }
+                    });
+                }
+            }
 
             let isStrictLocked = false;
             for (let p of paramBlocks) {
@@ -1283,7 +1267,7 @@
                 }
             }
 
-            // 【V3.15.0 修改】解析 base 和 orderAfter 的依赖插件列表
+            // 解析 @base / @orderAfter 为依赖插件名列表（供依赖检测使用）
             const baseRaw = baseMatch ? baseMatch[1].trim() : undefined;
             const orderAfterRaw = orderAfterMatch ? orderAfterMatch[1].trim() : undefined;
             const baseList = parseDependencyList(baseRaw);
@@ -1295,8 +1279,8 @@
                 version: versionMatch ? versionMatch[1].trim() : undefined,
                 base: baseRaw,           // 保留原始字符串，用于详情显示
                 orderAfter: orderAfterRaw, // 保留原始字符串，用于详情显示
-                baseList: baseList,           // 【V3.15.0 新增】解析后的依赖列表
-                orderAfterList: orderAfterList, // 【V3.15.0 新增】解析后的依赖列表
+                baseList: baseList,
+                orderAfterList: orderAfterList,
                 orderBefore: orderBeforeMatch ? orderBeforeMatch[1].trim() : undefined,
                 params: isStrictLocked ? [] : paramBlocks
             };
@@ -1306,8 +1290,10 @@
         }
     }
 
+    // ---- 4.4 配置回填（applyModConfigToEntry） ----
     /**
-     * 从 mod_config 读取 status/params/order 并构建 Mod 条目公共字段
+     * 从 mod_config 读取 status/params/order 并构建 Mod 条目公共字段。
+     * defaultOrder 由调用方（模块 5 扫描）传入。
      */
     function applyModConfigToEntry(modId, filePath, fileName, displayName, config, defaultOrder, scriptBaseName) {
         const info = parseModInfo(filePath);
@@ -1341,7 +1327,9 @@
                 } else if (p.type === 'color') {
                     currentParams[p.name] = isValidColor(value) ? value : p.default;
                 } else if (isNoteType(p.type)) {
-                    currentParams[p.name] = value;
+                    currentParams[p.name] = normalizeNoteNewlines(String(value));
+                } else if (p.type === 'struct') {
+                    currentParams[p.name] = normalizeNoteFieldsInStructParam(value, p.schemaFields);
                 } else if (isDatabaseType(p.type)) {
                     currentParams[p.name] = String(value);
                 } else {
@@ -1369,6 +1357,16 @@
         };
     }
 
+    // ================================================================
+    // 模块 5 · 扫描 / 依赖 / 运行时加载
+    // ----------------------------------------------------------------
+    // 含：5.1 工坊桥接与扫描 · 5.2 本地 Mod 工具与预览 ·
+    //     5.3 扫描主流程 · 5.4 依赖检测 · 5.5 运行时加载与启动钩子
+    // 依赖：模块 1（路径）、模块 2（配置）、模块 4（元数据）；
+    //       buildModFinalParameters 另用模块 6.1 的 sanitizeText / isValidColor。
+    // ================================================================
+
+    // ---- 5.1 工坊（Steam Workshop）桥接与扫描 ----
     function readWorkshopManifest(root) {
         const manifestPath = pathMod.join(root, 'modloader.json');
         try {
@@ -1439,10 +1437,119 @@
         return scripts;
     }
 
-    function discoverWorkshopScripts(root) {
-        return discoverPackageScripts(root);
+    /**
+     * 正式工坊：在 js/mods/_workshop/<fileId>/ 建立联接，供 PluginManager 加载。
+     * RMMZ 的 loadScript 只能解析游戏目录内路径，不能直接加载 steamapps/workshop/ 下的文件。
+     */
+    function syncWorkshopBridge(fileId, root, scripts) {
+        if (!scripts || scripts.length === 0) return false;
+
+        ensureDir(WORKSHOP_BRIDGE_DIR);
+        const bridgeDir = pathMod.join(WORKSHOP_BRIDGE_DIR, String(fileId));
+        removePathSafe(bridgeDir);
+
+        try {
+            fs.symlinkSync(root, bridgeDir, 'junction');
+            return true;
+        } catch (e) {
+            log(2, '工坊包根 junction 失败，改用逐文件桥接: ' + fileId, e.message);
+            removePathSafe(bridgeDir);
+        }
+
+        ensureDir(bridgeDir);
+        for (const script of scripts) {
+            const fileName = pathMod.basename(script.relPath);
+            const linkPath = pathMod.join(bridgeDir, fileName);
+            removePathSafe(linkPath);
+            try {
+                fs.symlinkSync(script.absPath, linkPath, 'file');
+            } catch (e1) {
+                try {
+                    fs.linkSync(script.absPath, linkPath);
+                } catch (e2) {
+                    log(1, '工坊桥接失败: ' + script.absPath, e1.message, e2.message);
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
+    function buildWorkshopBridgeLoadPath(fileId, relPath) {
+        const baseName = pathMod.parse(relPath).name;
+        return '../mods/_workshop/' + String(fileId) + '/' + baseName;
+    }
+
+    function scanWorkshopMods(config, orderState) {
+        const wsCfg = loadWorkshopConfig();
+        if (!wsCfg.enabled) {
+            if (fs.existsSync(WORKSHOP_BRIDGE_DIR)) {
+                removePathSafe(WORKSHOP_BRIDGE_DIR);
+            }
+            return [];
+        }
+
+        const { workshopDir, steamAppId } = resolveSteamPaths();
+        const mods = [];
+        const seenLoadPaths = new Set();
+
+        function addWorkshopPackage(root, fileId) {
+            const fileIdStr = String(fileId);
+            const scripts = discoverPackageScripts(root);
+            if (scripts.length === 0) {
+                return;
+            }
+
+            let installState = 'ready';
+            const bridged = syncWorkshopBridge(fileIdStr, root, scripts);
+            if (!bridged) {
+                installState = 'missing';
+            }
+
+            scripts.forEach(script => {
+                const scriptBaseName = pathMod.parse(script.relPath).name;
+                const modId = 'ws:' + fileIdStr + ':' + scriptBaseName;
+                const loadPath = buildWorkshopBridgeLoadPath(fileIdStr, script.relPath);
+                if (seenLoadPaths.has(loadPath)) return;
+                seenLoadPaths.add(loadPath);
+
+                const displayName = script.title || scriptBaseName;
+                const entry = applyModConfigToEntry(
+                    modId,
+                    script.absPath,
+                    pathMod.basename(script.relPath),
+                    displayName,
+                    config,
+                    allocDefaultOrderForMod(config, orderState, modId, scriptBaseName),
+                    scriptBaseName
+                );
+                mods.push(Object.assign(entry, {
+                    loadPath: loadPath,
+                    source: 'workshop',
+                    workshopId: fileIdStr,
+                    workshopRoot: root,
+                    packageRoot: root,
+                    subscribed: true,
+                    readOnly: true,
+                    installState: installState
+                }));
+            });
+        }
+
+        if (steamAppId && workshopDir && fs.existsSync(workshopDir)) {
+            try {
+                fs.readdirSync(workshopDir, { withFileTypes: true })
+                    .filter(entry => entry.isDirectory())
+                    .forEach(entry => addWorkshopPackage(pathMod.join(workshopDir, entry.name), entry.name));
+            } catch (e) {
+                log(2, '扫描工坊目录失败: ' + workshopDir, e.message);
+            }
+        }
+
+        return mods;
+    }
+
+    // ---- 5.2 本地 Mod 工具与预览（路径/ID/排序/缩略图） ----
     function buildLocalModId(packageName, scriptBaseName) {
         return 'local:' + packageName + ':' + scriptBaseName;
     }
@@ -1590,49 +1697,7 @@
         }
     }
 
-    /**
-     * 正式工坊：在 js/mods/_workshop/<fileId>/ 建立联接，供 PluginManager 加载。
-     * RMMZ 的 loadScript 只能解析游戏目录内路径，不能直接加载 steamapps/workshop/ 下的文件。
-     */
-    function syncWorkshopBridge(fileId, root, scripts) {
-        if (!scripts || scripts.length === 0) return false;
-
-        ensureDir(WORKSHOP_BRIDGE_DIR);
-        const bridgeDir = pathMod.join(WORKSHOP_BRIDGE_DIR, String(fileId));
-        removePathSafe(bridgeDir);
-
-        try {
-            fs.symlinkSync(root, bridgeDir, 'junction');
-            return true;
-        } catch (e) {
-            log(2, '工坊包根 junction 失败，改用逐文件桥接: ' + fileId, e.message);
-            removePathSafe(bridgeDir);
-        }
-
-        ensureDir(bridgeDir);
-        for (const script of scripts) {
-            const fileName = pathMod.basename(script.relPath);
-            const linkPath = pathMod.join(bridgeDir, fileName);
-            removePathSafe(linkPath);
-            try {
-                fs.symlinkSync(script.absPath, linkPath, 'file');
-            } catch (e1) {
-                try {
-                    fs.linkSync(script.absPath, linkPath);
-                } catch (e2) {
-                    log(1, '工坊桥接失败: ' + script.absPath, e1.message, e2.message);
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-
-    function buildWorkshopBridgeLoadPath(fileId, relPath) {
-        const baseName = pathMod.parse(relPath).name;
-        return '../mods/_workshop/' + String(fileId) + '/' + baseName;
-    }
-
+    // ---- 5.3 扫描主流程（scanLocalMods / scanWorkshopMods / scanAllMods / reassignOrders） ----
     function scanLocalMods(config, orderState) {
         ensureDir(LOCALMODS_DIR);
         const mods = [];
@@ -1683,78 +1748,6 @@
         return mods;
     }
 
-    function scanWorkshopMods(config, orderState) {
-        const wsCfg = loadWorkshopConfig();
-        if (!wsCfg.enabled) {
-            if (fs.existsSync(WORKSHOP_BRIDGE_DIR)) {
-                removePathSafe(WORKSHOP_BRIDGE_DIR);
-            }
-            return [];
-        }
-
-        const { workshopDir, steamAppId } = resolveSteamPaths();
-        const mods = [];
-        const seenLoadPaths = new Set();
-
-        function addWorkshopPackage(root, fileId) {
-            const fileIdStr = String(fileId);
-            const scripts = discoverWorkshopScripts(root);
-            if (scripts.length === 0) {
-                return;
-            }
-
-            const manifest = readWorkshopManifest(root);
-            const packageTitle = manifest && manifest.title ? manifest.title : null;
-            let installState = 'ready';
-            const bridged = syncWorkshopBridge(fileIdStr, root, scripts);
-            if (!bridged) {
-                installState = 'missing';
-            }
-
-            scripts.forEach(script => {
-                const scriptBaseName = pathMod.parse(script.relPath).name;
-                const modId = 'ws:' + fileIdStr + ':' + scriptBaseName;
-                const loadPath = buildWorkshopBridgeLoadPath(fileIdStr, script.relPath);
-                if (seenLoadPaths.has(loadPath)) return;
-                seenLoadPaths.add(loadPath);
-
-                const displayName = script.title || scriptBaseName;
-                const entry = applyModConfigToEntry(
-                    modId,
-                    script.absPath,
-                    pathMod.basename(script.relPath),
-                    displayName,
-                    config,
-                    allocDefaultOrderForMod(config, orderState, modId, scriptBaseName),
-                    scriptBaseName
-                );
-                mods.push(Object.assign(entry, {
-                    loadPath: loadPath,
-                    source: 'workshop',
-                    workshopId: fileIdStr,
-                    workshopPackageTitle: packageTitle || '',
-                    workshopRoot: root,
-                    packageRoot: root,
-                    subscribed: true,
-                    readOnly: true,
-                    installState: installState
-                }));
-            });
-        }
-
-        if (steamAppId && workshopDir && fs.existsSync(workshopDir)) {
-            try {
-                fs.readdirSync(workshopDir, { withFileTypes: true })
-                    .filter(entry => entry.isDirectory())
-                    .forEach(entry => addWorkshopPackage(pathMod.join(workshopDir, entry.name), entry.name));
-            } catch (e) {
-                log(2, '扫描工坊目录失败: ' + workshopDir, e.message);
-            }
-        }
-
-        return mods;
-    }
-
     function scanAllMods() {
         ensureModLoaderConfigFile();
         invalidateWorkshopConfigCache();
@@ -1780,10 +1773,6 @@
         return mods;
     }
 
-    function scanMods() {
-        return scanAllMods();
-    }
-
     /**
      * 重新分配模组的连续顺序号
      */
@@ -1794,9 +1783,7 @@
         });
     }
 
-    // ================================================================
-    // 【V3.15.0 新增】依赖解析与检测系统
-    // ================================================================
+    // ---- 5.4 依赖检测系统（@base / @orderAfter 解析与校验，UI 颜色警告） ----
 
     /**
      * 解析base / orderAfter 标签中的依赖插件列表
@@ -1856,9 +1843,8 @@
 
     /**
      * 获取游戏原生插件信息（非mod插件）
-     * 从 plugins.js 中读取已注册的原生游戏插件及其开启状态
-     * 【V3.15.1 修改】返回 Map<插件名, {enabled: boolean}> 替代 Set，支持检测"存在但未开启"
-     * returns {Map<string, {enabled: boolean}>} 原生插件名→启用状态映射（不含.js后缀）
+     * 从 plugins.js 中读取已注册的原生游戏插件及其开启状态。
+     * 返回 Map<插件名, {enabled: boolean}>（不含.js后缀），支持检测「存在但未开启」。
      */
     function getGamePluginInfo() {
         const gamePlugins = new Map();
@@ -1896,9 +1882,9 @@
 
     /**
      * 检测所有mod的依赖状态
-     * 
-     * 【V3.15.1 重写】5种状态判定逻辑：
-     * 
+     *
+     * 5种状态判定逻辑：
+     *
      * 判定流程（对每个依赖插件名逐一检测）：
      *   Step 1: 在游戏原生插件中查找
      *     ├─ 找到且已开启 → PASS（游戏插件始终在mod之前加载，顺序天然满足）
@@ -1911,7 +1897,7 @@
      *   Step 3: 检查排序（仅mod间需要，游戏插件天然在最前）
      *     ├─ 依赖mod在当前mod之前 → PASS
      *     └─ 依赖mod在当前mod之后（含同位） → WRONG_ORDER（"应放置于前置Mod插件：XXX下方"）
-     * 
+     *
      *  param {Array} modList - 模组数据列表，默认使用_modData
      *  returns {Object} 每个mod的依赖检测结果
      *   { modId: {
@@ -2053,8 +2039,7 @@
     }
 
     /**
-     * 获取指定mod的依赖状态
-     * 【V3.15.1 修改】返回类型更新为含 baseDetails/orderAfterDetails
+     * 获取指定mod的依赖状态（含 baseDetails / orderAfterDetails）
      * @param {Object} mod - 模组对象
      * @returns {Object} { baseDetails, orderAfterDetails, baseWarning, orderAfterWarning }
      */
@@ -2065,7 +2050,7 @@
 
     /**
      * 为运行时加载组装 Mod 的 PluginManager 参数字典
-     * @param {Object} mod - scanMods() 返回的模组对象
+     * @param {Object} mod - scanAllMods() 返回的模组对象
      * @returns {Object} parameters 对象
      */
     function buildModFinalParameters(mod) {
@@ -2091,10 +2076,14 @@
             } else if (p.type === 'color') {
                 finalParams[p.name] = isValidColor(value) ? value : p.default;
             } else if (isNoteType(p.type)) {
-                finalParams[p.name] = sanitizeText(value);
+                finalParams[p.name] = normalizeNoteNewlines(sanitizeText(value));
             } else if (isDatabaseType(p.type)) {
                 finalParams[p.name] = String(value);
-            } else if (p.type === 'struct' || p.type === 'table') {
+            } else if (p.type === 'struct') {
+                finalParams[p.name] = normalizeNoteFieldsInStructParam(
+                    value || p.default, p.schemaFields
+                );
+            } else if (p.type === 'table') {
                 finalParams[p.name] = value || p.default;
             } else {
                 finalParams[p.name] = sanitizeText(value);
@@ -2102,6 +2091,8 @@
         });
         return finalParams;
     }
+
+    // ---- 5.5 运行时加载与启动钩子（loadEnabledModsRuntime / bootstrapModLoaderReady / installBootstrapHooks / cleanupLegacyModEntriesFromPluginsJs） ----
 
     /**
      * 运行时通过 PluginManager 加载已启用的 Mod（不修改 plugins.js）
@@ -2280,12 +2271,17 @@
     }
 
     // ================================================================
-    // 5. 工具函数
+    // 模块 6 · UI / 渲染 / 启动 / 扩展宿主
+    // ----------------------------------------------------------------
+    // 含：6.1 共享工具（滚动 / 校验 / 转义 / 类型与数据库，解析与运行时也会用） ·
+    //     6.2 CSS 样式 · 6.3 DOM UI 主面板 · 6.4 参数编辑器 · 6.5 标题按钮 ·
+    //     6.6 键盘快捷键 · 6.7 初始化 · 6.8 扩展 API（冲突日志 / ManagerGate / libs）
+    // 体积最大；拆文件时注意 6.1 被模块 4/5 共用，不可当作纯 UI 搬走。
     // ================================================================
 
+    // ---- 6.1 共享工具（滚动 / 输入验证 / XSS / 颜色与数据库类型；UI·解析·运行时共用） ----
 
-    // 滚动修复：为特定容器绑定 wheel 事件，防止被 RMMZ 或其他插件拦截
-    // =========滚动修复开始============================================
+    // ---- 6.1.1 滚动容器 wheel 绑定（防止被 RMMZ 拦截冒泡） ----
     let _wheelListeners = []; // 存储需要移除的监听器
 
     /**
@@ -2328,8 +2324,7 @@
         const modalBody = document.querySelector('.ml-modal-body');
         if (modalBody) bindWheelToContainer(modalBody);
     }
-    // =========滚动修复结束======================================
-    
+
     /**
      * cssEscape 兼容性 polyfill
      * 用于将参数名转为合法 CSS ID
@@ -2366,9 +2361,7 @@
         return false;
     }
 
-    // ====================================================================
-    // 通用输入验证与安全函数（顶层 / struct / table 共用）
-    // ====================================================================
+    // ---- 6.1.2 通用输入验证与安全（顶层 / struct / table 共用） ----
 
     /**
      * 验证并修正数值输入框的值
@@ -2571,16 +2564,24 @@
 
     /**
      * 数据库引用类型映射表
-     * 将 @type actor/skill/item/weapon/armor/enemy/state 映射到 RMMZ 全局变量和中文名
+     * 将 @type actor/class/skill/.../switch/variable 映射到 RMMZ 数据源和中文名
+     * - global: window 上的 $dataXxx 数组
+     * - systemKey: $dataSystem 上的字符串数组（switches / variables）
      */
     const DB_TYPE_MAP = {
-        actor:  { global: '$dataActors',  label: '角色' },
-        skill:  { global: '$dataSkills',  label: '技能' },
-        item:   { global: '$dataItems',   label: '物品' },
-        weapon: { global: '$dataWeapons', label: '武器' },
-        armor:  { global: '$dataArmors',  label: '防具' },
-        enemy:  { global: '$dataEnemies', label: '敌人' },
-        state:  { global: '$dataStates',  label: '状态' }
+        actor:        { global: '$dataActors',       label: '角色' },
+        class:        { global: '$dataClasses',      label: '职业' },
+        skill:        { global: '$dataSkills',       label: '技能' },
+        item:         { global: '$dataItems',        label: '物品' },
+        weapon:       { global: '$dataWeapons',      label: '武器' },
+        armor:        { global: '$dataArmors',       label: '防具' },
+        enemy:        { global: '$dataEnemies',      label: '敌人' },
+        troop:        { global: '$dataTroops',       label: '敌群' },
+        state:        { global: '$dataStates',       label: '状态' },
+        animation:    { global: '$dataAnimations',   label: '动画' },
+        common_event: { global: '$dataCommonEvents', label: '公共事件' },
+        switch:       { systemKey: 'switches',       label: '开关' },
+        variable:     { systemKey: 'variables',      label: '变量' }
     };
 
     /**
@@ -2599,17 +2600,59 @@
     }
 
     /**
+     * 将数据库集合归一化为可按下标遍历的数组
+     * - 标准 RMMZ：本身就是 Array
+     * - YEP_ItemCore 等：可能把 $dataWeapons/$dataArmors 转成数字键普通对象
+     * 返回 null 表示数据不可用
+     */
+    function normalizeDatabaseCollection(data) {
+        if (!data) return null;
+        if (Array.isArray(data)) return data;
+        if (typeof data !== 'object') return null;
+        const keys = Object.keys(data)
+            .map(Number)
+            .filter(function(n) { return Number.isInteger(n) && n >= 0; });
+        if (keys.length === 0) return null;
+        let max = 0;
+        for (let i = 0; i < keys.length; i++) {
+            if (keys[i] > max) max = keys[i];
+        }
+        const arr = new Array(max + 1);
+        for (let i = 0; i < keys.length; i++) {
+            arr[keys[i]] = data[keys[i]];
+        }
+        return arr;
+    }
+
+    /**
      * 获取数据库引用类型对应的 RMMZ 数据数组
-     * 返回 null 表示数据库未加载
+     * 返回 null 表示数据库未加载 / 不可用
      */
     function getDatabaseArray(type) {
         const mapping = DB_TYPE_MAP[type];
         if (!mapping) return null;
         try {
-            const data = window[mapping.global];
-            if (data && Array.isArray(data)) return data;
+            if (mapping.systemKey) {
+                const system = window.$dataSystem;
+                if (system && Array.isArray(system[mapping.systemKey])) {
+                    return system[mapping.systemKey];
+                }
+                return null;
+            }
+            return normalizeDatabaseCollection(window[mapping.global]);
         } catch (e) { /* 忽略 */ }
         return null;
+    }
+
+    /**
+     * 从数据库条目取显示名
+     * 对象条目用 .name；switch/variable 条目本身是字符串
+     */
+    function getDatabaseEntryName(entry) {
+        if (entry == null) return '';
+        if (typeof entry === 'string') return entry.trim();
+        if (typeof entry === 'object' && entry.name != null) return String(entry.name).trim();
+        return '';
     }
 
     /**
@@ -2666,63 +2709,6 @@
         return 1;
     }
 
-    // ================================================================
-    // 6. @color 标签解析器
-    // ================================================================
-    /**
-     * 解析 @color 标签并转换为 HTML <span> 标签
-     * 支持格式：
-     *   @color[#ff0000]红色文字@/color       → <span style="color:#ff0000">红色文字</span>
-     *   @color[24]RMMZ色号文字@/color        → <span style="color:rgb(r,g,b)">RMMZ色号文字</span>
-     *   @color[red]CSS颜色名文字@/color      → <span style="color:red">CSS颜色名文字</span>
-     *   @color[#ff0,bold]复合样式@/color      → <span style="color:#ff0;font-weight:bold">复合样式</span>
-     * 同时兼容 RMMZ 标准 \c[n] 格式
-     */
-    function parseColorTags(text) {
-        if (!text) return '';
-        let result = text;
-
-        // 解析 @color[value]...@/color 格式
-        result = result.replace(/@color\[([^\]]+)\]([\s\S]*?)@\/color/g, (match, colorVal, content) => {
-            let cssColor = colorVal;
-            let extraStyle = '';
-
-            // 如果是纯数字，使用 RMMZ ColorManager 色号映射
-            if (/^\d+$/.test(colorVal.trim())) {
-                const idx = parseInt(colorVal.trim());
-                try {
-                    if (typeof ColorManager !== 'undefined' && ColorManager.textColor) {
-                        cssColor = ColorManager.textColor(idx);
-                    }
-                } catch (e) {
-                    log(2, "ColorManager.textColor 调用失败，使用原始值", idx, e);
-                    cssColor = String(idx);
-                }
-            }
-
-            return `<span style="color:${cssColor}${extraStyle}">${content}</span>`;
-        });
-
-        // 兼容 RMMZ 标准 \c[n] 格式（简单映射为 span）
-        result = result.replace(/\\c\[(\d+)\]/g, (match, idxStr) => {
-            const idx = parseInt(idxStr);
-            let cssColor = '';
-            try {
-                if (typeof ColorManager !== 'undefined' && ColorManager.textColor) {
-                    cssColor = ColorManager.textColor(idx);
-                }
-            } catch (e) {
-                cssColor = '';
-            }
-            if (cssColor) {
-                return `</span><span style="color:${cssColor}">`;
-            }
-            return '</span><span>';
-        });
-
-        return result;
-    }
-
     /**
      * HTML 转义，防止 XSS
      */
@@ -2730,20 +2716,6 @@
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
-    }
-
-    /**
-     * 安全渲染文本：先转义 HTML 实体，再解析 @color 标签
-     */
-    function renderSafeText(text) {
-        if (!text) return '';
-        // 先转义所有 HTML 特殊字符，防止注入
-        let safe = escapeHtml(text);
-        // 然后解析 @color 标签（@color 标签本身是自定义格式，需要还原）
-        // 由于 escapeHtml 会把 < > & 转义，但 @color 不含这些字符，所以直接解析即可
-        // 但 @color 解析后会生成 <span>，所以我们需要在转义之前解析 @color
-        // 重新设计：先解析 @color 生成 HTML，对非 @color 部分转义
-        return parseColorTagsFromRaw(text);
     }
 
     /**
@@ -2802,9 +2774,8 @@
         return result;
     }
 
-    // ================================================================
-    // 6. CSS 样式注入
-    // ================================================================
+    // ---- 6.2 CSS 样式注入（主题/布局） ----
+    // 样式唯一来源：config/modloader.css（无内置 fallback，缺失时仅打日志）
     function injectStyles() {
             var mlConfig = loadModLoaderConfig();
             _currentTheme = mlConfig.ml_theme || 'dark';
@@ -2814,9 +2785,6 @@
                 log(3, 'CSS 样式已存在，已同步主题配置: ' + _currentTheme);
                 return;
             }
-
-            var styleEl = document.createElement('style');
-            styleEl.id = 'ml-styles';
 
             var cssPath = pathMod.join(MODS_DIR, 'config', 'modloader.css');
             var cssContent = null;
@@ -2829,149 +2797,19 @@
             }
 
             if (!cssContent) {
-                log(1, 'CSS 文件缺失，使用内置降级样式');
-                cssContent = getFallbackCSS_ml();
+                log(1, 'CSS 文件缺失或为空，跳过样式注入（请检查 config/modloader.css）: ' + cssPath);
+                return;
             }
 
+            var styleEl = document.createElement('style');
+            styleEl.id = 'ml-styles';
             styleEl.textContent = cssContent;
             document.head.appendChild(styleEl);
 
-            // 冲突日志 CSS — 独立注入，不受外部 modloader.css 影响
-            var clCss = document.createElement('style');
-            clCss.id = 'ml-cl-styles';
-            clCss.textContent =
-                '.ml-cl-btn{position:fixed;bottom:16px;right:16px;z-index:2147483647;width:44px;height:44px;border-radius:12px;border:1px solid rgba(255,255,255,0.15);background:rgba(18,18,32,0.92);color:#e8e8ec;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,0.4);transition:all 0.2s ease;backdrop-filter:blur(8px);font-family:"Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif;user-select:none;}' +
-                '.ml-cl-btn:hover{background:rgba(28,28,48,0.98);border-color:rgba(255,255,255,0.25);transform:scale(1.05);}' +
-                '.ml-cl-btn .ml-cl-badge{position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;border-radius:8px;background:#ef5350;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px;line-height:1;}' +
-                '.ml-cl-panel{position:fixed;bottom:70px;right:16px;z-index:2147483647;width:460px;max-height:75vh;border-radius:14px;border:1px solid rgba(255,255,255,0.15);background:rgba(18,18,32,0.98);box-shadow:0 20px 60px rgba(0,0,0,0.6);display:none;flex-direction:column;overflow:hidden;backdrop-filter:blur(12px);font-family:"Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif;color:#e8e8ec;user-select:none;}' +
-                '.ml-cl-panel.ml-cl-open{display:flex;animation:mlSlideUp 0.2s ease;}' +
-                '.ml-cl-header{padding:14px 16px 10px;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;justify-content:space-between;align-items:center;}' +
-                '.ml-cl-header h3{margin:0;font-size:14px;font-weight:600;color:#e8e8ec;}' +
-                '.ml-cl-close{background:none;border:none;color:#9a9ab0;font-size:18px;cursor:pointer;padding:2px 6px;border-radius:4px;line-height:1;}' +
-                '.ml-cl-close:hover{background:rgba(255,255,255,0.08);color:#e8e8ec;}' +
-                '.ml-cl-body{flex:1;overflow-y:auto;padding:8px 0;}' +
-                '.ml-cl-empty{padding:24px 16px;text-align:center;color:#666680;font-size:13px;}' +
-                '.ml-cl-summary{padding:10px 16px 8px;margin:4px 12px 8px;border-radius:8px;background:rgba(255,167,38,0.10);border:1px solid rgba(255,167,38,0.20);font-size:12px;line-height:1.6;color:#ffa726;}' +
-                '.ml-cl-summary b{color:#ffb74d;font-size:14px;}' +
-                '.ml-cl-item{padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.06);}' +
-                '.ml-cl-item:last-child{border-bottom:none;}' +
-                '.ml-cl-item-head{display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap;}' +
-                '.ml-cl-tag{font-size:11px;padding:2px 7px;border-radius:4px;font-weight:600;line-height:1.5;}' +
-                '.ml-cl-tag-type{background:rgba(74,158,255,0.15);color:#5cb0ff;}' +
-                '.ml-cl-tag-id{background:rgba(255,255,255,0.08);color:#9a9ab0;}' +
-                '.ml-cl-tag-field{background:rgba(255,167,38,0.15);color:#ffa726;}' +
-                '.ml-cl-result{display:flex;align-items:center;gap:8px;padding:4px 0;margin-bottom:4px;}' +
-                '.ml-cl-winner-name{color:#4caf50;font-weight:600;font-size:12px;white-space:nowrap;}' +
-                '.ml-cl-winner-val{color:#e8e8ec;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}' +
-                '.ml-cl-overridden{border-left:2px solid rgba(255,255,255,0.08);margin-left:4px;padding-left:8px;}' +
-                '.ml-cl-mod-row{display:flex;align-items:center;gap:6px;font-size:11px;padding:2px 0;}' +
-                '.ml-cl-override-icon{color:#666680;font-size:12px;}' +
-                '.ml-cl-mod-name{color:#9a9ab0;font-weight:500;}' +
-                '.ml-cl-mod-val{color:#666680;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;}' +
-                '.ml-cl-overridden-tag{color:#ef5350;font-size:10px;font-weight:600;margin-left:auto;padding:1px 4px;border-radius:3px;background:rgba(239,83,80,0.10);}';
-            document.head.appendChild(clCss);
-
             log(3, 'CSS 样式注入完成，当前主题: ' + _currentTheme);
         }
-    
-        function getFallbackCSS_ml() {
-            return 'html[data-ml-theme="dark"]{' +
-                '--ml-bg-overlay:rgba(8,8,18,0.88);--ml-bg-primary:rgba(18,18,32,1);' +
-                '--ml-bg-secondary:rgba(28,28,48,0.95);--ml-bg-tertiary:rgba(38,38,58,0.90);' +
-                '--ml-bg-hover:rgba(255,255,255,0.06);--ml-bg-active:rgba(74,158,255,0.12);' +
-                '--ml-bg-selected:rgba(74,158,255,0.18);--ml-border:rgba(255,255,255,0.08);' +
-                '--ml-border-light:rgba(255,255,255,0.15);--ml-text-primary:#e8e8ec;' +
-                '--ml-text-secondary:#9a9ab0;--ml-text-muted:#666680;--ml-accent:#4a9eff;' +
-                '--ml-accent-hover:#5cb0ff;--ml-success:#4caf50;--ml-success-bg:rgba(76,175,80,0.15);' +
-                '--ml-danger:#ef5350;--ml-danger-bg:rgba(239,83,80,0.15);--ml-warning:#ffa726;' +
-                '--ml-warning-bg:rgba(255,167,38,0.15);--ml-radius-sm:6px;--ml-radius:10px;' +
-                '--ml-radius-lg:14px;--ml-shadow:0 8px 32px rgba(0,0,0,0.4);' +
-                '--ml-shadow-lg:0 20px 60px rgba(0,0,0,0.6);--ml-transition:0.2s ease;' +
-                '--ml-font:"Microsoft YaHei","PingFang SC","Noto Sans SC","WenQuanYi Micro Hei",sans-serif;}' +
-                '.ml-overlay{position:fixed;top:0;left:0;width:100%;height:100%;z-index:10000;' +
-                'background:var(--ml-bg-overlay);display:flex;align-items:center;justify-content:center;' +
-                'font-family:var(--ml-font);color:var(--ml-text-primary);user-select:none;}' +
-                '.ml-container{background:var(--ml-bg-primary);border-radius:var(--ml-radius-lg);' +
-                'border:1px solid var(--ml-border-light);box-shadow:var(--ml-shadow-lg);width:900px;' +
-                'max-width:94vw;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;}' +
-                '.ml-header{padding:18px 24px;background:var(--ml-bg-secondary);' +
-                'border-bottom:1px solid var(--ml-border);display:flex;align-items:center;' +
-                'justify-content:space-between;flex-shrink:0;}' +
-                '.ml-header h2{margin:0;font-size:20px;font-weight:700;color:var(--ml-text-primary);}' +
-                '.ml-header-info{display:flex;gap:10px;align-items:center;}' +
-                '.ml-badge{font-size:12px;padding:3px 10px;border-radius:var(--ml-radius-sm);font-weight:600;}' +
-                '.ml-badge-success{background:var(--ml-success-bg);color:var(--ml-success);}' +
-                '.ml-badge-warning{background:var(--ml-warning-bg);color:var(--ml-warning);}' +
-                '.ml-content{flex:1;display:flex;overflow:hidden;min-height:0;}' +
-                '.ml-list-panel{width:320px;border-right:1px solid var(--ml-border);display:flex;' +
-                'flex-direction:column;flex-shrink:0;}' +
-                '.ml-list-header{font-size:13px;font-weight:600;padding:12px 16px;' +
-                'background:var(--ml-bg-tertiary);border-bottom:1px solid var(--ml-border);' +
-                'display:flex;justify-content:space-between;align-items:center;color:var(--ml-text-secondary);}' +
-                '.ml-list-scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:6px 8px;}' +
-                '.ml-mod-item{display:flex;align-items:center;gap:10px;padding:8px 10px;margin:2px 0;' +
-                'border-radius:var(--ml-radius-sm);cursor:pointer;transition:background var(--ml-transition);' +
-                'border:1px solid transparent;}' +
-                '.ml-mod-item:hover{background:var(--ml-bg-hover);}' +
-                '.ml-mod-item.selected{background:var(--ml-bg-selected);border-color:var(--ml-accent);}' +
-                '.ml-workshop-unsubscribed{opacity:0.55;}' +
-                '.ml-workshop-warn .ml-mod-name{color:var(--ml-warning,#f59e0b);}' +
-                '.ml-filter-btn.active{background:var(--ml-accent);color:#fff;}' +
-                '.ml-btn-sort-blocked{opacity:0.65;pointer-events:auto;}' +
-                '.ml-toggle{position:relative;display:inline-block;width:38px;height:20px;flex-shrink:0;}' +
-                '.ml-toggle input{display:none;}' +
-                '.ml-toggle-track{position:absolute;top:0;left:0;right:0;bottom:0;background:var(--ml-danger-bg);' +
-                'border-radius:10px;cursor:pointer;transition:background var(--ml-transition);border:1px solid var(--ml-border);}' +
-                '.ml-toggle input:checked+.ml-toggle-track{background:var(--ml-accent);border-color:var(--ml-accent);}' +
-                '.ml-toggle-thumb{position:absolute;top:2px;left:2px;width:14px;height:14px;background:#fff;' +
-                'border-radius:50%;transition:transform var(--ml-transition);box-shadow:0 1px 3px rgba(0,0,0,0.3);}' +
-                '.ml-toggle input:checked+.ml-toggle-track .ml-toggle-thumb{transform:translateX(18px);}' +
-                '.ml-mod-name{flex:1;font-size:14px;font-weight:500;color:var(--ml-text-primary);' +
-                'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}' +
-                '.ml-btn{padding:8px 18px;border-radius:var(--ml-radius-sm);font-size:14px;font-weight:500;' +
-                'cursor:pointer;border:1px solid transparent;transition:all var(--ml-transition);font-family:var(--ml-font);}' +
-                '.ml-btn-primary{background:var(--ml-accent);color:#fff;border-color:var(--ml-accent);}' +
-                '.ml-btn-primary:hover{background:var(--ml-accent-hover);}' +
-                '.ml-btn-secondary{background:var(--ml-bg-tertiary);color:var(--ml-text-primary);border-color:var(--ml-border);}' +
-                '.ml-btn-secondary:hover{background:var(--ml-bg-hover);border-color:var(--ml-border-light);}' +
-                '.ml-footer{padding:14px 24px;background:var(--ml-bg-secondary);border-top:1px solid var(--ml-border);' +
-                'display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}' +
-                '.ml-footer-actions{display:flex;gap:8px;}' +
-                '.ml-modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;z-index:10001;' +
-                'background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;' +
-                'font-family:var(--ml-font);color:var(--ml-text-primary);user-select:none;}' +
-                '.ml-modal{background:var(--ml-bg-primary);border-radius:var(--ml-radius-lg);' +
-                'border:1px solid var(--ml-border-light);box-shadow:var(--ml-shadow-lg);width:520px;' +
-                'max-width:92vw;max-height:80vh;display:flex;flex-direction:column;overflow:hidden;}' +
-                '.ml-modal-header{padding:18px 24px;background:var(--ml-bg-secondary);' +
-                'border-bottom:1px solid var(--ml-border);display:flex;align-items:center;justify-content:space-between;}' +
-                '.ml-modal-header h3{margin:0;font-size:16px;font-weight:600;color:var(--ml-text-primary);}' +
-                '.ml-modal-close{background:none;border:none;font-size:20px;color:var(--ml-text-muted);cursor:pointer;padding:4px;}' +
-                '.ml-modal-close:hover{color:var(--ml-text-primary);}' +
-                '.ml-modal-body{flex:1;overflow-y:auto;padding:20px 24px;}' +
-                '.ml-modal-footer{padding:14px 24px;background:var(--ml-bg-secondary);' +
-                'border-top:1px solid var(--ml-border);display:flex;gap:8px;}' +
-                '.ml-detail-panel{flex:1;display:flex;flex-direction:column;overflow-y:auto;padding:20px 24px;min-width:0;}' +
-                '.ml-changelog-link{color:var(--ml-accent);cursor:pointer;text-decoration:underline;font-size:11px;margin-left:2px;}' +
-                '.ml-theme-toggle{cursor:pointer;text-decoration:none;font-size:13px;margin-left:4px;display:inline-block;}' +
-                '@keyframes mlFadeIn{from{opacity:0}to{opacity:1}}' +
-                '@keyframes mlSlideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}' +
-                /* 【V3.15.0 新增】依赖检测警告内联样式 */
-                '.ml-toggle-thumb.ml-dep-base-warning{background:#ef4444!important;box-shadow:0 0 6px rgba(239,68,68,0.6),0 1px 3px rgba(0,0,0,0.3);}' +
-                '.ml-toggle-thumb.ml-dep-order-warning{background:#f59e0b!important;box-shadow:0 0 6px rgba(245,158,11,0.6),0 1px 3px rgba(0,0,0,0.3);}' +
-                '.ml-dep-list{display:flex;flex-direction:column;gap:4px;line-height:1.6;}' +
-                '.ml-dep-item{display:flex;align-items:baseline;gap:4px;padding:2px 0;flex-wrap:wrap;}' +
-                '.ml-dep-reason{font-size:12px;opacity:0.85;margin-left:4px;font-weight:400;}' +
-                '.ml-dep-text-base-missing{color:#ef4444;font-weight:600;padding:1px 4px;border-radius:3px;background:rgba(239,68,68,0.1);}' +
-                '.ml-dep-text-order-missing{color:#f59e0b;font-weight:600;padding:1px 4px;border-radius:3px;background:rgba(245,158,11,0.1);}' +
-                '.ml-dep-text-pass{color:#22c55e;padding:1px 4px;border-radius:3px;background:rgba(34,197,94,0.1);}' +
-                '.ml-dep-label-base-missing{color:#ef4444!important;font-weight:700;}' +
-                '.ml-dep-label-order-missing{color:#f59e0b!important;font-weight:700;}';
-        }
 
-    // ================================================================
-    // 7. DOM UI 系统
-    // ================================================================
+    // ---- 6.3 DOM UI 系统（主面板：列表/详情/工具栏/主题/更新日志/语言） ----
     let _overlay = null;       // 主遮罩层
     let _modalOverlay = null;  // 参数编辑模态遮罩
     let _modData = [];         // 当前模组数据
@@ -2979,11 +2817,17 @@
     let _needsRestart = false; // 是否需要重启提示
     let _titleBtn = null;     // 标题画面按钮
     let _hasUnsavedChanges = false; // 是否有未保存的修改
-    let _draggedIndex = null;  // 当前拖拽的索引
     let _confirmModal = null;  // 确认对话框
     let _changelogModal = null; // 更新日志弹窗
     let _dragEnabled = false;  // 拖拽功能是否启用（默认关闭）
-    let _dropPosition = null;  // 拖放位置：'before' 或 'after'
+    // 排序拖拽动画时长（可调：改这里即可手感微调）
+    const SORT_ANIM = {
+        thresholdPx: 5,   // 按下后移动超过该像素才提起
+        slideMs: 100,     // 其他行让位过渡
+        releaseMs: 280    // 松手后对齐空位 + 消光圈（建议 ≤300）
+    };
+    let _sortDrag = null;         // 自定义排序拖拽状态
+    let _suppressListClick = false; // 拖拽后抑制一次列表 click
     let _keyboardCaptureActive = false;  // 是否开启了通用键盘捕获
     let _deleteMode = false;   // 删除模式是否启用
     let _listFilter = 'all';   // 列表筛选：all | local | workshop
@@ -3086,49 +2930,53 @@
         _overlay.innerHTML = `
             <div class="ml-container">
                 <div class="ml-header">
-            <div style="display: flex; align-items: center; gap: 8px; position: relative;">
-                <span class="ml-settings-gear" id="ml-settings-gear" title="${t('settings')}">⚙</span>
-                <h2 style="margin: 0;">${t('title')}</h2>
-                <span class="ml-list-header" style="font-size: 12px; color: var(--ml-text-muted); text-transform: uppercase; letter-spacing: 1px; background: none; padding: 0;">
+            <div class="ml-header-left">
+                <span class="ml-settings-gear-wrap">
+                    <span class="ml-settings-gear" id="ml-settings-gear" title="${t('settings')}">⚙</span>
+                    <span class="ml-settings-conflict-badge" id="ml-settings-conflict-badge" style="display:none;" title="">!</span>
+                </span>
+                <h2>${t('title')}</h2>
+                <span class="ml-header-meta">
                     ${t('author')} ${VERSION} <a class="ml-changelog-link" id="ml-changelog-link">${t('changelog')}</a>
                 </span>
                 <div class="ml-settings-card" id="ml-settings-card" style="display:none;">
-                    <div class="ml-settings-item">
+                    <div class="ml-settings-item" id="ml-settings-lang-item">
                         <label class="ml-settings-label">${t('language.label')}</label>
                         <select class="ml-form-select ml-settings-select" id="ml-language-select"></select>
                     </div>
-                    <div class="ml-settings-item">
+                    <div class="ml-settings-item" id="ml-settings-theme-item">
                         <label class="ml-settings-label">${t('settings.theme')}</label>
                         <div class="ml-settings-theme-btns">
                             <button class="ml-settings-theme-btn" id="ml-theme-btn-dark" data-theme="dark">${t('theme.dark')}</button>
                             <button class="ml-settings-theme-btn" id="ml-theme-btn-warm" data-theme="warm">${t('theme.warm')}</button>
                         </div>
                     </div>
+                    <div class="ml-settings-log-entries" id="ml-settings-log-entries"></div>
                 </div>
             </div>
-                    <div class="ml-header-info" style="gap: 8px; align-items: center;">
-                        <button class="ml-btn ml-btn-secondary" id="ml-btn-disable-all" style="font-size: 13px; padding: 4px 12px;">${t('button.disableAll')}</button>
-                        <button class="ml-btn ml-btn-secondary" id="ml-btn-install" style="font-size: 13px; padding: 4px 12px;">${t('button.installMod')}</button>
-                        <button class="ml-btn ml-btn-secondary" id="ml-btn-delete" style="font-size: 13px; padding: 4px 12px;">${t('button.deleteMod')}</button>
-                        <button class="ml-btn ml-btn-secondary" id="ml-btn-sort" style="font-size: 13px; padding: 4px 12px;">${t('button.sortMod')}</button>
+                    <div class="ml-header-info">
+                        <button class="ml-btn ml-btn-secondary ml-btn-header" id="ml-btn-disable-all">${t('button.disableAll')}</button>
+                        <button class="ml-btn ml-btn-secondary ml-btn-header" id="ml-btn-install">${t('button.installMod')}</button>
+                        <button class="ml-btn ml-btn-secondary ml-btn-header" id="ml-btn-delete">${t('button.deleteMod')}</button>
+                        <button class="ml-btn ml-btn-secondary ml-btn-header" id="ml-btn-sort">${t('button.sortMod')}</button>
                         <span class="ml-badge ml-badge-success" id="ml-enabled-count">${t('count.enabled')}: 0</span>
                         <span class="ml-badge ml-badge-warning" id="ml-total-count">${t('count.total')}: 0</span>
                     </div>
                 </div>
                 <div class="ml-content">
                     <div class="ml-list-panel">
-                        <div class="ml-list-toolbar" id="ml-list-toolbar" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;border-bottom:1px solid var(--ml-border);">
-                            <div class="ml-filter-tabs" id="ml-filter-tabs" style="display:flex;gap:6px;">
-                                <button class="ml-btn ml-btn-secondary ml-filter-btn active" data-filter="all" style="font-size:12px;padding:2px 10px;">${t('tab.all')}</button>
-                                <button class="ml-btn ml-btn-secondary ml-filter-btn" data-filter="local" style="font-size:12px;padding:2px 10px;">${t('tab.local')}</button>
-                                <button class="ml-btn ml-btn-secondary ml-filter-btn" data-filter="workshop" style="font-size:12px;padding:2px 10px;">${t('tab.workshop')}</button>
+                        <div class="ml-list-toolbar" id="ml-list-toolbar">
+                            <div class="ml-filter-tabs" id="ml-filter-tabs">
+                                <button class="ml-btn ml-btn-secondary ml-btn-sm ml-filter-btn active" data-filter="all">${t('tab.all')}</button>
+                                <button class="ml-btn ml-btn-secondary ml-btn-sm ml-filter-btn" data-filter="local">${t('tab.local')}</button>
+                                <button class="ml-btn ml-btn-secondary ml-btn-sm ml-filter-btn" data-filter="workshop">${t('tab.workshop')}</button>
                             </div>
-                            <button class="ml-btn ml-btn-secondary" id="ml-btn-refresh-workshop" style="font-size:12px;padding:2px 10px;">${t('workshop.refresh')}</button>
+                            <button class="ml-btn ml-btn-secondary ml-btn-sm" id="ml-btn-refresh-workshop">${t('workshop.refresh')}</button>
                         </div>
                         <div class="ml-list-header">
-                            <span style="font-size:13px;opacity:0.9">${t('list.headerOrder')}</span>
+                            <span class="ml-list-header-side">${t('list.headerOrder')}</span>
                             <span>${t('list.headerModList')}</span>
-                            <span style="font-size:13px;opacity:0.9">${t('list.headerClickGear')}</span>
+                            <span class="ml-list-header-side">${t('list.headerClickGear')}</span>
                         </div>
                         <div class="ml-list-scroll" id="ml-list-scroll"></div>
                     </div>
@@ -3137,7 +2985,7 @@
                     </div>
                 </div>
                 <div class="ml-footer">
-                    <div style="display:flex;flex-direction:column;gap:4px;">
+                    <div class="ml-footer-hints">
                         <div class="ml-restart-hint hidden" id="ml-restart-hint">
                             &#9888; ${t('footer.restartHint')}
                         </div>
@@ -3149,6 +2997,13 @@
                         <button class="ml-btn ml-btn-primary" id="ml-btn-save">${t('button.save')}</button>
                         <button class="ml-btn ml-btn-secondary" id="ml-btn-close">${t('button.close')}</button>
                     </div>
+                </div>
+                <div class="ml-log-panel" id="ml-log-panel" style="display:none;">
+                    <div class="ml-log-panel-header">
+                        <h3 id="ml-log-panel-title"></h3>
+                        <button type="button" class="ml-log-panel-close" id="ml-log-panel-close" title="关闭">&times;</button>
+                    </div>
+                    <div class="ml-log-panel-body" id="ml-log-panel-body"></div>
                 </div>
             </div>
         `;
@@ -3165,6 +3020,14 @@
         document.getElementById('ml-btn-delete').addEventListener('click', toggleDeleteMode);
         document.getElementById('ml-btn-sort').addEventListener('click', toggleDrag);
 
+        var logPanelClose = document.getElementById('ml-log-panel-close');
+        if (logPanelClose) {
+            logPanelClose.addEventListener('click', function(e) {
+                e.stopPropagation();
+                _closeLogPanel();
+            });
+        }
+
         var filterTabs = document.getElementById('ml-filter-tabs');
         if (filterTabs) {
             filterTabs.addEventListener('click', function(e) {
@@ -3173,8 +3036,6 @@
                 _listFilter = btn.dataset.filter || 'all';
                 filterTabs.querySelectorAll('.ml-filter-btn').forEach(function(b) {
                     b.classList.toggle('active', b === btn);
-                    b.style.backgroundColor = b === btn ? 'var(--ml-accent)' : '';
-                    b.style.color = b === btn ? '#fff' : '';
                 });
                 onListFilterChanged();
             });
@@ -3288,6 +3149,8 @@
      * 显示模组管理器
      */
     function showModManager() {
+        if (!runManagerGates()) return;
+
         ensureModLoaderConfigFile();
         const config = loadConfig();
         var mlConfig = loadModLoaderConfig();
@@ -3313,7 +3176,7 @@
         updateButtonStates();
         updateWorkshopToolbarState();
 
-        // 【V3.15.0 新增】进入管理器时检测依赖
+        // 进入管理器时检测依赖
         refreshDependencyCheck();
         // 依赖检测完成后重新渲染列表以显示警告颜色
         renderModList();
@@ -3322,13 +3185,10 @@
         var filterTabs = document.getElementById('ml-filter-tabs');
         if (filterTabs) {
             filterTabs.querySelectorAll('.ml-filter-btn').forEach(function(b) {
-                var isAll = b.dataset.filter === 'all';
-                b.classList.toggle('active', isAll);
-                b.style.backgroundColor = isAll ? 'var(--ml-accent)' : '';
-                b.style.color = isAll ? '#fff' : '';
+                b.classList.toggle('active', b.dataset.filter === 'all');
             });
         }
-        bindModLoaderScrollContainers();   //  添加这一行修复进出管理器后的列表滚动失效
+        bindModLoaderScrollContainers();
         overlay.focus();
 
         // 拦截 RMMZ 输入，防止穿透
@@ -3344,8 +3204,8 @@
 
         log(3, "模组管理器已打开，共", _modData.length, "个模组");
 
-        // 显示冲突日志按钮（仅管理器打开时可见）
-        if (_clBtn) { _clBtn.style.display = 'flex'; _refreshClBadge(); }
+        _refreshSettingsLogMenu();
+        _refreshConflictBadge();
     }
 
 
@@ -3355,13 +3215,13 @@
      */
     function hideModManager() {
         log(3, "=== hideModManager 开始 ===");
+        cancelSortDrag();
         
         if (_overlay) {
             _overlay.style.display = 'none';
         }
 
-        // 隐藏冲突日志按钮
-        if (_clBtn) _clBtn.style.display = 'none';
+        _closeLogPanel();
         
         unbindAllWheelListeners();//滚轮修复
         // 恢复 RMMZ 输入
@@ -3433,6 +3293,7 @@
     function onListFilterChanged() {
         if (isListFilterRestrictingSort() && _dragEnabled) {
             _dragEnabled = false;
+            cancelSortDrag();
         }
         updateButtonStates();
         renderModList();
@@ -3463,7 +3324,9 @@
                 }
                 item.className = itemClass;
                 item.dataset.index = index;
-                item.draggable = _dragEnabled;
+                if (mod.source === 'workshop') {
+                    item.title = t('workshop.sourceHintManage') + '\n' + t('workshop.sourceHintSubscribe');
+                }
 
                 const hasParams = mod.params && mod.params.length > 0;
                 
@@ -3476,7 +3339,7 @@
 
                 let deleteHtml = '';
                 if (_deleteMode && !mod.readOnly) {
-                    deleteHtml = `<div class="ml-delete-btn" data-action="delete" data-index="${index}" style="margin-left: 8px; background: #dc2626; color: white; padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 14px; line-height: 1;">🗑️</div>`;
+                    deleteHtml = `<div class="ml-delete-btn" data-action="delete" data-index="${index}">🗑️</div>`;
                 }
 
                 const depStatus = getModDepStatus(mod);
@@ -3489,14 +3352,14 @@
 
                 let workshopBadge = '';
                 if (mod.source === 'workshop') {
-                    workshopBadge = `<span class="ml-badge ml-badge-warning" style="font-size:10px;margin-left:4px;" title="${escapeHtml(t('workshop.badge'))}">${t('workshop.badge')}</span>`;
+                    workshopBadge = `<span class="ml-badge ml-badge-warning ml-badge-sm" title="${escapeHtml(t('workshop.badge'))}">${t('workshop.badge')}</span>`;
                 }
 
                 let installWarn = '';
                 if (mod.installState === 'missing') {
-                    installWarn = `<span title="${escapeHtml(t('workshop.missing'))}" style="margin-left:4px;">⚠</span>`;
+                    installWarn = `<span class="ml-install-warn" title="${escapeHtml(t('workshop.missing'))}">⚠</span>`;
                 } else if (mod.installState === 'unsubscribed') {
-                    installWarn = `<span title="${escapeHtml(t('workshop.unsubscribed'))}" style="margin-left:4px;">○</span>`;
+                    installWarn = `<span class="ml-install-warn" title="${escapeHtml(t('workshop.unsubscribed'))}">○</span>`;
                 }
 
                 item.innerHTML = `
@@ -3528,6 +3391,8 @@
             container.insertBefore(emptyState, container.firstChild);
         }
 
+        container.classList.toggle('ml-sort-enabled', _dragEnabled);
+
         // 事件委托（仅绑定一次）
         if (!container._mlListenerAdded) {
             container.addEventListener('click', handleListClick);
@@ -3535,12 +3400,8 @@
             container.addEventListener('input', handleOrderInput);
             container.addEventListener('blur', handleOrderBlur, true);
             container.addEventListener('keydown', handleOrderKeydown, true);
-            // 拖拽事件
-            container.addEventListener('dragstart', handleDragStart);
-            container.addEventListener('dragover', handleDragOver);
-            container.addEventListener('dragleave', handleDragLeave);
-            container.addEventListener('drop', handleDrop);
-            container.addEventListener('dragend', handleDragEnd);
+            // 排序拖拽（实现见 6.3.1）
+            container.addEventListener('mousedown', handleSortMouseDown);
             container._mlListenerAdded = true;
         }
     }
@@ -3549,6 +3410,11 @@
      * 列表点击事件处理（事件委托）
      */
     function handleListClick(e) {
+        if (_suppressListClick || (_sortDrag && _sortDrag.phase !== 'pending')) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+        }
         const target = e.target.closest('[data-action]');
         if (!target) {
             // 点击了行但没点到具体控件，视为选中
@@ -3610,7 +3476,7 @@
         const mod = _modData[index];
         const newStatus = !mod.status;
 
-        // 【V3.15.1 修改】开启时检测依赖，按具体原因弹框确认
+        // 开启时检测依赖，按具体原因弹框确认
         if (newStatus) {
             const depStatus = getModDepStatus(mod);
             if (depStatus.baseWarning || depStatus.orderAfterWarning) {
@@ -3648,7 +3514,7 @@
     }
 
     /**
-     * 【V3.15.0 新增】实际执行模组开关切换
+     * 实际执行模组开关切换
      */
     function doToggleMod(index, mod, newStatus) {
         mod.status = newStatus;
@@ -3661,7 +3527,7 @@
             toggleEl.classList.toggle('on', mod.status);
         }
 
-        // 【V3.15.0 新增】开关变化后刷新依赖检测（因为其他mod可能依赖此mod）
+        // 开关变化后刷新依赖检测（其他 Mod 可能依赖此 Mod）
         refreshDependencyCheck();
         // 重新渲染列表以更新所有toggle-thumb的警告颜色
         renderModList();
@@ -3711,7 +3577,7 @@
             _hasUnsavedChanges = true;
             updateSaveButton();
             updateCounts();
-            // 【V3.15.0 新增】全关后刷新依赖检测
+            // 全关后刷新依赖检测
             refreshDependencyCheck();
             renderModList();
         }
@@ -3770,7 +3636,7 @@
         let paramsHtml = '';
         if (hasParams) {
             paramsHtml = `
-                <div class="ml-detail-section">
+                <div class="ml-detail-section ml-detail-section-clear">
                     <div class="ml-detail-label">${DT.labelParams}</div>
                     <div class="ml-detail-params">
                         ${mod.params.map(p => {
@@ -3798,12 +3664,13 @@
                                 const dbArray = getDatabaseArray(p.type);
                                 if (dbArray) {
                                     const id = Number(curVal);
-                                    if (id > 0 && id < dbArray.length && dbArray[id] && dbArray[id].name) {
-                                        displayVal = `${curVal}: ${dbArray[id].name}`;
+                                    if (id > 0 && id < dbArray.length && dbArray[id] != null) {
+                                        const entryName = getDatabaseEntryName(dbArray[id]);
+                                        if (entryName) displayVal = `${curVal}: ${entryName}`;
                                     }
                                 }
                             } else if (p.type === 'struct') {
-                                // 阶段2新增：struct 类型在详情页显示为摘要
+                                // struct：详情页显示字段摘要
                                 typeLabel = DT.typeStruct;
                                 try {
                                     const obj = typeof curVal === 'string' ? JSON.parse(curVal) : curVal;
@@ -3813,7 +3680,7 @@
                                     displayVal = String(curVal).substring(0, 40);
                                 }
                             } else if (p.type === 'table') {
-                                // 阶段2新增：table 类型在详情页显示为行数摘要
+                                // table：详情页显示行数摘要
                                 typeLabel = DT.typeTable;
                                 try {
                                     const arr = typeof curVal === 'string' ? JSON.parse(curVal) : curVal;
@@ -3845,7 +3712,7 @@
                 </div>
             `;
         }
-        // 【V3.15.1 修改】@base 依赖显示 - 5种状态判定，带具体原因文本
+        // @base 依赖显示（5 种状态，带原因文本）
         if (mod.base) {
             const depStatus = getModDepStatus(mod);
             const baseItems = (depStatus.baseDetails || []).map(detail => {
@@ -3853,11 +3720,11 @@
                 // 根据状态选择图标和颜色
                 let icon, colorClass;
                 if (isPass) {
-                    icon = '<span style="color:#22c55e;">✔</span>';
+                    icon = '<span class="ml-icon-pass">✔</span>';
                     colorClass = 'ml-dep-text-pass';
                 } else {
                     // 所有非pass状态统一用红色❌（@base缺失=崩溃级别）
-                    icon = '<span style="color:#ef4444;">❌</span>';
+                    icon = '<span class="ml-icon-fail">❌</span>';
                     colorClass = 'ml-dep-text-base-missing';
                 }
                 // 显示插件名 + 原因说明（pass不显示原因）
@@ -3872,18 +3739,18 @@
                 </div>
             `;
         }
-        // 【V3.15.1 修改】@orderAfter 依赖显示 - 5种状态判定，带具体原因文本
+        // @orderAfter 依赖显示（5 种状态，带原因文本）
         if (mod.orderAfter) {
             const depStatus = getModDepStatus(mod);
             const orderAfterItems = (depStatus.orderAfterDetails || []).map(detail => {
                 const isPass = detail.status === 'pass';
                 let icon, colorClass;
                 if (isPass) {
-                    icon = '<span style="color:#22c55e;">✔</span>';
+                    icon = '<span class="ml-icon-pass">✔</span>';
                     colorClass = 'ml-dep-text-pass';
                 } else {
                     // @orderAfter缺失=失效级别，用黄色❌
-                    icon = '<span style="color:#ef4444;">❌</span>';
+                    icon = '<span class="ml-icon-fail">❌</span>';
                     colorClass = 'ml-dep-text-order-missing';
                 }
                 const reasonText = isPass ? '' : `<span class="ml-dep-reason">${escapeHtml(detail.message)}</span>`;
@@ -3898,47 +3765,26 @@
             `;
         }
         if (mod.orderBefore) {
+            // F-1 注：@orderBefore 仅作为玩家参考展示，不做强制校验。
+            // 实际加载顺序的硬性保护由 @base / @orderAfter 的前置 mod 依赖检测承担（行业通用做法）。
             metaHtml += `
                 <div class="ml-detail-section">
                     <div class="ml-detail-label">${DT.labelOrderBefore}</div>
-                    <div class="ml-detail-value">${escapeHtml(mod.orderBefore)}</div>
+                    <div class="ml-detail-value">${escapeHtml(mod.orderBefore)}<span class="ml-detail-hint">（仅供玩家参考）</span></div>
                 </div>
             `;
         }
 
         let workshopHtml = '';
         if (mod.source === 'workshop') {
-            const sourceLabel = t('detail.labelSource');
-            const workshopSubLabel = t('detail.labelWorkshopSub');
-            const workshopRootLabel = t('detail.labelWorkshopRoot');
-            const installLabel = t('detail.labelInstallState');
-            const pkgTitle = (mod.workshopPackageTitle || '').trim();
-            const subDisplay = mod.workshopId
-                ? (mod.workshopId + ' & ' + (pkgTitle || t('workshop.unnamedPackage')))
-                : (pkgTitle || t('workshop.unnamedPackage'));
-            let installText = t('detail.installReady');
-            if (mod.installState === 'missing') installText = t('workshop.missing');
-            else if (mod.installState === 'unsubscribed') installText = t('workshop.unsubscribed');
             workshopHtml = `
                 <div class="ml-detail-section">
-                    <div class="ml-detail-label">${escapeHtml(sourceLabel)}</div>
-                    <div class="ml-detail-value">
-                        <div>${escapeHtml(t('detail.sourceWorkshop'))}</div>
-                        <div style="font-size:12px;color:var(--ml-text-muted);margin-top:4px;line-height:1.5;">${escapeHtml(t('workshop.sourceHintManage'))}</div>
-                        <div style="font-size:12px;color:var(--ml-text-muted);margin-top:2px;line-height:1.5;">${escapeHtml(t('workshop.sourceHintSubscribe'))}</div>
-                    </div>
+                    <div class="ml-detail-label">${escapeHtml(t('detail.labelSource'))}</div>
+                    <div class="ml-detail-value">${escapeHtml(t('detail.sourceWorkshop'))}</div>
                 </div>
                 <div class="ml-detail-section">
-                    <div class="ml-detail-label">${escapeHtml(workshopSubLabel)}</div>
-                    <div class="ml-detail-value">${escapeHtml(subDisplay)}</div>
-                </div>
-                <div class="ml-detail-section">
-                    <div class="ml-detail-label">${escapeHtml(workshopRootLabel)}</div>
-                    <div class="ml-detail-value" style="word-break:break-all;font-size:12px;">${escapeHtml(mod.workshopRoot || '')}</div>
-                </div>
-                <div class="ml-detail-section">
-                    <div class="ml-detail-label">${escapeHtml(installLabel)}</div>
-                    <div class="ml-detail-value">${escapeHtml(installText)}</div>
+                    <div class="ml-detail-label">${escapeHtml(t('detail.labelWorkshopRoot'))}</div>
+                    <div class="ml-detail-value ml-detail-value-path">${escapeHtml(mod.workshopRoot || '')}</div>
                 </div>
             `;
         } else if (mod.source === 'local') {
@@ -3948,26 +3794,24 @@
                     <div class="ml-detail-value">${escapeHtml(t('detail.sourceLocal'))}</div>
                 </div>
             `;
-        }
-        if (mod.loadPath) {
-            workshopHtml += `
-                <div class="ml-detail-section">
-                    <div class="ml-detail-label">${escapeHtml(t('detail.labelFile'))}</div>
-                    <div class="ml-detail-value" style="word-break:break-all;font-size:12px;">${escapeHtml(mod.loadPath)}</div>
-                </div>
-            `;
+            if (mod.loadPath) {
+                workshopHtml += `
+                    <div class="ml-detail-section">
+                        <div class="ml-detail-label">${escapeHtml(t('detail.labelFile'))}</div>
+                        <div class="ml-detail-value ml-detail-value-path">${escapeHtml(mod.loadPath)}</div>
+                    </div>
+                `;
+            }
         }
 
         const workshopPreviewHtml = buildModPreviewHtml(mod);
-        const detailHeaderRowClass = workshopPreviewHtml ? ' ml-detail-header-row' : '';
 
+        // 预览图右浮动（见 CSS），名字与来源等字段紧挨排列，不再与预览同高留白
         panel.innerHTML = `
-            <div class="ml-detail-section${detailHeaderRowClass}">
-                <div class="ml-detail-header-info">
-                    <div class="ml-detail-label">${DT.labelModName}</div>
-                    <div class="ml-detail-value">${parseColorTagsFromRaw(mod.displayName)}</div>
-                </div>
-                ${workshopPreviewHtml}
+            ${workshopPreviewHtml}
+            <div class="ml-detail-section">
+                <div class="ml-detail-label">${DT.labelModName}</div>
+                <div class="ml-detail-value">${parseColorTagsFromRaw(mod.displayName)}</div>
             </div>
             ${workshopHtml}
             <div class="ml-detail-section">
@@ -3978,13 +3822,13 @@
             <div class="ml-detail-section">
                 <div class="ml-detail-label">${DT.labelStatus}</div>
                 <div class="ml-detail-value">
-                    <span class="ml-badge ${mod.status ? 'ml-badge-success' : 'ml-badge-danger'}" style="${mod.status ? '' : 'background:var(--ml-danger-bg);color:var(--ml-danger);'}">
+                    <span class="ml-badge ${mod.status ? 'ml-badge-success' : 'ml-badge-danger'}">
                         ${mod.status ? DT.statusEnabled : DT.statusDisabled}
                     </span>
                 </div>
             </div>
             ${paramsHtml}
-            <div class="ml-detail-section">
+            <div class="ml-detail-section ml-detail-section-clear">
                 <div class="ml-detail-label">${DT.labelHelp}</div>
                 <div class="ml-detail-help">${parseColorTagsFromRaw(mod.help || DT.noHelp)}</div>
             </div>
@@ -4065,13 +3909,10 @@
     }
 
     /**
-     * 保存所有修改
-     * 【V3.15.1 修改】全量重写配置文件，防止僵尸mod信息残留
-     * 旧逻辑：读取已有config → 更新mod条目 → 保存（会保留已删除mod的残留条目）
-     * 新逻辑：从当前_modData重新构建config → 保存（只包含当前存在的mod）
+     * 保存所有修改。
+     * 全量从当前 _modData 重写配置（不合并旧文件），避免已删除 Mod 的残留条目。
      */
     function saveAllChanges() {
-        // 【V3.15.1】直接构建全新config，不读取旧配置，防止僵尸数据
         const config = {};
         _modData.forEach(mod => {
             config[mod.id] = {
@@ -4118,14 +3959,14 @@
         _confirmModal = document.createElement('div');
         _confirmModal.className = 'ml-modal-overlay';
         _confirmModal.innerHTML = `
-            <div class="ml-modal" style="width: 420px;">
+            <div class="ml-modal ml-modal-confirm">
                 <div class="ml-modal-header">
                     <h3>${escapeHtml(title)}</h3>
                 </div>
                 <div class="ml-modal-body">
-                    <p style="white-space: pre-line; margin: 0;">${escapeHtml(message)}</p>
+                    <p class="ml-confirm-message">${escapeHtml(message)}</p>
                 </div>
-                <div class="ml-modal-footer" style="justify-content: flex-end;">
+                <div class="ml-modal-footer">
                     ${buttons.map((btn, idx) => `
                         <button class="ml-btn ${btn.class || 'ml-btn-secondary'}" data-action="${idx}">
                             ${escapeHtml(btn.text)}
@@ -4201,63 +4042,54 @@
     }
 
     /**
-     * 简易 Markdown 转 HTML 解析器
+     * 加载 libs/marked.min.js（依赖库，非扩展脚本）
+     */
+    let _markedLoaded = false;
+    function loadMarkedLibrary() {
+        if (_markedLoaded && typeof marked !== 'undefined') return true;
+        if (typeof marked !== 'undefined') {
+            _markedLoaded = true;
+            return true;
+        }
+        try {
+            const libPath = pathMod.join(LIBS_DIR, 'marked.min.js');
+            if (!fs.existsSync(libPath)) {
+                log(1, 'marked.min.js 不存在: ' + libPath);
+                return false;
+            }
+            const code = fs.readFileSync(libPath, 'utf-8');
+            const script = document.createElement('script');
+            script.textContent = code;
+            document.head.appendChild(script);
+            _markedLoaded = typeof marked !== 'undefined';
+            if (_markedLoaded) log(3, 'marked.js 加载成功');
+            else log(1, 'marked.js 注入后全局 marked 仍不可用');
+            return _markedLoaded;
+        } catch (e) {
+            log(1, '加载 marked.js 失败:', e.message);
+            return false;
+        }
+    }
+
+    /**
+     * Markdown → HTML（优先 libs/marked.min.js；缺失时纯文本回退）
      */
     function parseMarkdownToHtml(md) {
-        var lines = md.split('\n');
-        var html = '';
-        var inList = false;
-        var inParagraph = false;
-        var i = 0;
-
-        function processInline(text) {
-            return escapeHtml(text)
-                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-                .replace(/`(.+?)`/g, '<code>$1</code>');
+        if (!md) return '';
+        if (!loadMarkedLibrary()) {
+            return '<pre class="ml-changelog-fallback">' + escapeHtml(md) + '</pre>';
         }
-
-        function closeList() {
-            if (inList) { html += '</ul>'; inList = false; }
+        try {
+            marked.setOptions({
+                gfm: true,
+                breaks: false,
+                pedantic: false
+            });
+            return marked.parse(md);
+        } catch (e) {
+            log(1, 'marked 解析失败:', e.message);
+            return '<pre class="ml-changelog-fallback">' + escapeHtml(md) + '</pre>';
         }
-
-        function closeParagraph() {
-            if (inParagraph) { html += '</p>'; inParagraph = false; }
-        }
-
-        while (i < lines.length) {
-            var line = lines[i];
-
-            if (/^#### (.+)/.test(line)) {
-                closeList(); closeParagraph();
-                html += '<h4 class="ml-changelog-h4">' + processInline(RegExp.$1) + '</h4>';
-            } else if (/^### (.+)/.test(line)) {
-                closeList(); closeParagraph();
-                html += '<h3 class="ml-changelog-h3">' + processInline(RegExp.$1) + '</h3>';
-            } else if (/^## (.+)/.test(line)) {
-                closeList(); closeParagraph();
-                html += '<h2 class="ml-changelog-h2">' + processInline(RegExp.$1) + '</h2>';
-            } else if (/^# (.+)/.test(line)) {
-                closeList(); closeParagraph();
-                html += '<h1 class="ml-changelog-h1">' + processInline(RegExp.$1) + '</h1>';
-            } else if (/^---/.test(line)) {
-                closeList(); closeParagraph();
-                html += '<hr class="ml-changelog-hr">';
-            } else if (/^- (.+)/.test(line)) {
-                closeParagraph();
-                if (!inList) { html += '<ul class="ml-changelog-ul">'; inList = true; }
-                html += '<li>' + processInline(RegExp.$1) + '</li>';
-            } else if (line.trim() === '') {
-                closeList(); closeParagraph();
-            } else {
-                closeList();
-                if (!inParagraph) { html += '<p class="ml-changelog-p">'; inParagraph = true; }
-                html += processInline(line) + '<br>';
-            }
-            i++;
-        }
-
-        closeList(); closeParagraph();
-        return html;
     }
 
     /**
@@ -4334,9 +4166,9 @@
             }
             select.appendChild(option);
         });
-        var langLabel = document.querySelector('.ml-settings-card .ml-settings-item:first-child .ml-settings-label');
+        var langLabel = document.querySelector('#ml-settings-lang-item .ml-settings-label');
         if (langLabel) langLabel.textContent = t('language.label');
-        var themeLabel = document.querySelector('.ml-settings-card .ml-settings-item:last-child .ml-settings-label');
+        var themeLabel = document.querySelector('#ml-settings-theme-item .ml-settings-label');
         if (themeLabel) themeLabel.textContent = t('settings.theme');
     }
 
@@ -4433,35 +4265,24 @@
 
         if (btnSort) {
             btnSort.textContent = _dragEnabled ? t('sort.enabled') : t('sort.disabled');
-            btnSort.classList.remove('ml-btn-secondary', 'ml-btn-sort-blocked');
+            btnSort.classList.remove('ml-btn-secondary', 'ml-btn-sort-blocked', 'ml-btn-sort-active');
             btnSort.title = sortBlocked ? t('sort.filterBlockedHint') : '';
             if (sortBlocked) {
                 btnSort.classList.add('ml-btn-secondary', 'ml-btn-sort-blocked');
-                btnSort.style.backgroundColor = '';
-                btnSort.style.color = '';
-                btnSort.style.cursor = 'not-allowed';
             } else if (_dragEnabled) {
-                btnSort.style.backgroundColor = 'var(--ml-success)';
-                btnSort.style.color = 'white';
-                btnSort.style.cursor = '';
+                btnSort.classList.add('ml-btn-sort-active');
             } else {
                 btnSort.classList.add('ml-btn-secondary');
-                btnSort.style.backgroundColor = '';
-                btnSort.style.color = '';
-                btnSort.style.cursor = '';
             }
         }
         
         if (btnDelete) {
             btnDelete.textContent = _deleteMode ? t('sort.deleteEnabled') : t('sort.deleteDisabled');
-            btnDelete.classList.remove('ml-btn-secondary');
+            btnDelete.classList.remove('ml-btn-secondary', 'ml-btn-delete-active');
             if (_deleteMode) {
-                btnDelete.style.backgroundColor = 'var(--ml-danger)';
-                btnDelete.style.color = 'white';
+                btnDelete.classList.add('ml-btn-delete-active');
             } else {
                 btnDelete.classList.add('ml-btn-secondary');
-                btnDelete.style.backgroundColor = '';
-                btnDelete.style.color = '';
             }
         }
     }
@@ -4471,138 +4292,344 @@
             return;
         }
         _dragEnabled = !_dragEnabled;
+        if (!_dragEnabled) {
+            cancelSortDrag();
+        }
         updateButtonStates();
         renderModList();
         log(3, '拖拽功能', _dragEnabled ? '已启用' : '已禁用');
     }
 
-    // ========== 拖拽排序功能 ==========
-    
+    // ---- 6.3.1 列表排序拖拽（自定义 pointer，非 HTML5 DnD） ----
+
+    function getSortItemTranslateY(el) {
+        const t = el.style.transform || '';
+        const m = t.match(/translateY\((-?\d+(?:\.\d+)?)px\)/);
+        return m ? parseFloat(m[1]) : 0;
+    }
+
+    /** 布局中线（去掉 transform，避免让位动画干扰判定） */
+    function getSortLayoutMidY(el) {
+        const r = el.getBoundingClientRect();
+        return r.top - getSortItemTranslateY(el) + r.height / 2;
+    }
+
+    function getSortListItems(container) {
+        return Array.prototype.slice.call(container.querySelectorAll('.ml-mod-item'));
+    }
+
     /**
-     * 开始拖拽
+     * 用提起块上/下边相对各行中线，计算插入下标
      */
-    function handleDragStart(e) {
-        // 检查拖拽是否启用
-        if (!_dragEnabled) {
+    function computeSortInsertIndex(floatRect, dragIndex, items) {
+        let beforeCount = 0;
+        for (let i = 0; i < items.length; i++) {
+            if (i === dragIndex) continue;
+            const mid = getSortLayoutMidY(items[i]);
+            if (i < dragIndex) {
+                if (!(floatRect.top < mid)) beforeCount++;
+            } else if (floatRect.bottom > mid) {
+                beforeCount++;
+            }
+        }
+        return beforeCount;
+    }
+
+    function applySortSlideTransforms(dragIndex, insertIndex, itemHeight, items) {
+        for (let i = 0; i < items.length; i++) {
+            if (i === dragIndex) {
+                items[i].style.transform = '';
+                continue;
+            }
+            let ty = 0;
+            if (insertIndex > dragIndex) {
+                if (i > dragIndex && i <= insertIndex) ty = -itemHeight;
+            } else if (insertIndex < dragIndex) {
+                if (i >= insertIndex && i < dragIndex) ty = itemHeight;
+            }
+            items[i].style.transform = ty ? ('translateY(' + ty + 'px)') : '';
+        }
+    }
+
+    function getSortVisualGapTop(dragIndex, insertIndex, itemHeight, items) {
+        if (insertIndex === dragIndex) {
+            return items[dragIndex].getBoundingClientRect().top;
+        }
+        if (insertIndex < dragIndex) {
+            return items[insertIndex].getBoundingClientRect().top - itemHeight;
+        }
+        return items[insertIndex].getBoundingClientRect().top + itemHeight;
+    }
+
+    function mapSelectedIndexAfterReorder(selected, from, to) {
+        if (selected < 0) return selected;
+        if (selected === from) return to;
+        if (from < to) {
+            if (selected > from && selected <= to) return selected - 1;
+        } else if (from > to) {
+            if (selected >= to && selected < from) return selected + 1;
+        }
+        return selected;
+    }
+
+    function unbindSortDragDocListeners() {
+        document.removeEventListener('mousemove', handleSortMouseMove);
+        document.removeEventListener('mouseup', handleSortMouseUp);
+    }
+
+    function suppressNextListClick() {
+        _suppressListClick = true;
+        var cleared = false;
+        var clear = function(e) {
+            if (cleared) return;
+            cleared = true;
+            if (e) {
+                e.stopPropagation();
+                e.preventDefault();
+            }
+            document.removeEventListener('click', clear, true);
+            _suppressListClick = false;
+        };
+        document.addEventListener('click', clear, true);
+        setTimeout(function() { clear(null); }, 500);
+    }
+
+    function handleSortMouseDown(e) {
+        if (!_dragEnabled || e.button !== 0) return;
+        if (e.target.closest('.ml-order-input')) return;
+
+        const container = document.getElementById('ml-list-scroll');
+        if (!container) return;
+        const item = e.target.closest('.ml-mod-item');
+        if (!item || !container.contains(item)) return;
+
+        const items = getSortListItems(container);
+        const dragIndex = items.indexOf(item);
+        if (dragIndex < 0) return;
+
+        _sortDrag = {
+            phase: 'pending',
+            startX: e.clientX,
+            startY: e.clientY,
+            dragIndex: dragIndex,
+            itemEl: item,
+            container: container,
+            grabOffsetY: 0,
+            insertIndex: dragIndex,
+            itemHeight: 0,
+            floatEl: null,
+            floatLeft: 0,
+            _lastClientY: e.clientY,
+            _onScroll: null,
+            _releaseTimer: null,
+            _committed: false
+        };
+
+        document.addEventListener('mousemove', handleSortMouseMove);
+        document.addEventListener('mouseup', handleSortMouseUp);
+    }
+
+    function handleSortMouseMove(e) {
+        if (!_sortDrag) return;
+
+        if (_sortDrag.phase === 'pending') {
+            const dy = e.clientY - _sortDrag.startY;
+            const dx = e.clientX - _sortDrag.startX;
+            if (Math.abs(dy) < SORT_ANIM.thresholdPx && Math.abs(dx) < SORT_ANIM.thresholdPx) {
+                return;
+            }
+            beginSortDrag(e);
+        }
+
+        if (_sortDrag && _sortDrag.phase === 'dragging') {
             e.preventDefault();
-            return;
+            updateSortDragPosition(e.clientY);
         }
-        const item = e.target.closest('.ml-mod-item');
-        if (!item) return;
-        const dragIndex = parseInt(item.dataset.index);
-        _draggedIndex = dragIndex;
-        _dropPosition = null;
-        item.classList.add('dragging');
-        e.dataTransfer.effectAllowed = 'move';
     }
 
-    /**
-     * 拖拽经过
-     */
-    function handleDragOver(e) {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        
-        if (!_dragEnabled) return;
-        
-        const item = e.target.closest('.ml-mod-item');
-        if (!item) return;
-        
-        const index = parseInt(item.dataset.index);
-        if (index === _draggedIndex) {
-            // 拖拽到自己，清除所有样式
-            document.querySelectorAll('.ml-mod-item.drag-over, .ml-mod-item.drag-over-top, .ml-mod-item.drag-over-bottom').forEach(el => {
-                el.classList.remove('drag-over', 'drag-over-top', 'drag-over-bottom');
-            });
-            _dropPosition = null;
-            return;
-        }
-        
-        // 计算鼠标在目标元素的 Y 位置，判断是上半部分还是下半部分
+    function beginSortDrag(e) {
+        const sd = _sortDrag;
+        if (!sd || sd.phase !== 'pending') return;
+
+        const item = sd.itemEl;
         const rect = item.getBoundingClientRect();
-        const mouseY = e.clientY;
-        const midY = rect.top + rect.height / 2;
-        
-        // 清除其他元素的样式
-        document.querySelectorAll('.ml-mod-item.drag-over, .ml-mod-item.drag-over-top, .ml-mod-item.drag-over-bottom').forEach(el => {
-            el.classList.remove('drag-over', 'drag-over-top', 'drag-over-bottom');
-        });
-        
-        // 设置对应的位置和样式
-        if (mouseY < midY) {
-            _dropPosition = 'before';
-            item.classList.add('drag-over-top');
-        } else {
-            _dropPosition = 'after';
-            item.classList.add('drag-over-bottom');
+        sd.phase = 'dragging';
+        sd.itemHeight = rect.height;
+        sd.grabOffsetY = e.clientY - rect.top;
+        sd.floatLeft = rect.left;
+        sd.insertIndex = sd.dragIndex;
+        sd._lastClientY = e.clientY;
+
+        suppressNextListClick();
+
+        sd.container.style.setProperty('--ml-sort-slide-ms', SORT_ANIM.slideMs + 'ms');
+        sd.container.style.setProperty('--ml-sort-release-ms', SORT_ANIM.releaseMs + 'ms');
+
+        const floatEl = item.cloneNode(true);
+        floatEl.classList.remove('selected');
+        floatEl.classList.add('ml-sort-float');
+        floatEl.style.left = rect.left + 'px';
+        floatEl.style.top = rect.top + 'px';
+        floatEl.style.width = rect.width + 'px';
+        floatEl.style.height = rect.height + 'px';
+        floatEl.style.boxSizing = 'border-box';
+        document.body.appendChild(floatEl);
+        sd.floatEl = floatEl;
+
+        item.classList.add('ml-sort-placeholder');
+
+        const items = getSortListItems(sd.container);
+        for (let i = 0; i < items.length; i++) {
+            if (items[i] !== item) {
+                items[i].classList.add('ml-sort-sliding');
+            }
+        }
+        sd.container.classList.add('ml-sort-dragging');
+
+        sd._onScroll = function() {
+            updateSortDragPosition(sd._lastClientY);
+        };
+        sd.container.addEventListener('scroll', sd._onScroll);
+
+        updateSortDragPosition(e.clientY);
+    }
+
+    function updateSortDragPosition(clientY) {
+        const sd = _sortDrag;
+        if (!sd || sd.phase !== 'dragging' || !sd.floatEl) return;
+        sd._lastClientY = clientY;
+
+        const cRect = sd.container.getBoundingClientRect();
+        let top = clientY - sd.grabOffsetY;
+        const minTop = cRect.top;
+        const maxTop = Math.max(minTop, cRect.bottom - sd.itemHeight);
+        if (top < minTop) top = minTop;
+        if (top > maxTop) top = maxTop;
+
+        sd.floatEl.style.top = top + 'px';
+        sd.floatEl.style.left = sd.floatLeft + 'px';
+
+        const floatRect = { top: top, bottom: top + sd.itemHeight };
+        const items = getSortListItems(sd.container);
+        const newInsert = computeSortInsertIndex(floatRect, sd.dragIndex, items);
+        if (newInsert !== sd.insertIndex) {
+            sd.insertIndex = newInsert;
+            applySortSlideTransforms(sd.dragIndex, sd.insertIndex, sd.itemHeight, items);
         }
     }
 
-    /**
-     * 拖拽离开
-     */
-    function handleDragLeave(e) {
-        const item = e.target.closest('.ml-mod-item');
-        if (item) {
-            item.classList.remove('drag-over', 'drag-over-top', 'drag-over-bottom');
+    function handleSortMouseUp() {
+        unbindSortDragDocListeners();
+        if (!_sortDrag) return;
+
+        if (_sortDrag.phase === 'pending') {
+            _sortDrag = null;
+            return;
+        }
+        if (_sortDrag.phase === 'dragging') {
+            finishSortDragRelease();
         }
     }
 
-    /**
-     * 放下
-     */
-    function handleDrop(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        if (!_dragEnabled) return;
-        
-        const item = e.target.closest('.ml-mod-item');
-        if (!item || _draggedIndex === null || _dropPosition === null) return;
-        
-        const dropIndex = parseInt(item.dataset.index);
-        if (dropIndex === _draggedIndex) return;
-        
-        // 根据位置确定插入点
-        let insertIndex = _dropPosition === 'before' ? dropIndex : dropIndex + 1;
-        // 如果被拖拽的元素在插入位置前面，索引要减一
-        if (_draggedIndex < insertIndex) {
-            insertIndex--;
+    function finishSortDragRelease() {
+        const sd = _sortDrag;
+        if (!sd || sd.phase !== 'dragging') return;
+        sd.phase = 'releasing';
+
+        if (sd._onScroll) {
+            sd.container.removeEventListener('scroll', sd._onScroll);
+            sd._onScroll = null;
         }
-        
-        // 移动元素
-        const draggedMod = _modData[_draggedIndex];
-        _modData.splice(_draggedIndex, 1);
-        _modData.splice(insertIndex, 0, draggedMod);
-        
-        // 重新分配序号
-        reassignOrders();
-        _hasUnsavedChanges = true;
-        updateSaveButton();
-        
-        // 【V3.15.0 新增】排序变动后刷新依赖检测
-        refreshDependencyCheck();
-        
-        // 重新渲染
+
+        const items = getSortListItems(sd.container);
+        const gapTop = getSortVisualGapTop(sd.dragIndex, sd.insertIndex, sd.itemHeight, items);
+        const floatEl = sd.floatEl;
+
+        floatEl.classList.add('ml-sort-releasing');
+        void floatEl.offsetHeight;
+        floatEl.style.top = gapTop + 'px';
+        floatEl.classList.add('ml-sort-release-end');
+
+        const done = function() {
+            if (sd._committed) return;
+            sd._committed = true;
+            floatEl.removeEventListener('transitionend', onEnd);
+            if (sd._releaseTimer) {
+                clearTimeout(sd._releaseTimer);
+                sd._releaseTimer = null;
+            }
+            commitSortDrag(sd);
+        };
+        const onEnd = function(ev) {
+            if (ev.target !== floatEl) return;
+            if (ev.propertyName && ev.propertyName !== 'top' && ev.propertyName !== 'box-shadow' && ev.propertyName !== 'filter') {
+                return;
+            }
+            done();
+        };
+        floatEl.addEventListener('transitionend', onEnd);
+        sd._releaseTimer = setTimeout(done, SORT_ANIM.releaseMs + 60);
+    }
+
+    function commitSortDrag(sd) {
+        const from = sd.dragIndex;
+        const to = sd.insertIndex;
+
+        if (sd.floatEl && sd.floatEl.parentNode) {
+            sd.floatEl.parentNode.removeChild(sd.floatEl);
+        }
+        if (sd.container) {
+            sd.container.classList.remove('ml-sort-dragging');
+        }
+        _sortDrag = null;
+
+        if (from !== to) {
+            const draggedMod = _modData[from];
+            _modData.splice(from, 1);
+            _modData.splice(to, 0, draggedMod);
+            reassignOrders();
+            _hasUnsavedChanges = true;
+            updateSaveButton();
+            refreshDependencyCheck();
+            _selectedIndex = mapSelectedIndexAfterReorder(_selectedIndex, from, to);
+            log(3, '排序已更新');
+        }
+
         renderModList();
-        renderDetail(_modData[insertIndex]);
-        _selectedIndex = insertIndex;
-        
-        log(3, "排序已更新");
+        if (_selectedIndex >= 0 && _modData[_selectedIndex]) {
+            renderDetail(_modData[_selectedIndex]);
+        }
     }
 
-    /**
-     * 拖拽结束
-     */
-    function handleDragEnd(e) {
-        _draggedIndex = null;
-        _dropPosition = null;
-        document.querySelectorAll('.ml-mod-item.dragging, .ml-mod-item.drag-over, .ml-mod-item.drag-over-top, .ml-mod-item.drag-over-bottom').forEach(el => {
-            el.classList.remove('dragging', 'drag-over', 'drag-over-top', 'drag-over-bottom');
-        });
+    /** 中断拖拽（关排序 / 关面板），不写入顺序 */
+    function cancelSortDrag() {
+        unbindSortDragDocListeners();
+        const sd = _sortDrag;
+        if (!sd) return;
+
+        if (sd._releaseTimer) {
+            clearTimeout(sd._releaseTimer);
+            sd._releaseTimer = null;
+        }
+        if (sd._onScroll && sd.container) {
+            sd.container.removeEventListener('scroll', sd._onScroll);
+        }
+        if (sd.floatEl && sd.floatEl.parentNode) {
+            sd.floatEl.parentNode.removeChild(sd.floatEl);
+        }
+        if (sd.container) {
+            sd.container.classList.remove('ml-sort-dragging');
+            const items = getSortListItems(sd.container);
+            for (let i = 0; i < items.length; i++) {
+                items[i].style.transform = '';
+                items[i].classList.remove('ml-sort-placeholder', 'ml-sort-sliding');
+            }
+        }
+        _sortDrag = null;
+        _suppressListClick = false;
     }
 
-    // ========== 序号编辑功能 ==========
+    // ---- 6.3.2 序号编辑 ----
     
     /**
      * 序号输入事件
@@ -4662,7 +4689,7 @@
         _hasUnsavedChanges = true;
         updateSaveButton();
         
-        // 【V3.15.0 新增】序号变动后刷新依赖检测
+        // 序号变动后刷新依赖检测
         refreshDependencyCheck();
         
         // 重新渲染
@@ -4673,9 +4700,7 @@
         log(3, "序号已更新:", currentMod.displayName, "→", newOrder);
     }
 
-    // ================================================================
-    // 8. DOM 参数编辑器
-    // ================================================================
+    // ---- 6.4 DOM 参数编辑器（struct/table 渲染、数值/颜色/文本校验、收集保存） ----
 
     /**
      * 键盘事件捕获监听器 - 在捕获阶段阻止事件传播到 RMMZ
@@ -4695,9 +4720,229 @@
         }
     }
 
-    // ====================================================================
-    // 阶段2新增：struct 递归渲染函数
-    // ====================================================================
+    // ---- 6.4.1 参数控件共用渲染（顶层与 struct 子字段同一套 DOM/CSS） ----
+
+    function numberTypeLabelText(field) {
+        const hasMin = field.min !== undefined;
+        const hasMax = field.max !== undefined;
+        if (hasMin && hasMax) return `${t('param.typeNumber')} (${field.min}~${field.max})`;
+        if (hasMin || hasMax) return `${t('param.typeNumber')} (${hasMin ? field.min : '...'}~${hasMax ? field.max : '...'})`;
+        return t('param.typeNumber');
+    }
+
+    function buildCollectAttrString(opts) {
+        const parts = [];
+        if (opts.idKey != null) parts.push(`id="ml-param-${cssEscape(opts.idKey)}"`);
+        if (opts.dataName != null) parts.push(`data-field-name="${escapeHtml(opts.dataName)}"`);
+        if (opts.dataPath != null) parts.push(`data-field-path="${escapeHtml(opts.dataPath)}"`);
+        return parts.join(' ');
+    }
+
+    /** 数据库下拉选项（含无名空位：显示禁用「(空)」） */
+    function buildDbOptionsHtml(dbArray, curVal) {
+        let optionsHtml = '<option value="" class="ml-option-muted">' + t('param.none') + '</option>';
+        for (let i = 1; i < dbArray.length; i++) {
+            const entry = dbArray[i];
+            if (entry == null) continue;
+            const entryName = getDatabaseEntryName(entry);
+            const selected = String(i) === String(curVal) ? ' selected' : '';
+            if (entryName) {
+                optionsHtml += `<option value="${i}"${selected}>${i}: ${escapeHtml(entryName)}</option>`;
+            } else {
+                optionsHtml += `<option value="${i}"${selected} disabled class="ml-option-muted">${i}: (空)</option>`;
+            }
+        }
+        return optionsHtml;
+    }
+
+    /**
+     * 追加数值控件（有 min+max → 滑动条；否则 Min/Max 按钮行）。样式类与顶层共用。
+     * @param {object} [opts] idKey / dataName / dataPath / onChange / inputClass
+     */
+    function appendNumberControl(group, field, curVal, opts = {}) {
+        const hasMin = field.min !== undefined;
+        const hasMax = field.max !== undefined;
+        const hasSlider = hasMin && hasMax;
+        const raw = curVal !== undefined && curVal !== '' ? curVal : (field.default || '0');
+        const onChange = typeof opts.onChange === 'function' ? opts.onChange : null;
+        const collectAttrs = buildCollectAttrString(opts);
+        const extraClass = opts.inputClass ? ` ${opts.inputClass}` : '';
+        const idKey = opts.idKey;
+
+        if (hasSlider) {
+            const step = calculateStep(field);
+            const sliderVal = Math.min(Math.max(Number(raw) || 0, field.min), field.max);
+            const displayId = idKey != null ? ` id="ml-param-display-${cssEscape(idKey)}"` : '';
+            const sliderId = idKey != null ? ` id="ml-param-slider-${cssEscape(idKey)}"` : '';
+            group.insertAdjacentHTML('beforeend', `
+                <div class="ml-form-slider-row">
+                    <div class="ml-form-slider-header">
+                        <span class="ml-form-slider-value"${displayId}>${sliderVal}</span>
+                    </div>
+                    <input type="range" class="ml-form-slider-range"${sliderId}
+                           value="${sliderVal}" min="${field.min}" max="${field.max}" step="${step}">
+                    <div class="ml-form-slider-bounds">
+                        <span>${field.min}</span>
+                        <span>${field.max}</span>
+                    </div>
+                </div>
+                <input type="hidden" class="ml-number-value" ${collectAttrs} value="${sliderVal}">
+            `);
+
+            const sliderEl = group.querySelector('.ml-form-slider-range');
+            const displayEl = group.querySelector('.ml-form-slider-value');
+            const hiddenEl = group.querySelector('input.ml-number-value');
+            if (!sliderEl || !displayEl || !hiddenEl) return;
+
+            sliderEl.addEventListener('input', () => {
+                const val = sliderEl.value;
+                displayEl.textContent = val;
+                hiddenEl.value = val;
+                if (onChange) onChange(String(val));
+            });
+
+            displayEl.addEventListener('click', () => {
+                const currentVal = Number(hiddenEl.value) || 0;
+                const numInput = document.createElement('input');
+                numInput.type = 'number';
+                numInput.className = 'ml-form-slider-number-input';
+                numInput.value = currentVal;
+                numInput.min = field.min;
+                numInput.max = field.max;
+                numInput.step = step;
+
+                displayEl.style.display = 'none';
+                displayEl.parentNode.insertBefore(numInput, displayEl.nextSibling);
+                numInput.focus();
+                numInput.select();
+                _isInputFocused = true;
+
+                const finishEdit = () => {
+                    _isInputFocused = false;
+                    const val = validateNumberInput(numInput, {
+                        min: field.min,
+                        max: field.max,
+                        fallback: String(Number(field.default) || field.min)
+                    });
+                    displayEl.textContent = val;
+                    hiddenEl.value = val;
+                    sliderEl.value = val;
+                    if (onChange) onChange(val);
+                    numInput.remove();
+                    displayEl.style.display = '';
+                };
+
+                numInput.addEventListener('blur', finishEdit);
+                numInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        numInput.blur();
+                    } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        numInput.value = currentVal;
+                        numInput.blur();
+                    }
+                });
+            });
+        } else {
+            group.insertAdjacentHTML('beforeend', `
+                <div class="ml-form-number-row">
+                    <button type="button" class="ml-form-number-btn ml-form-min-btn ${!hasMin ? 'disabled' : ''}"
+                            data-action="min" ${!hasMin ? 'disabled' : ''}>
+                        ${hasMin ? `Min (${field.min})` : 'Min'}
+                    </button>
+                    <input type="number" class="ml-form-input ml-form-number-input ml-number-value${extraClass}"
+                           ${collectAttrs}
+                           value="${escapeHtml(String(raw))}"
+                           ${hasMin ? `min="${field.min}"` : ''}
+                           ${hasMax ? `max="${field.max}"` : ''}
+                           step="${field.step || 1}">
+                    <button type="button" class="ml-form-number-btn ml-form-max-btn ${!hasMax ? 'disabled' : ''}"
+                            data-action="max" ${!hasMax ? 'disabled' : ''}>
+                        ${hasMax ? `Max (${field.max})` : 'Max'}
+                    </button>
+                </div>
+            `);
+
+            const inputEl = group.querySelector('input.ml-number-value');
+            if (!inputEl) return;
+
+            inputEl.addEventListener('focus', () => { _isInputFocused = true; });
+            inputEl.addEventListener('blur', () => {
+                _isInputFocused = false;
+                const val = validateNumberInput(inputEl, {
+                    min: hasMin ? field.min : undefined,
+                    max: hasMax ? field.max : undefined,
+                    fallback: field.default || '0'
+                });
+                if (onChange) onChange(val);
+            });
+            inputEl.addEventListener('input', () => {
+                let num = Number(inputEl.value);
+                if (!isNaN(num)) {
+                    if (hasMin && num < field.min) num = field.min;
+                    if (hasMax && num > field.max) num = field.max;
+                    if (onChange) onChange(String(num));
+                }
+            });
+
+            const minBtn = group.querySelector('[data-action="min"]');
+            const maxBtn = group.querySelector('[data-action="max"]');
+            if (minBtn && hasMin) {
+                minBtn.addEventListener('click', () => {
+                    inputEl.value = field.min;
+                    if (onChange) onChange(String(field.min));
+                });
+            }
+            if (maxBtn && hasMax) {
+                maxBtn.addEventListener('click', () => {
+                    inputEl.value = field.max;
+                    if (onChange) onChange(String(field.max));
+                });
+            }
+        }
+    }
+
+    /**
+     * 追加长文本 textarea（note / multiline_string），样式与顶层共用。
+     */
+    function appendNoteControl(group, field, curVal, opts = {}) {
+        const source = curVal !== undefined && curVal !== null ? curVal : (field.default || '');
+        const raw = normalizeNoteNewlines(String(source));
+        const onChange = typeof opts.onChange === 'function' ? opts.onChange : null;
+        const collectAttrs = buildCollectAttrString(opts);
+        const extraClass = opts.inputClass ? ` ${opts.inputClass}` : '';
+
+        group.insertAdjacentHTML('beforeend', `
+            <textarea class="ml-form-textarea${extraClass}" ${collectAttrs}
+                      placeholder="${escapeHtml(field.desc || '')}">${escapeHtml(raw)}</textarea>
+        `);
+
+        const textareaEl = group.querySelector('textarea.ml-form-textarea');
+        if (!textareaEl) return;
+
+        textareaEl.addEventListener('focus', () => { _isInputFocused = true; });
+        textareaEl.addEventListener('blur', () => {
+            _isInputFocused = false;
+            let value = textareaEl.value;
+            if (value === '' || value === undefined || value === null) {
+                textareaEl.value = field.default || '';
+                if (onChange) onChange(field.default || '');
+            } else {
+                const sanitized = sanitizeText(value);
+                if (sanitized !== value) {
+                    textareaEl.value = sanitized;
+                    log(3, `[note-validate] 长文本已净化，移除了潜在危险内容`);
+                }
+                if (onChange) onChange(sanitized);
+            }
+        });
+        textareaEl.addEventListener('input', () => {
+            if (onChange) onChange(textareaEl.value);
+        });
+    }
+
+    // ---- 6.4.2 struct 递归渲染 ----
 
     /**
      * 递归渲染 struct 的子字段
@@ -4715,6 +4960,8 @@
         group.setAttribute('data-field-path', parentPath + '.' + field.name);
 
         const fieldLabel = field.text || field.name;
+        const fieldPath = parentPath + '.' + field.name;
+        const collectOpts = { dataName: field.name, dataPath: fieldPath, inputClass: 'ml-struct-input' };
 
         if (field.type === 'struct' && field.schema) {
             // ---- 嵌套 struct：递归渲染 ----
@@ -4732,7 +4979,7 @@
             details.className = `ml-struct-details ml-struct-depth-${clampedDepth}`;
             details.setAttribute('data-param-name', field.name);
             details.setAttribute('data-param-type', 'struct');
-            details.setAttribute('data-field-path', parentPath + '.' + field.name);
+            details.setAttribute('data-field-path', fieldPath);
 
             const summary = document.createElement('summary');
             summary.className = 'ml-struct-summary';
@@ -4745,7 +4992,7 @@
 
             subSchemaFields.forEach(subField => {
                 const subVal = structObj[subField.name] !== undefined ? structObj[subField.name] : (subField.default !== undefined ? subField.default : '');
-                const subGroup = renderStructField(subField, subVal, depth + 1, parentPath + '.' + field.name);
+                const subGroup = renderStructField(subField, subVal, depth + 1, fieldPath);
                 structBody.appendChild(subGroup);
             });
 
@@ -4763,38 +5010,28 @@
                     <span class="ml-form-label-type">${t('param.typeBoolean')}</span>
                 </div>
                 <label class="ml-form-switch">
-                    <input type="checkbox" data-field-name="${escapeHtml(field.name)}" data-field-path="${escapeHtml(parentPath + '.' + field.name)}" ${isOn ? 'checked' : ''}>
+                    <input type="checkbox" data-field-name="${escapeHtml(field.name)}" data-field-path="${escapeHtml(fieldPath)}" ${isOn ? 'checked' : ''}>
                     <span class="ml-form-switch-slider"></span>
                 </label>
             `;
 
         } else if (field.type === 'number') {
-            // ---- 数值类型：短输入框（struct 内禁用滑动条） ----
-            group.innerHTML = `
+            group.insertAdjacentHTML('beforeend', `
                 <div class="ml-form-label">
                     ${escapeHtml(fieldLabel)}
-                    <span class="ml-form-label-type">${t('param.typeNumber')}</span>
+                    <span class="ml-form-label-type">${numberTypeLabelText(field)}</span>
                 </div>
-                <input type="number" class="ml-form-input ml-struct-input"
-                       data-field-name="${escapeHtml(field.name)}"
-                       data-field-path="${escapeHtml(parentPath + '.' + field.name)}"
-                       value="${escapeHtml(String(curVal !== undefined && curVal !== '' ? curVal : (field.default || '0')))}"
-                       ${field.min !== undefined ? `min="${field.min}"` : ''}
-                       ${field.max !== undefined ? `max="${field.max}"` : ''}
-                       step="${field.step || 1}">
-            `;
-            // ---- 通用验证绑定 ----
-            setTimeout(() => {
-                const numInput = group.querySelector('input[type="number"]');
-                if (numInput) {
-                    bindNumberValidation(numInput, {
-                        min: field.min,
-                        max: field.max,
-                        fallback: field.default || '0'
-                    });
-                    log(3, `[struct-validate] 已为数值字段 "${field.name}" 绑定 blur 验证`);
-                }
-            }, 0);
+            `);
+            appendNumberControl(group, field, curVal, collectOpts);
+
+        } else if (isNoteType(field.type)) {
+            group.insertAdjacentHTML('beforeend', `
+                <div class="ml-form-label">
+                    ${escapeHtml(fieldLabel)}
+                    <span class="ml-form-label-type">${t('param.typeNote')}</span>
+                </div>
+            `);
+            appendNoteControl(group, field, curVal, collectOpts);
 
         } else if (field.type === 'color') {
             // ---- 颜色类型 ----
@@ -4804,16 +5041,15 @@
                     ${escapeHtml(fieldLabel)}
                     <span class="ml-form-label-type">${t('param.typeColor')}</span>
                 </div>
-                <div style="display:flex;gap:6px;align-items:center;">
-                    <input type="color" data-field-name="${escapeHtml(field.name)}" data-field-path="${escapeHtml(parentPath + '.' + field.name)}"
+                <div class="ml-color-row ml-color-row-compact">
+                    <input type="color" data-field-name="${escapeHtml(field.name)}" data-field-path="${escapeHtml(fieldPath)}"
                            value="${colorVal.startsWith('#') ? colorVal : '#ffffff'}"
-                           style="width:36px;height:28px;border:none;cursor:pointer;padding:0;">
-                    <input type="text" class="ml-form-input ml-struct-input"
-                           data-field-name="${escapeHtml(field.name)}" data-field-path="${escapeHtml(parentPath + '.' + field.name)}"
-                           value="${escapeHtml(colorVal)}" style="flex:1;" placeholder="#RRGGBB">
+                           class="ml-color-swatch">
+                    <input type="text" class="ml-form-input ml-struct-input ml-color-text"
+                           data-field-name="${escapeHtml(field.name)}" data-field-path="${escapeHtml(fieldPath)}"
+                           value="${escapeHtml(colorVal)}" placeholder="#RRGGBB">
                 </div>
             `;
-            // ---- 通用验证绑定 ----
             setTimeout(() => {
                 const colorPicker = group.querySelector('input[type="color"]');
                 const textInput = group.querySelector('input[type="text"]');
@@ -4839,7 +5075,7 @@
                 </div>
                 <select class="ml-form-select ml-struct-select"
                         data-field-name="${escapeHtml(field.name)}"
-                        data-field-path="${escapeHtml(parentPath + '.' + field.name)}">
+                        data-field-path="${escapeHtml(fieldPath)}">
                     ${optionsHtml}
                 </select>
             `;
@@ -4850,14 +5086,6 @@
             const dbLabel = getDbLabel(field.type);
 
             if (dbArray) {
-                let optionsHtml = '<option value="" style="color:var(--ml-text-muted);">' + t('param.none') + '</option>';
-                for (let i = 1; i < dbArray.length; i++) {
-                    const entry = dbArray[i];
-                    if (entry && entry.name && entry.name.trim() !== '') {
-                        const selected = String(i) === String(curVal) ? ' selected' : '';
-                        optionsHtml += `<option value="${i}"${selected}>${i}: ${escapeHtml(entry.name)}</option>`;
-                    }
-                }
                 group.innerHTML = `
                     <div class="ml-form-label">
                         ${escapeHtml(fieldLabel)}
@@ -4865,12 +5093,11 @@
                     </div>
                     <select class="ml-form-select ml-struct-select"
                             data-field-name="${escapeHtml(field.name)}"
-                            data-field-path="${escapeHtml(parentPath + '.' + field.name)}">
-                        ${optionsHtml}
+                            data-field-path="${escapeHtml(fieldPath)}">
+                        ${buildDbOptionsHtml(dbArray, curVal)}
                     </select>
                 `;
             } else {
-                // 降级为文本输入
                 group.innerHTML = `
                     <div class="ml-form-label">
                         ${escapeHtml(fieldLabel)}
@@ -4878,11 +5105,10 @@
                     </div>
                     <input type="text" class="ml-form-input ml-struct-input"
                            data-field-name="${escapeHtml(field.name)}"
-                           data-field-path="${escapeHtml(parentPath + '.' + field.name)}"
+                           data-field-path="${escapeHtml(fieldPath)}"
                            value="${escapeHtml(String(curVal || field.default || ''))}"
                            placeholder="${t('param.dbInputPlaceholder').replace('{label}', dbLabel)}">
                 `;
-                // ---- 通用文本验证绑定（含 XSS 防护） ----
                 setTimeout(() => {
                     const textInput = group.querySelector('input[type="text"]');
                     if (textInput) {
@@ -4901,10 +5127,9 @@
                 </div>
                 <input type="text" class="ml-form-input ml-struct-input"
                        data-field-name="${escapeHtml(field.name)}"
-                       data-field-path="${escapeHtml(parentPath + '.' + field.name)}"
+                       data-field-path="${escapeHtml(fieldPath)}"
                        value="${escapeHtml(String(curVal !== undefined && curVal !== '' ? curVal : (field.default || '')))}">
             `;
-            // ---- 通用文本验证绑定（含 XSS 防护） ----
             setTimeout(() => {
                 const textInput = group.querySelector('input[type="text"]');
                 if (textInput) {
@@ -4924,9 +5149,7 @@
         return group;
     }
 
-    // ====================================================================
-    // 阶段2新增：table 行创建函数
-    // ====================================================================
+    // ---- 6.4.3 table 行创建 ----
 
     /**
      * 创建表格的一行（<tr>）
@@ -5010,9 +5233,11 @@
                     let optionsHtml = '<option value="">--</option>';
                     for (let i = 1; i < dbArray.length; i++) {
                         const entry = dbArray[i];
-                        if (entry && entry.name && entry.name.trim() !== '') {
+                        if (entry == null) continue;
+                        const entryName = getDatabaseEntryName(entry);
+                        if (entryName) {
                             const selected = String(i) === String(cellValue) ? ' selected' : '';
-                            optionsHtml += `<option value="${i}"${selected}>${i}:${escapeHtml(entry.name)}</option>`;
+                            optionsHtml += `<option value="${i}"${selected}>${i}:${escapeHtml(entryName)}</option>`;
                         }
                     }
                     td.innerHTML = `
@@ -5111,9 +5336,7 @@
         return tr;
     }
 
-    // ====================================================================
-    // 阶段2新增：struct 数据收集函数
-    // ====================================================================
+    // ---- 6.4.4 struct 数据收集 ----
 
     /**
      * 从 struct 的 DOM 容器中收集子字段值，返回 JS 对象
@@ -5140,8 +5363,13 @@
                 const checkbox = fg.querySelector('input[type="checkbox"]');
                 obj[fieldName] = checkbox ? String(checkbox.checked) : 'false';
             } else if (fieldType === 'number') {
-                const input = fg.querySelector('input[type="number"]');
-                obj[fieldName] = input ? input.value : '0';
+                const holder = fg.querySelector('input.ml-number-value');
+                obj[fieldName] = holder ? holder.value : '0';
+            } else if (isNoteType(fieldType)) {
+                const ta = fg.querySelector('textarea.ml-form-textarea');
+                obj[fieldName] = ta
+                    ? normalizeNoteNewlines(sanitizeText(ta.value))
+                    : '';
             } else if (fieldType === 'color') {
                 const colorInput = fg.querySelector('input[type="color"]');
                 const textInput = fg.querySelector('input[type="text"]');
@@ -5159,9 +5387,7 @@
         return obj;
     }
 
-    // ====================================================================
-    // 阶段2新增：table 数据收集函数
-    // ====================================================================
+    // ---- 6.4.5 table 数据收集 ----
 
     /**
      * 从 table 的 tbody 中收集所有行数据
@@ -5311,177 +5537,18 @@
                     }
                 }, 0);
             } else if (p.type === 'number') {
-                const min = p.min !== undefined ? p.min : '';
-                const max = p.max !== undefined ? p.max : '';
-                const hasMin = p.min !== undefined;
-                const hasMax = p.max !== undefined;
-                const hasSlider = hasMin && hasMax; // 同时存在 min 和 max 时启用滑动条
-                const step = hasSlider ? calculateStep(p) : 1;
-
-                if (hasSlider) {
-                    // 升级 UI：滑动条 + 数值显示
-                    const sliderVal = Math.min(Math.max(Number(curVal) || 0, p.min), p.max);
-                    group.innerHTML = `
-                        <div class="ml-form-label">
-                            ${escapeHtml(p.text || p.name)}
-                            <span class="ml-form-label-type">${t('param.typeNumber')} (${p.min}~${p.max})</span>
-                        </div>
-                        <div class="ml-form-slider-row">
-                            <div class="ml-form-slider-header">
-                                <span class="ml-form-slider-value" id="ml-param-display-${cssEscape(p.name)}">${sliderVal}</span>
-                            </div>
-                            <input type="range" class="ml-form-slider-range"
-                                   id="ml-param-slider-${cssEscape(p.name)}"
-                                   value="${sliderVal}"
-                                   min="${p.min}"
-                                   max="${p.max}"
-                                   step="${step}">
-                            <div class="ml-form-slider-bounds">
-                                <span>${p.min}</span>
-                                <span>${p.max}</span>
-                            </div>
-                        </div>
-                        <input type="hidden" id="ml-param-${cssEscape(p.name)}" value="${sliderVal}">
-                        ${p.desc ? `<div class="ml-form-desc">${escapeHtml(p.desc)}</div>` : ''}
-                    `;
-                    setTimeout(() => {
-                        const sliderEl = document.getElementById(`ml-param-slider-${cssEscape(p.name)}`);
-                        const displayEl = document.getElementById(`ml-param-display-${cssEscape(p.name)}`);
-                        const hiddenEl = document.getElementById(`ml-param-${cssEscape(p.name)}`);
-
-                        if (sliderEl && displayEl && hiddenEl) {
-                            // 滑动条滑动时实时更新文本
-                            sliderEl.addEventListener('input', () => {
-                                const val = sliderEl.value;
-                                displayEl.textContent = val;
-                                hiddenEl.value = val;
-                                editParams[p.name] = String(val);
-                            });
-
-                            // 点击文本，原地替换为 input[type=number]
-                            displayEl.addEventListener('click', () => {
-                                const currentVal = Number(hiddenEl.value) || 0;
-                                const numInput = document.createElement('input');
-                                numInput.type = 'number';
-                                numInput.className = 'ml-form-slider-number-input';
-                                numInput.value = currentVal;
-                                numInput.min = p.min;
-                                numInput.max = p.max;
-                                numInput.step = step;
-
-                                displayEl.style.display = 'none';
-                                displayEl.parentNode.insertBefore(numInput, displayEl.nextSibling);
-                                numInput.focus();
-                                numInput.select();
-
-                                _isInputFocused = true;
-
-                                const finishEdit = () => {
-                                    _isInputFocused = false;
-                                    // ---- 通用数值验证 ----
-                                    const val = validateNumberInput(numInput, {
-                                        min: p.min,
-                                        max: p.max,
-                                        fallback: String(Number(p.default) || p.min)
-                                    });
-                                    displayEl.textContent = val;
-                                    hiddenEl.value = val;
-                                    sliderEl.value = val;
-                                    editParams[p.name] = val;
-                                    numInput.remove();
-                                    displayEl.style.display = '';
-                                };
-
-                                numInput.addEventListener('blur', finishEdit);
-                                numInput.addEventListener('keydown', (e) => {
-                                    if (e.key === 'Enter') {
-                                        e.preventDefault();
-                                        numInput.blur();
-                                    } else if (e.key === 'Escape') {
-                                        e.preventDefault();
-                                        numInput.value = currentVal;
-                                        numInput.blur();
-                                    }
-                                });
-                            });
-                        }
-                    }, 0);
-                } else {
-                    // 原有渲染逻辑：无滑动条，保持不变
-                    group.innerHTML = `
-                        <div class="ml-form-label">
-                            ${escapeHtml(p.text || p.name)}
-                            <span class="ml-form-label-type">${t('param.typeNumber')}${hasMin || hasMax ? ` (${hasMin ? p.min : '...'}~${hasMax ? p.max : '...'})` : ''}</span>
-                        </div>
-                        <div class="ml-form-number-row">
-                            <button class="ml-form-number-btn ml-form-min-btn ${!hasMin ? 'disabled' : ''}"
-                                    data-action="min"
-                                    data-param="${escapeHtml(p.name)}"
-                                    ${!hasMin ? 'disabled' : ''}>
-                                ${hasMin ? `Min (${p.min})` : 'Min'}
-                            </button>
-
-                            <input type="number" class="ml-form-input ml-form-number-input"
-                                   id="ml-param-${cssEscape(p.name)}"
-                                   value="${escapeHtml(String(curVal))}"
-                                   ${hasMin ? `min="${p.min}"` : ''}
-                                   ${hasMax ? `max="${p.max}"` : ''}
-                                   step="1">
-
-                            <button class="ml-form-number-btn ml-form-max-btn ${!hasMax ? 'disabled' : ''}"
-                                    data-action="max"
-                                    data-param="${escapeHtml(p.name)}"
-                                    ${!hasMax ? 'disabled' : ''}>
-                                ${hasMax ? `Max (${p.max})` : 'Max'}
-                            </button>
-                        </div>
-                        ${p.desc ? `<div class="ml-form-desc">${escapeHtml(p.desc)}</div>` : ''}
-                    `;
-                    setTimeout(() => {
-                        const inputEl = document.getElementById(`ml-param-${cssEscape(p.name)}`);
-                        if (inputEl) {
-                            inputEl.addEventListener('focus', () => {
-                                _isInputFocused = true;
-                            });
-                            inputEl.addEventListener('blur', () => {
-                                _isInputFocused = false;
-                                // ---- 通用数值验证 ----
-                                const val = validateNumberInput(inputEl, {
-                                    min: hasMin ? p.min : undefined,
-                                    max: hasMax ? p.max : undefined,
-                                    fallback: p.default
-                                });
-                                editParams[p.name] = val;
-                            });
-
-                            inputEl.addEventListener('input', () => {
-                                let num = Number(inputEl.value);
-                                if (!isNaN(num)) {
-                                    if (hasMin && num < p.min) num = p.min;
-                                    if (hasMax && num > p.max) num = p.max;
-                                    editParams[p.name] = String(num);
-                                }
-                            });
-                        }
-                        const minBtn = group.querySelector('[data-action="min"]');
-                        const maxBtn = group.querySelector('[data-action="max"]');
-                        if (minBtn) {
-                            minBtn.addEventListener('click', () => {
-                                if (hasMin) {
-                                    editParams[p.name] = String(p.min);
-                                    if (inputEl) inputEl.value = p.min;
-                                }
-                            });
-                        }
-                        if (maxBtn) {
-                            maxBtn.addEventListener('click', () => {
-                                if (hasMax) {
-                                    editParams[p.name] = String(p.max);
-                                    if (inputEl) inputEl.value = p.max;
-                                }
-                            });
-                        }
-                    }, 0);
+                group.innerHTML = `
+                    <div class="ml-form-label">
+                        ${escapeHtml(p.text || p.name)}
+                        <span class="ml-form-label-type">${numberTypeLabelText(p)}</span>
+                    </div>
+                `;
+                appendNumberControl(group, p, curVal, {
+                    idKey: p.name,
+                    onChange: (v) => { editParams[p.name] = v; }
+                });
+                if (p.desc) {
+                    group.insertAdjacentHTML('beforeend', `<div class="ml-form-desc">${escapeHtml(p.desc)}</div>`);
                 }
             } else if (p.type === 'color') {
                 // 颜色类型
@@ -5490,15 +5557,14 @@
                         ${escapeHtml(p.text || p.name)}
                         <span class="ml-form-label-type">${t('param.typeColor')}</span>
                     </div>
-                    <div style="display:flex;gap:8px;align-items:center;">
+                    <div class="ml-color-row">
                         <input type="color" 
                                id="ml-param-${cssEscape(p.name)}-color"
                                value="${escapeHtml(String(curVal)).startsWith('#') ? escapeHtml(String(curVal)) : '#ffffff'}"
-                               style="width:50px;height:36px;border:none;cursor:pointer;padding:0;">
-                        <input type="text" class="ml-form-input"
+                               class="ml-color-swatch">
+                        <input type="text" class="ml-form-input ml-color-text"
                                id="ml-param-${cssEscape(p.name)}"
                                value="${escapeHtml(String(curVal))}"
-                               style="flex:1;"
                                placeholder="#RRGGBB 或颜色名">
                     </div>
                     ${p.desc ? `<div class="ml-form-desc">${escapeHtml(p.desc)}</div>` : ''}
@@ -5550,72 +5616,32 @@
                     }
                 }, 0);
             } else if (isNoteType(p.type)) {
-                // 长文本类型 (note / multiline_string)
                 group.innerHTML = `
                     <div class="ml-form-label">
                         ${escapeHtml(p.text || p.name)}
                         <span class="ml-form-label-type">${t('param.typeNote')}</span>
                     </div>
-                    <textarea class="ml-form-textarea"
-                              id="ml-param-${cssEscape(p.name)}"
-                              placeholder="${escapeHtml(p.desc || '')}">${escapeHtml(String(curVal))}</textarea>
-                    ${p.desc ? `<div class="ml-form-desc">${escapeHtml(p.desc)}</div>` : ''}
                 `;
-                setTimeout(() => {
-                    const textareaEl = document.getElementById(`ml-param-${cssEscape(p.name)}`);
-                    if (textareaEl) {
-                        textareaEl.addEventListener('focus', () => {
-                            _isInputFocused = true;
-                        });
-                        textareaEl.addEventListener('blur', () => {
-                            _isInputFocused = false;
-                            // 失焦时保存值，处理换行符转义 + XSS 防护
-                            let value = textareaEl.value;
-                            if (value === '' || value === undefined || value === null) {
-                                textareaEl.value = p.default;
-                                editParams[p.name] = p.default;
-                            } else {
-                                // XSS 净化
-                                const sanitized = sanitizeText(value);
-                                if (sanitized !== value) {
-                                    textareaEl.value = sanitized;
-                                    log(3, `[note-validate] 长文本已净化，移除了潜在危险内容`);
-                                }
-                                editParams[p.name] = sanitized;
-                            }
-                        });
-                        textareaEl.addEventListener('input', () => {
-                            editParams[p.name] = textareaEl.value;
-                        });
-                    }
-                }, 0);
+                appendNoteControl(group, p, curVal, {
+                    idKey: p.name,
+                    onChange: (v) => { editParams[p.name] = v; }
+                });
+                if (p.desc) {
+                    group.insertAdjacentHTML('beforeend', `<div class="ml-form-desc">${escapeHtml(p.desc)}</div>`);
+                }
             } else if (isDatabaseType(p.type)) {
-                // 数据库引用类型 (actor/skill/item/weapon/armor/enemy/state)
+                // 数据库引用类型 (actor/class/skill/.../switch/variable)
                 const dbLabel = getDbLabel(p.type);
                 const dbArray = getDatabaseArray(p.type);
 
                 if (dbArray) {
-                    // 数据库已加载：渲染 select 下拉框
-                    let optionsHtml = '<option value="" style="color:var(--ml-text-muted);">' + t('param.none') + '</option>';
-                    for (let i = 1; i < dbArray.length; i++) {
-                        const entry = dbArray[i];
-                        if (entry && entry.name && entry.name.trim() !== '') {
-                            const selected = String(i) === String(curVal) ? ' selected' : '';
-                            optionsHtml += `<option value="${i}"${selected}>${i}: ${escapeHtml(entry.name)}</option>`;
-                        } else if (entry) {
-                            // 空位：显示但禁用选中
-                            const selected = String(i) === String(curVal) ? ' selected' : '';
-                            optionsHtml += `<option value="${i}"${selected} disabled style="color:var(--ml-text-muted);">${i}: (空)</option>`;
-                        }
-                        // entry 为 null 的直接跳过
-                    }
                     group.innerHTML = `
                         <div class="ml-form-label">
                             ${escapeHtml(p.text || p.name)}
                             <span class="ml-form-label-type">${dbLabel}</span>
                         </div>
                         <select class="ml-form-select" id="ml-param-${cssEscape(p.name)}">
-                            ${optionsHtml}
+                            ${buildDbOptionsHtml(dbArray, curVal)}
                         </select>
                         ${p.desc ? `<div class="ml-form-desc">${escapeHtml(p.desc)}</div>` : ''}
                     `;
@@ -5666,7 +5692,7 @@
                     }, 0);
                 }
             } else if (p.type === 'struct') {
-                // ---- 阶段2新增：struct 折叠面板渲染 ----
+                // struct 折叠面板
                 const schemaFields = p.schemaFields || [];
                 // 解析当前值（struct 保存为转义 JSON 对象）
                 let structObj = {};
@@ -5714,7 +5740,7 @@
                 log(3, `[struct] 渲染参数 "${p.name}", 子字段数: ${schemaFields.length}`);
 
             } else if (p.type === 'table') {
-                // ---- 阶段2新增：table 表格化列表渲染 ----
+                // table 表格化列表
                 const schemaFields = p.schemaFields || [];
                 // 解析当前值（table 保存为双重转义 JSON 数组）
                 let tableRows = [];
@@ -5881,7 +5907,7 @@
         document.getElementById('ml-modal-close').addEventListener('click', () => hideParamEditor());
         document.getElementById('ml-modal-cancel').addEventListener('click', () => hideParamEditor());
         document.getElementById('ml-modal-save').addEventListener('click', () => {
-            // ---- 阶段2新增：在保存前收集 struct/table 类型的数据 ----
+            // 保存前收集 struct/table 数据
             mod.params.forEach(p => {
                 if (p.type === 'struct') {
                     // 收集 struct 数据：遍历 DOM 收集成 JS 对象，返回 JSON.stringify(对象)
@@ -5904,20 +5930,17 @@
                     }
                 }
             });
-            // ---- 阶段2新增结束 ----
 
             // 保存参数前处理空值
             const finalParams = {};
             mod.params.forEach(p => {
                 let value = editParams[p.name];
-                // ---- 阶段2新增：struct/table 类型直接透传（已在上一步序列化） ----
+                // struct/table 已在上一步序列化，直接透传
                 if (p.type === 'struct' || p.type === 'table') {
                     finalParams[p.name] = value || p.default;
                     log(3, `[${p.type}] 参数 "${p.name}" 保存值:`, finalParams[p.name]);
                     return; // 跳过后续验证
-                }
-                // ---- 阶段2新增结束 ----
-                // 检查值是否为空
+                }                // 检查值是否为空
                 if (value === '' || value === undefined || value === null) {
                     // 空值时使用默认值
                     finalParams[p.name] = p.default;
@@ -5989,7 +6012,7 @@
             mod.params.forEach(p => {
                 editParams[p.name] = p.default;
                 
-                // ---- 阶段2修复：struct 和 table 的一键还原重绘 ----
+                // struct / table：一键还原时重绘控件
                 if (p.type === 'struct') {
                     const oldDetails = modal.querySelector(`details[data-param-name="${cssEscape(p.name)}"][data-param-type="struct"]`);
                     if (oldDetails) {
@@ -6085,9 +6108,8 @@
                     }
                     return; // 处理完毕，跳过后续基础类型逻辑
                 }
-                // ---- 阶段2修复结束 ----
 
-                // 更新UI中的输入元素
+                // 更新 UI 中的输入元素
                 const inputEl = document.getElementById(`ml-param-${cssEscape(p.name)}`);
                 if (inputEl) {
                     if (p.type === 'boolean') {
@@ -6203,21 +6225,17 @@
         if (_installOverlay) hideInstallOverlay();
 
         _installOverlay = document.createElement('div');
-        _installOverlay.className = 'ml-overlay';
+        _installOverlay.className = 'ml-overlay ml-install-overlay';
         _installOverlay.style.display = 'flex';
-        _installOverlay.style.alignItems = 'center';
-        _installOverlay.style.justifyContent = 'center';
-        _installOverlay.style.flexDirection = 'column';
-        _installOverlay.style.zIndex = '9999';
 
         _installOverlay.innerHTML = `
-            <div style="text-align: center; background: var(--ml-bg-primary); padding: 40px; border-radius: var(--ml-radius-lg); min-width: 450px; border: 1px solid var(--ml-border-light);">
-                <div id="ml-drop-zone" style="border: 2px dashed var(--ml-border-light); border-radius: var(--ml-radius); padding: 40px 20px; transition: all 0.3s ease;">
-                    <div style="font-size: 64px; margin-bottom: 20px;">📁</div>
-                    <div style="font-size: 20px; margin-bottom: 10px; color: var(--ml-text-primary);">${t('install.dragHint')}</div>
+            <div class="ml-install-card">
+                <div id="ml-drop-zone" class="ml-drop-zone ml-install-drop-zone">
+                    <div class="ml-drop-zone-icon">📁</div>
+                    <div class="ml-drop-zone-text">${t('install.dragHint')}</div>
                 </div>
-                <div style="font-size: 14px; color: var(--ml-text-secondary); margin: 20px 0;">${t('install.orClickBrowse')}</div>
-                <button class="ml-btn ml-btn-primary" id="ml-btn-browse" style="margin-bottom: 15px;">${t('button.browseFiles')}</button>
+                <div class="ml-install-or">${t('install.orClickBrowse')}</div>
+                <button class="ml-btn ml-btn-primary ml-install-browse" id="ml-btn-browse">${t('button.browseFiles')}</button>
                 <br>
                 <button class="ml-btn ml-btn-secondary" id="ml-btn-exit-install">${t('button.exit')}</button>
             </div>
@@ -6239,24 +6257,21 @@
 
         _installOverlay.addEventListener('dragenter', (e) => {
             e.preventDefault();
-            dropZone.style.borderColor = 'var(--ml-accent)';
-            dropZone.style.backgroundColor = 'rgba(var(--ml-accent-rgb), 0.1)';
+            dropZone.classList.add('drag-over');
         });
 
         _installOverlay.addEventListener('dragleave', (e) => {
             e.preventDefault();
             // 只有离开 overlay 时才重置
             if (!_installOverlay.contains(e.relatedTarget)) {
-                dropZone.style.borderColor = 'var(--ml-border-light)';
-                dropZone.style.backgroundColor = 'transparent';
+                dropZone.classList.remove('drag-over');
             }
         });
 
         _installOverlay.addEventListener('drop', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            dropZone.style.borderColor = 'var(--ml-border-light)';
-            dropZone.style.backgroundColor = 'transparent';
+            dropZone.classList.remove('drag-over');
             handleInstallDrop(e);
         });
 
@@ -6436,9 +6451,7 @@
         );
     }
 
-    // ================================================================
-    // 9. 标题画面按钮（DOM 化）
-    // ================================================================
+    // ---- 6.5 标题画面按钮（DOM 化）----
     function updateTitleButtonVisibility() {
         if (!_titleBtn) return;
         try {
@@ -6466,7 +6479,6 @@
         document.body.appendChild(_titleBtn);
 
         _titleBtn.addEventListener('click', () => {
-            if (showPiracyWarning()) return;
             showModManager();
             try {
                 if (typeof SoundManager !== 'undefined') SoundManager.playOk();
@@ -6493,9 +6505,7 @@
         log(3, "标题画面按钮已创建 (DOM)");
     }
 
-    // ================================================================
-    // 10. 键盘快捷键支持
-    // ================================================================
+    // ---- 6.6 键盘快捷键支持（F5 重载、Esc 关闭等） ----
     document.addEventListener('keydown', (e) => {
         if (!_overlay || _overlay.style.display === 'none') return;
 
@@ -6577,9 +6587,9 @@
         }
     }
 
-    // ================================================================
-    // 11. 初始化
-    // ================================================================
+    // ---- 6.7 初始化（样式注入 / 语言加载 / 启动钩子） ----
+    // 注意：此处会 defer 加载 Mod；window.ModLoader 在 6.8 赋值。
+    // 依赖 setTimeout 推迟 loadEnabledModsRuntime，保证同步跑完 6.8 导出后再让 Mod 注册 API。
     injectStyles();
     ensureModLoaderConfigFile();
     loadLanguageConfigs();
@@ -6600,210 +6610,193 @@
             _currentLanguage = 'zh_CN';
         }
         setupTitleButton();
-        setupConflictLogUI();
     });
 
-    // ================================================================
-    // 12. 冲突日志公共 API & UI
-    // ================================================================
+    // ---- 6.8 扩展 API（冲突日志 / ManagerGate / libs；导出 window.ModLoader）----
+    // 须在 loadLibsExtensions 与任何同步加载的 Mod 注册之前完成赋值。
+    // 当前安全顺序：6.7 只 defer 加载 → 本小节先导出 → 再扫 libs → 事件循环后再跑 Mod。
 
-    var _logEntries = [];  // { icon, label, getReport }
-    var _clBtn = null;
-    var _clPanel = null;
-    var _clOpen = false;
+    var _logEntries = [];  // { id, label, getConflictCount, render }
+    var _managerGates = [];
 
     /**
-     * 供前置 Mod 注册冲突日志入口
-     * @param {{ icon: string, label: string, getReport: Function }} entry
+     * 供前置 Mod 注册冲突日志入口（设置菜单项 + 面板内容渲染）
+     * @param {{ id: string, label: string, getConflictCount: Function, render: Function }} entry
      */
     function registerLogEntry(entry) {
-        if (!entry || typeof entry.getReport !== 'function') {
-            log(1, 'registerLogEntry: invalid entry');
+        if (!entry || !entry.id || typeof entry.render !== 'function') {
+            log(1, 'registerLogEntry: invalid entry (need id + render)');
             return;
         }
-        _logEntries.push({
-            icon: entry.icon || '⚠',
+        var normalized = {
+            id: String(entry.id),
             label: entry.label || '日志',
-            getReport: entry.getReport
-        });
-        log(2, 'Registered log entry:', entry.label);
-        _refreshClBadge();
-    }
-
-    function setupConflictLogUI() {
-        // 清理旧引用（可能已脱离 DOM）
-        _clBtn = null;
-        _clPanel = null;
-        _clOpen = false;
-
-        // 创建/重建按钮
-        _clBtn = document.createElement('button');
-        _clBtn.className = 'ml-cl-btn';
-        _clBtn.id = 'ml-cl-btn';
-        _clBtn.title = 'Mod 数据冲突日志';
-        _clBtn.innerHTML = '<span>⚠</span><span class="ml-cl-badge" style="display:none">0</span>';
-        _clBtn.style.display = 'none';
-        _clBtn.addEventListener('click', _toggleClPanel);
-        document.body.appendChild(_clBtn);
-
-        // 创建/重建面板
-        _clPanel = document.createElement('div');
-        _clPanel.className = 'ml-cl-panel';
-        _clPanel.id = 'ml-cl-panel';
-        _clPanel.innerHTML =
-            '<div class="ml-cl-header">' +
-                '<h3>数据冲突日志</h3>' +
-                '<button class="ml-cl-close" title="关闭">&times;</button>' +
-            '</div>' +
-            '<div class="ml-cl-body"><div class="ml-cl-empty">暂无冲突记录</div></div>';
-        _clPanel.querySelector('.ml-cl-close').addEventListener('click', function() {
-            _clPanel.classList.remove('ml-cl-open');
-            _clOpen = false;
-        });
-        document.body.appendChild(_clPanel);
-    }
-
-    // 持久化：RMMZ canvas 创建或场景切换可能移除/遮盖 DOM 元素
-    // 每 2 秒检查：不存在则重建，存在则移到 body 末尾（确保 z-index 堆叠最高）
-    setInterval(function() {
-        var btn = document.getElementById('ml-cl-btn');
-        var panel = document.getElementById('ml-cl-panel');
-
-        if (!btn || !panel) {
-            // 重建整个 UI
-            setupConflictLogUI();
-            // 重建后根据管理器状态决定是否显示按钮
-            if (_overlay && _overlay.style.display !== 'none') {
-                if (_clBtn) _clBtn.style.display = 'flex';
-                _refreshClBadge();
-            }
-        } else {
-            // 确保按钮和面板在 body 最末尾（最高 z-index 堆叠）
-            var lastChild = document.body.lastElementChild;
-            if (lastChild && lastChild !== panel && lastChild !== btn) {
-                document.body.appendChild(btn);
-                document.body.appendChild(panel);
-            }
-        }
-    }, 2000);
-
-    function _toggleClPanel() {
-        _clOpen = !_clOpen;
-        if (_clOpen) {
-            _clPanel.classList.add('ml-cl-open');
-            _renderClReport();
-        } else {
-            _clPanel.classList.remove('ml-cl-open');
-        }
-    }
-
-    function _refreshClBadge() {
-        if (!_clBtn) return;
-        var totalConflicts = 0;
+            getConflictCount: typeof entry.getConflictCount === 'function'
+                ? entry.getConflictCount
+                : function() { return 0; },
+            render: entry.render
+        };
+        var found = -1;
         for (var i = 0; i < _logEntries.length; i++) {
-            try {
-                var report = _logEntries[i].getReport();
-                if (Array.isArray(report)) totalConflicts += report.length;
-            } catch (e) { /* ignore */ }
-        }
-        var badge = _clBtn.querySelector('.ml-cl-badge');
-        if (badge) {
-            if (totalConflicts > 0) {
-                badge.textContent = totalConflicts > 99 ? '99+' : String(totalConflicts);
-                badge.style.display = 'flex';
-            } else {
-                badge.style.display = 'none';
+            if (_logEntries[i].id === normalized.id) {
+                found = i;
+                break;
             }
         }
+        if (found >= 0) {
+            _logEntries[found] = normalized;
+        } else {
+            _logEntries.push(normalized);
+        }
+        log(2, 'Registered log entry:', normalized.id, normalized.label);
+        _refreshSettingsLogMenu();
+        _refreshConflictBadge();
     }
 
-    function _renderClReport() {
-        if (!_clPanel) return;
-        var body = _clPanel.querySelector('.ml-cl-body');
-        if (!body) return;
-
-        var allItems = [];
-        for (var i = 0; i < _logEntries.length; i++) {
-            try {
-                var report = _logEntries[i].getReport();
-                if (Array.isArray(report)) {
-                    for (var j = 0; j < report.length; j++) {
-                        allItems.push(report[j]);
-                    }
-                }
-            } catch (e) { /* ignore */ }
-        }
-
-        if (allItems.length === 0) {
-            body.innerHTML = '<div class="ml-cl-empty">✅ 无冲突，所有 Mod 数据合并正常</div>';
+    /**
+     * 注册管理器打开闸门。任一 gate 返回 false 则阻止打开管理器。
+     * libs 扩展 / 游戏作者脚本通过此接口挂载，无需改管理器本体接线。
+     * @param {function(): boolean} handler
+     */
+    function registerManagerGate(handler) {
+        if (typeof handler !== 'function') {
+            log(1, 'registerManagerGate: handler must be a function');
             return;
         }
+        _managerGates.push(handler);
+        log(3, 'Registered manager gate, total:', _managerGates.length);
+    }
 
-        // 摘要：玩家友好
-        var html = '<div class="ml-cl-summary">';
-        html += '⚠ 发现 <b>' + allItems.length + '</b> 处数据冲突<br>';
-        html += '多个 Mod 修改了同一数据，已自动按排序决定生效项';
-        html += '</div>';
-
-        for (var k = 0; k < allItems.length; k++) {
-            var item = allItems[k];
-            var typeName = item.typeName || item.dataType || '?';
-            var fieldName = item.fieldName || item.field || '?';
-            var winnerName = item.winnerName || item.winner || '未知';
-            var winnerValue = item.winnerValue != null ? String(item.winnerValue) : '';
-
-            html += '<div class="ml-cl-item">';
-
-            // 标题行：类型 + ID + 字段
-            html += '<div class="ml-cl-item-head">';
-            html += '<span class="ml-cl-tag ml-cl-tag-type">' + _esc(typeName) + '</span>';
-            html += '<span class="ml-cl-tag ml-cl-tag-id">#' + _esc(String(item.id || 0)) + '</span>';
-            html += '<span class="ml-cl-tag ml-cl-tag-field">' + _esc(fieldName) + '</span>';
-            html += '</div>';
-
-            // 生效值
-            html += '<div class="ml-cl-result">';
-            html += '<span class="ml-cl-winner-name">✓ ' + _esc(winnerName) + '</span>';
-            html += '<span class="ml-cl-winner-val">' + _esc(_truncate(winnerValue, 50)) + '</span>';
-            html += '</div>';
-
-            // 被覆盖的 Mod
-            if (Array.isArray(item.losers) && item.losers.length > 0) {
-                html += '<div class="ml-cl-overridden">';
-                for (var m = 0; m < item.losers.length; m++) {
-                    var loser = item.losers[m];
-                    var loserVal = loser.value != null ? String(loser.value) : '';
-                    html += '<div class="ml-cl-mod-row">';
-                    html += '<span class="ml-cl-override-icon">↳</span>';
-                    html += '<span class="ml-cl-mod-name">' + _esc(loser.name) + '</span>';
-                    html += '<span class="ml-cl-mod-val">' + _esc(_truncate(loserVal, 40)) + '</span>';
-                    html += '<span class="ml-cl-overridden-tag">已被覆盖</span>';
-                    html += '</div>';
-                }
-                html += '</div>';
+    function runManagerGates() {
+        for (var i = 0; i < _managerGates.length; i++) {
+            try {
+                if (_managerGates[i]() === false) return false;
+            } catch (e) {
+                log(1, 'manager gate error:', e && e.message ? e.message : e);
             }
-
-            html += '</div>';
         }
-        body.innerHTML = html;
+        return true;
     }
 
-    function _esc(str) {
-        var d = document.createElement('span');
-        d.textContent = str;
-        return d.innerHTML;
+    /**
+     * 扫描并执行 libs/ 下的扩展脚本（跳过依赖库如 marked.min.js）。
+     * 脚本需自行调用 window.ModLoader 注册接口才会生效；不调用等于未装。
+     * 使用 <script> 注入（与 marked 一致），确保浏览器全局 window.ModLoader 可见；
+     * Node require() 在 NW.js 模块作用域下可能读不到 window，会导致扩展静默失效。
+     */
+    function loadLibsExtensions() {
+        if (!fs.existsSync(LIBS_DIR)) {
+            log(3, 'libs 目录不存在，跳过扩展加载');
+            return;
+        }
+        var files;
+        try {
+            files = fs.readdirSync(LIBS_DIR);
+        } catch (e) {
+            console.error('[ModLoader] 读取 libs 目录失败:', e && e.message ? e.message : e);
+            return;
+        }
+        files = files.filter(function(f) {
+            return /\.js$/i.test(f) && !LIBS_VENDOR_FILES[f];
+        }).sort();
+        for (var i = 0; i < files.length; i++) {
+            var file = files[i];
+            var fullPath = pathMod.join(LIBS_DIR, file);
+            try {
+                var code = fs.readFileSync(fullPath, 'utf-8');
+                var script = document.createElement('script');
+                script.setAttribute('data-ml-lib', file);
+                script.textContent = code;
+                (document.head || document.documentElement).appendChild(script);
+                log(3, '已加载 libs 扩展:', file);
+            } catch (e) {
+                console.error('[ModLoader] 加载 libs 扩展失败 [' + file + ']:', e && e.message ? e.message : e);
+            }
+        }
     }
 
-    function _truncate(str, max) {
-        return str.length > max ? str.substring(0, max) + '…' : str;
+    function _refreshSettingsLogMenu() {
+        var container = document.getElementById('ml-settings-log-entries');
+        if (!container) return;
+        container.innerHTML = '';
+        if (_logEntries.length === 0) return;
+
+        var sep = document.createElement('div');
+        sep.className = 'ml-settings-log-sep';
+        container.appendChild(sep);
+
+        for (var i = 0; i < _logEntries.length; i++) {
+            (function(entry) {
+                var btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'ml-settings-log-item';
+                btn.textContent = entry.label;
+                btn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    var settingsCard = document.getElementById('ml-settings-card');
+                    if (settingsCard) settingsCard.style.display = 'none';
+                    _openLogPanel(entry);
+                });
+                container.appendChild(btn);
+            })(_logEntries[i]);
+        }
     }
 
-    // 导出公共 API
+    function _openLogPanel(entry) {
+        var panel = document.getElementById('ml-log-panel');
+        var title = document.getElementById('ml-log-panel-title');
+        var body = document.getElementById('ml-log-panel-body');
+        if (!panel || !body) return;
+        if (title) title.textContent = entry.label || '';
+        body.innerHTML = '';
+        try {
+            entry.render(body);
+        } catch (err) {
+            body.innerHTML = '<div class="ml-log-panel-empty">渲染失败</div>';
+            log(1, 'log entry render error:', err && err.message ? err.message : err);
+        }
+        panel.style.display = 'flex';
+        _refreshConflictBadge();
+    }
+
+    function _closeLogPanel() {
+        var panel = document.getElementById('ml-log-panel');
+        if (panel) panel.style.display = 'none';
+        var body = document.getElementById('ml-log-panel-body');
+        if (body) body.innerHTML = '';
+    }
+
+    function _refreshConflictBadge() {
+        var badge = document.getElementById('ml-settings-conflict-badge');
+        if (!badge) return;
+        var total = 0;
+        for (var i = 0; i < _logEntries.length; i++) {
+            try {
+                var n = _logEntries[i].getConflictCount();
+                if (typeof n === 'number' && n > 0) total += n;
+            } catch (e) { /* ignore */ }
+        }
+        if (total > 0) {
+            badge.style.display = 'flex';
+            badge.textContent = '!';
+            badge.title = total + ' 处冲突';
+        } else {
+            badge.style.display = 'none';
+            badge.title = '';
+        }
+    }
+
+    // 导出公共 API（libs / 前置 Mod 依赖此对象；必须在 loadLibsExtensions 之前赋值）
     window.ModLoader = {
         version: VERSION,
         registerLogEntry: registerLogEntry,
-        refreshConflictLog: _refreshClBadge
+        registerManagerGate: registerManagerGate,
+        refreshConflictLog: _refreshConflictBadge,
+        showConfirmDialog: showConfirmDialog,
+        hideConfirmDialog: hideConfirmDialog
     };
+
+    loadLibsExtensions();
 
     log(3, `ModLoader ${VERSION} 初始化完成`);
 

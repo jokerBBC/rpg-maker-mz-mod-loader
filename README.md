@@ -1,17 +1,21 @@
 # RMMZ ModLoader
 
+[![License: MIT](https://img.shields.io/github/license/jokerBBC/rpg-maker-mz-mod-loader)](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/blob/main/LICENSE)
+[![GitHub release](https://img.shields.io/github/v/release/jokerBBC/rpg-maker-mz-mod-loader)](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/releases/latest)
+[![GitHub downloads](https://img.shields.io/github/downloads/jokerBBC/rpg-maker-mz-mod-loader/total)](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/releases)
+
 > **[English README](README-en.md)**
 
-游戏内模组管理器 **V4.1.3**
+游戏内模组管理器 **V4.1.13**
 
 一款功能强大的 RPG Maker MZ 模组管理器，支持在游戏内管理 **本地 Mod** 与 **Steam 创意工坊 Mod** 的开启/关闭、参数编辑、排序与依赖检测。**现已支持多语言界面**（简体中文 / 繁體中文 / English）。
 
-> **V4.1.3 前置 Mod**：**ModDataLoader**（数据 merge/replace/add）与 **ModResourceLoader**（资源替换/新增）采用 ModLoader → 前置 Mod → 功能 Mod 三层架构，GameAdapter 可插拔适配不同游戏。**部分测试已完成** — 详见完整文档中的前置 Mod 章节。
+> **V4.1.3 前置 Mod**：新增 **ModDataLoader**（数据库 merge / replace / add、manifest 声明式注入）与 **ModResourceLoader**（资源替换 / 新增、modId 别名），采用 **ModLoader → 前置 Mod → 功能 Mod** 三层架构；游戏专属兼容（加密、YEP 等）通过可插拔 **GameAdapter** 适配。**部分测试已完成** — 详见完整文档中的前置 Mod 章节。
 
 > **运行环境**：Mod 配置保存在 `mod_config.json`  
 > **不再写入**： `plugins.js`，游戏更新官方插件后 Mod 开关与参数不会丢失。  
-> **创意工坊**：需 Steam 正版安装路径才能解析工坊目录（毕竟盗版都没法订阅），本地mod正常使用。  
-> **盗版环境检测**：默认关闭，游戏作者可在 `modloader_config.json` 中按需开启。  
+> **创意工坊**：需 Steam 正版安装路径才能解析工坊目录（毕竟盗版都没法订阅），本地 Mod 正常使用。  
+> **libs 扩展**：`js/mods/libs/` 可放管理器扩展（如 `piracyGate.js`）；调用 `ModLoader` API 才生效。盗版检测：有该文件即开启，删除即关闭。  
 
 ---
 
@@ -30,7 +34,7 @@
 | 📦 **统一包结构**      | 本地 `_localmods/<包名>/` 与工坊订阅包根目录布局一致（V4.1）       |
 | ⚙️ **参数编辑**       | 数值、开关、文本、单选、颜色、长文本、数据库引用、struct、table           |
 | 🔀 **排序与依赖**      | 拖拽/序号排序；`@base` / `@orderAfter` 依赖检测；缺失 `@base` 时自动跳过加载（依赖守卫） |
-| ⚠️ **冲突日志面板**     | 管理器打开时右下角 ⚠ 按钮，显示 Mod 数据冲突摘要 |
+| ⚠️ **冲突日志面板**     | 设置齿轮菜单底部入口 + 管理器内空壳面板（内容由前置 Mod `render`）；有冲突时齿轮旁红叹号 |
 | 📦 **前置 Mod**       | ModDataLoader（数据）+ ModResourceLoader（资源）；三层架构，GameAdapter 适配不同游戏（部分测试完成） |
 | 📥 **拖放安装**       | 拖放 `.js` 或整个 `mods` 文件夹（仅本地 Mod）                |
 | 🖼️ **预览图**       | 包根 `preview.png`；详情缩略 + 点击弹窗大图                  |
@@ -82,6 +86,7 @@
 | **[README 完整版 (English)](js/mods/docs/README-en.md)**        | Complete English guide |
 | **[使用手册](js/mods/docs/使用手册.md)**                           | 游戏制作者 / 玩家 / Mod 作者指南 |
 | **[调用规范](js/mods/docs/前置Mod更新日志等/调用规范.md)**              | 前置 Mod 调用规范（Mod 作者） |
+| [ModLoader_模块结构](js/mods/docs/ModLoader_模块结构.md) | 维护地图：改动归属、测试粒度、管理器边界 |
 | [数据和资源前置Mod-V2-需求规格书](js/mods/docs/前置Mod更新日志等/数据和资源前置Mod-V2-需求规格书.md) | 前置 Mod 架构与 API 规格 |
 | [前置Mod测试清单](js/mods/docs/前置Mod更新日志等/前置Mod测试清单.md) | 前置 Mod 测试清单（部分已完成） |
 | [RMMZ_ModLoader_开发规范](js/mods/docs/RMMZ_ModLoader_开发规范.md) | ModLoader 开发规范        |
@@ -106,4 +111,4 @@
 
 MIT License — 详见 [LICENSE](LICENSE)
 
-**版本**: V4.1.3 | **更新日期**: 2026-06-25
+**版本**: V4.1.13 | **更新日期**: 2026-07-31

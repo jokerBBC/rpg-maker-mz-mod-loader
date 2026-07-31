@@ -1,5 +1,118 @@
 # ModLoader 更新日志
 
+## V4.1.13 (2026-07-29)
+
+### 长文本换行
+
+- **修复**：`note` / `multiline_string` 的 `@default` 与旧配置中字面量 `\n` 在编辑器中显示为真换行（Enter 可继续换行）
+- **约定**：存档与下发 PluginManager 均为真换行字符串，不做官方 note 的 JSON 包装；`sanitizeText` 保留换行
+
+## V4.1.12 (2026-07-29)
+
+### struct 控件与顶层对齐
+
+- **重构**：抽出 `appendNumberControl` / `appendNoteControl` / `buildDbOptionsHtml`，顶层参数与 struct 子字段共用同一套 DOM/CSS（无平行复制）
+- **新增**：struct 的 `number` 在双侧 `min`/`max` 时用滑动条；仅一侧或无上下限时用 Min/Max 按钮行
+- **新增**：struct 支持 `note` / `multiline_string` 多行 textarea
+- **对齐**：struct 数据库下拉对无名空位同样显示禁用「(空)」（与顶层一致）
+
+## V4.1.11 (2026-07-29)
+
+### 工坊详情信息密度
+
+- **压缩**：详情去掉管理/订阅说明两行，改为列表悬停 `title` 提示
+- **删除**：工坊详情不再显示「工坊ID&订阅名」「安装状态」「文件」（桥接路径）；保留来源 + 工坊目录
+- **说明**：`installState` 仅 `ready`/`missing`（桥接失败），无下载中检测；异常仍靠列表 ⚠，详情「就绪」属冗余
+- **清理**：移除 `detail.labelWorkshopSub` / `labelInstallState` / `installReady` / `workshop.unnamedPackage` 与 `.ml-detail-subhint`
+
+## V4.1.10 (2026-07-29)
+
+### 详情区布局
+
+- **修复**：预览图与 Mod 名同处 flex 行时，正方形预览把整块撑高，名字与「来源」之间大块留白
+- **变更**：预览改为右浮动；名字/来源/作者等紧挨排列并与预览并排；参数与帮助 `clear` 后占满整行
+
+## V4.1.9 (2026-07-29)
+
+### YEP 独立装备数据源兼容
+
+- **修复**：`getDatabaseArray` 兼容 YEP_ItemCore 将 `$dataWeapons` / `$dataArmors` 转为数字键对象后，参数页误判「数据库未加载」
+- **新增**：`normalizeDatabaseCollection()`——数组原样返回，数字键对象归一化为可下标遍历数组
+
+## V4.1.8 (2026-07-29)
+
+### 数据库引用类型补全
+
+- **新增**：参数 `@type` 支持 `class` / `troop` / `animation` / `common_event` / `switch` / `variable`（仍不解析 `tileset`）
+- **适配**：`switch` / `variable` 从 `$dataSystem.switches` / `.variables` 取名称字符串；其余走 `$dataXxx` 对象数组
+- **新增**：`getDatabaseEntryName()`，统一对象 `.name` 与开关/变量字符串的显示名
+- **测试**：`_localmods/TestDbTypes/TestDbTypes.js` 覆盖上述 6 种下拉与控制台名称解析
+
+## V4.1.7 (2026-07-29)
+
+### UI 样式外置收尾
+
+- **补洞**：`modloader.css` 补齐工坊态、筛选 Tab active、排序禁用、`ml-badge-danger`、`ml-form-switch` 基样式等原先仅存在于 JS/降级串的规则
+- **迁移**：工具栏、头部小按钮、删除按钮、安装拖放页、颜色选择行、确认弹窗、详情路径/提示等静态内联样式改为 class
+- **优化**：筛选 Tab / 排序 / 删除开态改为 class 切换，不再写 `el.style.backgroundColor`
+- **移除**：删除 `getFallbackCSS_ml()`；`injectStyles()` 只读 `config/modloader.css`，缺失时打日志并跳过注入（避免再维护双份 CSS）
+
+## V4.1.6 (2026-07-29)
+
+### libs 扩展宿主
+
+- **新增**：`js/mods/libs/` 扩展加载——扫描并执行其中 `.js`（跳过依赖库如 `marked.min.js`）；脚本需调用 `window.ModLoader` 注册接口才生效，不调用等于未装
+- **新增**：`registerManagerGate(handler)`——打开管理器前依次执行闸门，任一返回 `false` 则阻止进入；扩展自管检测/弹窗，管理器本体无功能特判接线
+- **新增**：公共 API 附带 `showConfirmDialog` / `hideConfirmDialog`，供 libs 扩展复用管理器对话框
+- **变更**：更新日志 Markdown 改用 `libs/marked.min.js`，移除内置简易 `parseMarkdownToHtml` 实现
+- **修复**：libs 扩展改用 `<script>` 注入加载（勿用 Node `require`），避免 NW.js 模块作用域读不到 `window.ModLoader` 导致扩展静默不挂载
+
+### 盗版检测外置
+
+- **变更**：反盗版逻辑整体迁至 `libs/piracyGate.js`（`registerManagerGate`）；**文件存在即开启，删除即关闭**
+- **移除**：`modloader_config.json` 的 `piracyDetection` 段及本体入口按钮特判；旧配置残留字段可忽略
+- **说明**：发行包随推 `piracyGate.js` 即可启用；开源/社区分发删除该文件即可
+
+## V4.1.5 (2026-07-29)
+
+### 冲突日志迁入设置菜单
+
+- **变更**：拆除右下角浮动 ⚠ 按钮、独立冲突面板及 2 秒 DOM 持久化轮询
+- **变更**：冲突日志入口改到管理器左上角设置齿轮菜单底部；未注册源时不显示菜单项
+- **变更**：`registerLogEntry` API 改为 `{ id, label, getConflictCount, render }`——管理器只提供空壳面板，内容由前置 Mod 的 `render(container)` 注入
+- **新增**：有冲突时设置齿轮旁显示红色「!」提醒；`refreshConflictLog()` 刷新徽标
+- **说明**：本次仅打通数据前置（ModDataLoader）；资源前置后续再接
+
+## V4.1.4 (2026-07-29)
+
+### 排序拖拽体验（Steam 风格）
+
+- **优化**：列表排序改为自定义按住拖动（不再使用 HTML5 DnD），手感接近 Steam 创意工坊排序
+- **新增**：提起后主题色光圈 + 略提亮；X 轴锁定；原地留空，空位随插入点丝滑让位（约 100ms）
+- **新增**：拖行上/下边越过其他行垂直中线后，对方整行滑动让位；快扫时多行可一起滑动
+- **新增**：拖拽中可用鼠标滚轮滚动列表；松手后先对齐空位再消光圈（约 280ms），动画结束后再写入 order
+- **调整**：动画时长集中在 `SORT_ANIM`（`thresholdPx` / `slideMs` / `releaseMs`）便于手调
+- **保留**：序号输入、上移/下移；序号框内按下不起拖；拖拽中不改详情选中
+
+## V4.1.3 (2026-06-03)
+
+### 冲突日志面板
+
+- **新增**：右下角浮动 ⚠ 按钮 + 可展开冲突日志面板，显示 Mod 数据冲突摘要（胜者/已被覆盖方 + 中文字段名翻译）
+- **新增**：`window.ModLoader.registerLogEntry()` 公共 API，供前置 Mod 注册冲突日志源
+- **新增**：面板仅在模组管理器打开时可见，关闭管理器后自动隐藏
+- **修复**：`setInterval` 持久化检查——RMMZ canvas 覆盖或场景切换后自动重建按钮/面板
+
+### @base 依赖守卫
+
+- **新增**：`loadEnabledModsRuntime` 加载循环中自动检查 `@base` 依赖，缺失时跳过加载并打日志 `[依赖守卫]`，防止玩家关闭前置 Mod 后游戏崩溃
+- **检查逻辑**：同时检查 `PluginManager._scripts`（已加载）和待加载队列，确保同批次加载的依赖链正确
+
+### 其他
+
+- **修复**：冲突报告去重逻辑——同一 Mod 不同来源（JS API vs manifest）视为独立条目，不再误合并
+- **修复**：冲突报告 UI 文案「已覆盖」→「已被覆盖」
+
 ## V4.1.2 (2026-05-31)
 
 ### 配置调整
@@ -27,7 +140,7 @@
 - **安装**：拖/选单个 `.js` → `_localmods/<基名>/<基名>.js`；整 mods 文件夹仍复制到 `js/mods/` 根
 - **删除**：本地 Mod **整包删除** `_localmods/<包名>/`；多脚本包确认框列出全部脚本；删除后重排 order 并写回 config
 - **迁移**：`tools/migrate-local-mods-to-localmods.js`、`tools/migrate-mod-config-keys.js`（不内置管理器）
-- **文档**：`docs/V4.1_unified_package_plan.md`、[`使用手册.md`](使用手册.md)
+- **文档**：`docs/V4.1_unified_package_plan.md`、`docs/使用手册.md`
 
 ## V4.0.1 (2026-05-30)
 

@@ -2,7 +2,7 @@
 
 > **[中文版 README](README.md)**
 
-In-game mod manager **V4.1.3**
+In-game mod manager **V4.1.13**
 
 A powerful RPG Maker MZ mod manager that lets you enable/disable, edit parameters, reorder, and check dependencies for **local mods** and **Steam Workshop mods** — all from inside the game. **Multilingual UI** is supported (Simplified Chinese / Traditional Chinese / English).
 
@@ -11,7 +11,7 @@ A powerful RPG Maker MZ mod manager that lets you enable/disable, edit parameter
 > **Runtime environment**: Mod configuration is saved in `mod_config.json` ,
 and is **no longer written** to `plugins.js`, so mod toggles and parameters survive official plugin updates.   
 > **Steam Workshop** requires a legitimate Steam install path to resolve Workshop directories.  
-> **piracy detection** is off by default — game authors can enable it in `modloader_config.json` as needed.  
+> **libs extensions**: scripts under `js/mods/libs/` take effect only when they call ModLoader APIs. Piracy detection: ship `piracyGate.js` to enable; delete to disable.  
 
 ***
 
@@ -31,7 +31,7 @@ and is **no longer written** to `plugins.js`, so mod toggles and parameters surv
 | 📦 **Unified package layout** | Local `_localmods/<package>/` matches Workshop subscription root layout (V4.1) |
 | ⚙️ **Parameter editor** | number, boolean, string, select, color, note, database refs, struct, table |
 | 🔀 **Order & dependencies** | Drag/index reordering; `@base` / `@orderAfter` checks; skips loading when `@base` is missing (dependency guard) |
-| ⚠️ **Conflict log panel** | Floating ⚠ button (visible while manager is open) + expandable panel showing mod data conflict summary (winner / overridden + localized field names) |
+| ⚠️ **Conflict log panel** | Settings gear menu entry + empty shell panel (content from prerequisite mod `render`); red bang beside gear when conflicts exist |
 | 📥 **Drag-and-drop install** | Drop a `.js` file or entire `mods` folder (local mods only) |
 | 🖼️ **Preview images** | `preview.png` at package root; thumbnail in details + click for full-size popup |
 | 🛡️ **Config compatibility** | V4.1.1 reads legacy V3.x `../mods/` keys; saving once auto-migrates to new keys |
@@ -148,11 +148,15 @@ js/mods/
 │       └── modloader.json          # optional (multi-script)
 ├── _workshop/<fileId>/             # Workshop junction (auto-generated)
 ├── docs/
-│   ├── README.md                   # This guide
+│   ├── README.md                   # Chinese guide
+│   ├── README-en.md                # This guide
 │   ├── 使用手册.md
 │   ├── V4.1_测试文档.md
 │   └── modloader_CHANGELOG.md
-└── config/ docs/ libs/ tools/ …    # Shared assets, not scanned as mods
+├── libs/                           # Dependencies + manager extensions (API call required)
+│   ├── marked.min.js               # Markdown (changelog / guides)
+│   └── piracyGate.js               # optional: piracy gate (delete to disable)
+└── tools/ …
 ```
 
 Steam Workshop subscription package (same layout as `_localmods`, scripts at package root):
@@ -182,15 +186,15 @@ Sample packages: `_localmods/TestMDL-V2` (data), `_localmods/TestMRL-V2` (resour
 | Resource | Description |
 | --- | --- |
 | [使用手册.md](使用手册.md) | Full guide for game authors / players / mod authors |
-| [RMMZ_ModLoader_开发规范.md](RMMZ_ModLoader_开发规范.md) | ModLoader internal development spec |
+| [ModLoader_模块结构.md](ModLoader_模块结构.md) | Maintainer map: where changes go, how to test, manager boundaries |
+| [RMMZ_ModLoader_开发规范.md](RMMZ_ModLoader_开发规范.md) | Coding conventions and release checklist |
+| [V4.1_测试文档.md](V4.1_测试文档.md) | ModLoader V4.1 feature test checklist |
 | [调用规范.md](前置Mod更新日志等/调用规范.md) | Prerequisite mod usage spec (data + resources; required for mod authors) |
 | [数据和资源前置Mod-V2-需求规格书.md](前置Mod更新日志等/数据和资源前置Mod-V2-需求规格书.md) | Prerequisite mod V2 architecture, API, and MVP spec |
+| [前置Mod测试清单.md](前置Mod更新日志等/前置Mod测试清单.md) | Prerequisite mod test checklist (some cases passed) |
+| [modloader_CHANGELOG.md](modloader_CHANGELOG.md) | ModLoader full changelog |
 | [ModDataLoader_CHANGELOG.md](前置Mod更新日志等/ModDataLoader_CHANGELOG.md) | ModDataLoader changelog |
 | [ModResourceLoader_CHANGELOG.md](前置Mod更新日志等/ModResourceLoader_CHANGELOG.md) | ModResourceLoader changelog |
-| [前置Mod测试清单.md](前置Mod更新日志等/前置Mod测试清单.md) | Prerequisite mod test checklist (some cases passed) |
-| [V4.1_测试文档.md](V4.1_测试文档.md) | ModLoader V4.1 feature test checklist |
-| [V4.1_unified_package_plan.md](V4.1_unified_package_plan.md) | V4.1 implementation plan |
-| [modloader_CHANGELOG.md](modloader_CHANGELOG.md) | ModLoader full changelog |
 
 ***
 
@@ -204,7 +208,19 @@ Sample packages: `_localmods/TestMDL-V2` (data), `_localmods/TestMRL-V2` (resour
 | `select` | Single-select dropdown | `@option A @option B` |
 | `color` | Color | `@default #ff0000` |
 | `note` / `multiline_string` | Long text | Multi-line editor |
-| `actor/skill/item/...` | Database reference | Dropdown picker |
+| `actor` | DB ref · Actor | `@default 1` |
+| `class` | DB ref · Class | `@default 1` |
+| `skill` | DB ref · Skill | `@default 1` |
+| `item` | DB ref · Item | `@default 1` |
+| `weapon` | DB ref · Weapon | `@default 1` |
+| `armor` | DB ref · Armor | `@default 1` |
+| `enemy` | DB ref · Enemy | `@default 1` |
+| `troop` | DB ref · Troop | `@default 1` |
+| `state` | DB ref · State | `@default 1` |
+| `animation` | DB ref · Animation | `@default 1` |
+| `common_event` | DB ref · Common Event | `@default 1` |
+| `switch` | DB ref · Switch | `@default 1` |
+| `variable` | DB ref · Variable | `@default 1` |
 | `struct` | Struct | `@schema SchemaName` |
 | `table` | Table list | `@schema SchemaName` |
 
@@ -215,6 +231,7 @@ Sample packages: `_localmods/TestMDL-V2` (data), `_localmods/TestMRL-V2` (resour
 | `@text` | Display name in the parameter UI |
 | `@base` | Prerequisite dependency |
 | `@orderAfter` | Must load after a given plugin |
+| `@orderBefore` | Must load before a given plugin |
 | `@define-schema` / `@schema` | struct/table template |
 
 See [User manual · Mod authors](使用手册.md#三mod-作者) for full spec and example mods.
@@ -251,4 +268,4 @@ MIT License — see [LICENSE](LICENSE)
 
 ***
 
-**Version**: V4.1.3 | **Updated**: 2026-06-25
+**Version**: V4.1.13 | **Updated**: 2026-07-29

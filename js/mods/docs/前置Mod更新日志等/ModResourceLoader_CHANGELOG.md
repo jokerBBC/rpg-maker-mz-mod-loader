@@ -1,5 +1,14 @@
 # ModResourceLoader 更新日志
 
+## V2.0.1 (2026-07-29)
+
+### 冲突检测与日志面板
+
+- **新增**：多 Mod 替换同一资源时记录冲突（按 `modName:regSource` 去重，URL 不同才算冲突）
+- **新增**：manifest 扫描按 `mod_config.order` 升序处理，order 大者生效
+- **新增**：`getConflictReport()` 公共 API
+- **新增**：对接 ModLoader `registerLogEntry`——设置齿轮菜单「资源冲突日志」+ 自带面板渲染；有冲突时齿轮红叹号汇总显示
+
 ## V2.0.0 (2026-06-03)
 
 ### 全新重写

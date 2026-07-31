@@ -2,10 +2,7 @@
  * @target MZ
  * @plugindesc 全能参数测试仪 - 验证 ModLoader 的数值/开关/选择/文本/颜色/长文本/数据库引用修改功能
  * @author joker创意 / DeepSeek
- * @version V1.2.0
- * @base 自动发钱（虚构1） 自动打钱（虚构2）
- * @orderAfter 自动偷钱（虚构3） 自动没钱（虚构4）
- * @orderBefore 上面的前置Mod是假的，用于测试前置检测。要使用每日签到，可开启。
+ * @version V1.2.1
  *
  * @help
  * 本 Mod 用于测试游戏内模组管理器的参数编辑功能。
@@ -258,11 +255,15 @@
         return `ID:${id}`;
     }
 
-    // 解析多行文本（处理换行符）
+    // 解析多行文本：兼容字面量 \n，以及 ModLoader 下发的真换行
     function parseMultilineText(text) {
         if (!text) return '';
-        // 替换 \n 为实际换行
-        return text.replace(/\\n/g, '\n');
+        return String(text).replace(/\\n/g, '\n');
+    }
+
+    function multilineToLines(text, fallback) {
+        const normalized = parseMultilineText(text || fallback || '');
+        return normalized.length ? normalized.split(/\r?\n/) : [fallback || ''];
     }
 
     // ---- 每日签到 + 文字显示（合并延迟） ----
@@ -305,23 +306,6 @@
             const testEnemyName = getDbObjectName('enemy', Number(params['测试敌人']) || 1);
             const testStateName = getDbObjectName('state', Number(params['测试状态']) || 1);
 
-            // 解析多行文本
-            const signBlessing = parseMultilineText(params['签到祝福']);
-            const characterIntro = parseMultilineText(params['角色介绍']);
-
-            // 显示文字
-            const text1 = params['浮现文字'] || '欢迎回来，主人，我打工挣到钱钱啦~请查收~';
-            const text2 = `共计银币：${reward}`;
-            const text3 = `--- 签到祝福 ---`;
-            const text4 = signBlessing || '祝您冒险愉快！';
-            const text5 = `--- 测试数据 ---`;
-            const text6 = `角色: ${testActorName} | 技能: ${testSkillName}`;
-            const text7 = `物品: ${testItemName} | 武器: ${testWeaponName}`;
-            const text8 = `防具: ${testArmorName} | 敌人: ${testEnemyName}`;
-            const text9 = `状态: ${testStateName}`;
-            const text10 = `--- 角色介绍 ---`;
-            const text11 = characterIntro || '一位勇敢的冒险者。';
-
             const color1 = '#ffffff';
             const color2 = '#ffff00';
             const color3 = params['浮现文字颜色'] || '#ffffff';
@@ -332,20 +316,42 @@
             }
             scene._testModTextSprites = [];
 
-            const texts = [text1, text2, '', text3, text4, '', text5, text6, text7, text8, text9, '', text10, text11];
-            const colors = [color1, color2, color3, color3, color3, color3, color3, color3, color3, color3, color3, color3, color3, color3];
+            // 每项一行；长文本按换行拆成多行（Bitmap.drawText 本身不处理 \n）
+            const lines = [];
+            const pushLine = (text, color) => { lines.push({ text, color }); };
+            const pushBlank = () => { lines.push({ text: '', color: color3 }); };
 
-            texts.forEach((text, index) => {
-                if (text === '') return;
+            pushLine(params['浮现文字'] || '欢迎回来，主人，我打工挣到钱钱啦~请查收~', color1);
+            pushLine(`共计银币：${reward}`, color2);
+            pushBlank();
+            pushLine('--- 签到祝福 ---', color3);
+            multilineToLines(params['签到祝福'], '祝您冒险愉快！').forEach(line => pushLine(line, color3));
+            pushBlank();
+            pushLine('--- 测试数据 ---', color3);
+            pushLine(`角色: ${testActorName} | 技能: ${testSkillName}`, color3);
+            pushLine(`物品: ${testItemName} | 武器: ${testWeaponName}`, color3);
+            pushLine(`防具: ${testArmorName} | 敌人: ${testEnemyName}`, color3);
+            pushLine(`状态: ${testStateName}`, color3);
+            pushBlank();
+            pushLine('--- 角色介绍 ---', color3);
+            multilineToLines(params['角色介绍'], '一位勇敢的冒险者。').forEach(line => pushLine(line, color3));
+
+            let row = 0;
+            lines.forEach(({ text, color }) => {
+                if (text === '') {
+                    row++;
+                    return;
+                }
                 const sprite = new Sprite(new Bitmap(600, 40));
                 sprite.bitmap.fontSize = 24;
-                sprite.bitmap.textColor = colors[index] || '#ffffff';
+                sprite.bitmap.textColor = color || '#ffffff';
                 sprite.bitmap.drawText(text, 0, 0, 600, 32, 'left');
                 sprite.x = Graphics.width / 2 - 300;
-                sprite.y = 50 + index * 35;
+                sprite.y = 50 + row * 35;
                 sprite.opacity = 255;
                 scene.addChild(sprite);
                 scene._testModTextSprites.push(sprite);
+                row++;
             });
 
             // 8秒后开始渐隐消失

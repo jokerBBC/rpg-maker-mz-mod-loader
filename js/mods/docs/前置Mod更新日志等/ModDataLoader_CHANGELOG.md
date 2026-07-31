@@ -1,5 +1,13 @@
 # ModDataLoader 更新日志
 
+## V2.0.1 (2026-07-29)
+
+### 冲突日志面板迁移
+
+- **变更**：对接 ModLoader V4.1.5 新 `registerLogEntry`（`id` / `label` / `getConflictCount` / `render`）
+- **变更**：冲突报告列表 UI 与样式改由本前置 `render` 注入管理器空壳，不再依赖管理器内置渲染
+- **入口**：设置齿轮菜单 →「数据冲突日志」；有冲突时齿轮旁红叹号由管理器汇总显示
+
 ## V2.0.0 (2026-06-03)
 
 ### 全新重写
@@ -25,7 +33,7 @@
 
 - 字段级冲突追踪（`_conflictLog`），记录每个字段的每次修改来源
 - **getConflictReport()**：返回去重后的冲突列表（同 Mod 不同来源视为独立条目）
-- 与 ModLoader 冲突日志面板集成（`registerLogEntry`）
+- 与 ModLoader 冲突日志面板集成（`registerLogEntry`；V2.0.1 起改为自带 `render`）
 - 中文字段名翻译（name→名称, price→价格 等常见字段）
 
 ### GameAdapter 插件架构

@@ -1,6 +1,6 @@
 # RMMZ ModLoader
 
-游戏内模组管理器 **V4.1.3**
+游戏内模组管理器 **V4.1.13**
 
 一款功能强大的 RPG Maker MZ 模组管理器，支持在游戏内管理 **本地 Mod** 与 **Steam 创意工坊 Mod** 的开启/关闭、参数编辑、排序与依赖检测。**现已支持多语言界面**（简体中文 / 繁體中文 / English）。
 
@@ -9,7 +9,7 @@
 > **运行环境**：Mod 配置保存在 `mod_config.json`  
 > **不再写入**： `plugins.js`，游戏更新官方插件后 Mod 开关与参数不会丢失  
 > **创意工坊**：需 Steam 正版安装路径才能解析工坊目录  
-> **盗版环境检测**：默认关闭，游戏作者可在 `modloader_config.json` 中按需开启。  
+> **libs 扩展**：`js/mods/libs/` 可放管理器扩展（如 `piracyGate.js`）；调用 `ModLoader` API 才生效。盗版检测：有该文件即开启，删除即关闭。  
 
 ***
 
@@ -27,7 +27,7 @@
 | 📦 **统一包结构** | 本地 `_localmods/<包名>/` 与工坊订阅包根目录布局一致（V4.1） |
 | ⚙️ **参数编辑** | 数值、开关、文本、单选、颜色、长文本、数据库引用、struct、table |
 | 🔀 **排序与依赖** | 拖拽/序号排序；`@base` / `@orderAfter` 依赖检测；缺失 `@base` 时自动跳过加载（依赖守卫） |
-| ⚠️ **冲突日志面板** | 管理器打开时右下角 ⚠ 按钮 + 可展开面板，显示 Mod 数据冲突摘要（胜者/已被覆盖方 + 中文字段名） |
+| ⚠️ **冲突日志面板** | 设置齿轮菜单底部入口 + 管理器内空壳面板（内容由前置 Mod `render`）；有冲突时齿轮旁红叹号 |
 | 📥 **拖放安装** | 拖放 `.js` 或整个 `mods` 文件夹（仅本地 Mod） |
 | 🖼️ **预览图** | 包根 `preview.png`；详情缩略 + 点击弹窗大图 |
 | 🛡️ **配置兼容** | V4.1.1 读取 V3.x `../mods/` 旧键；保存一次自动升级为新键 |
@@ -145,10 +145,14 @@ js/mods/
 ├── _workshop/<fileId>/             # 工坊 junction（自动生成）
 ├── docs/
 │   ├── README.md                   # 本说明
+│   ├── README-en.md                # English guide
 │   ├── 使用手册.md
 │   ├── V4.1_测试文档.md
 │   └── modloader_CHANGELOG.md
-└── config/ docs/ libs/ tools/ …    # 共享资源，不参与 Mod 扫描
+├── libs/                           # 依赖库 + 管理器扩展（调用 API 才生效）
+│   ├── marked.min.js               # Markdown 依赖（changelog / 攻略等）
+│   └── piracyGate.js               # 可选：盗版检测闸门（删除即关闭）
+└── tools/ …
 ```
 
 Steam 工坊订阅包（与 `_localmods` 同布局，脚本在包根）：
@@ -178,15 +182,15 @@ ModLoader 仅管理 `.js` 插件的开关、排序与参数；**数据库与游�
 | 资源 | 说明 |
 | --- | --- |
 | [使用手册.md](使用手册.md) | 游戏制作者 / 玩家 / Mod 作者完整指南 |
-| [RMMZ_ModLoader_开发规范.md](RMMZ_ModLoader_开发规范.md) | ModLoader 自身开发规范 |
+| [ModLoader_模块结构.md](ModLoader_模块结构.md) | 维护地图：改动归属、测试粒度、管理器边界 |
+| [RMMZ_ModLoader_开发规范.md](RMMZ_ModLoader_开发规范.md) | 代码约定与发版流程 |
+| [V4.1_测试文档.md](V4.1_测试文档.md) | ModLoader V4.1 功能测试清单 |
 | [调用规范.md](前置Mod更新日志等/调用规范.md) | 前置 Mod 调用规范（数据 + 资源，Mod 作者必读） |
 | [数据和资源前置Mod-V2-需求规格书.md](前置Mod更新日志等/数据和资源前置Mod-V2-需求规格书.md) | 前置 Mod V2 架构、API 与 MVP 规格 |
+| [前置Mod测试清单.md](前置Mod更新日志等/前置Mod测试清单.md) | 前置 Mod 功能测试清单（部分项已通过） |
+| [modloader_CHANGELOG.md](modloader_CHANGELOG.md) | ModLoader 完整更新日志 |
 | [ModDataLoader_CHANGELOG.md](前置Mod更新日志等/ModDataLoader_CHANGELOG.md) | ModDataLoader 更新日志 |
 | [ModResourceLoader_CHANGELOG.md](前置Mod更新日志等/ModResourceLoader_CHANGELOG.md) | ModResourceLoader 更新日志 |
-| [前置Mod测试清单.md](前置Mod更新日志等/前置Mod测试清单.md) | 前置 Mod 功能测试清单（部分项已通过） |
-| [V4.1_测试文档.md](V4.1_测试文档.md) | ModLoader V4.1 功能测试清单 |
-| [V4.1_unified_package_plan.md](V4.1_unified_package_plan.md) | V4.1 实施计划 |
-| [modloader_CHANGELOG.md](modloader_CHANGELOG.md) | ModLoader 完整更新日志 |
 
 ***
 
@@ -200,7 +204,19 @@ ModLoader 仅管理 `.js` 插件的开关、排序与参数；**数据库与游�
 | `select` | 单选下拉 | `@option A @option B` |
 | `color` | 颜色 | `@default #ff0000` |
 | `note` / `multiline_string` | 长文本 | 多行编辑 |
-| `actor/skill/item/...` | 数据库引用 | 下拉选择 |
+| `actor` | 数据库引用 · 角色 | `@default 1` |
+| `class` | 数据库引用 · 职业 | `@default 1` |
+| `skill` | 数据库引用 · 技能 | `@default 1` |
+| `item` | 数据库引用 · 物品 | `@default 1` |
+| `weapon` | 数据库引用 · 武器 | `@default 1` |
+| `armor` | 数据库引用 · 防具 | `@default 1` |
+| `enemy` | 数据库引用 · 敌人 | `@default 1` |
+| `troop` | 数据库引用 · 敌群 | `@default 1` |
+| `state` | 数据库引用 · 状态 | `@default 1` |
+| `animation` | 数据库引用 · 动画 | `@default 1` |
+| `common_event` | 数据库引用 · 公共事件 | `@default 1` |
+| `switch` | 数据库引用 · 开关 | `@default 1` |
+| `variable` | 数据库引用 · 变量 | `@default 1` |
 | `struct` | 结构体 | `@schema SchemaName` |
 | `table` | 表格列表 | `@schema SchemaName` |
 
@@ -211,6 +227,7 @@ ModLoader 仅管理 `.js` 插件的开关、排序与参数；**数据库与游�
 | `@text` | 参数界面显示名 |
 | `@base` | 前置依赖 |
 | `@orderAfter` | 应排在某插件之后 |
+| `@orderBefore` | 应排在某插件之前 |
 | `@define-schema` / `@schema` | struct/table 模板 |
 
 详细规范与示例 Mod 见 [使用手册 · Mod 作者](使用手册.md#三mod-作者)。
@@ -247,4 +264,4 @@ MIT License — 详见 [LICENSE](LICENSE)
 
 ***
 
-**版本**: V4.1.3 | **更新日期**: 2026-06-25
+**版本**: V4.1.13 | **更新日期**: 2026-07-29

@@ -50,7 +50,7 @@ ModLoader V4.1.x
 | **地图数据合并** | event 级别浅合并（按 id merge/replace/add），不深入 pages 内部 |
 | **对象表 merge** | 对 `$dataSystem` 等对象类型数据做字段级深合并 |
 | **manifest 声明式 patch** | 读 `modloader.json` 的 `data.patches`，支持字段级 patch |
-| **冲突日志 + UI** | 生成冲突报告，通过 API 注册到 ModLoader，游戏窗口右下角可查 |
+| **冲突日志 + UI** | 生成冲突报告，通过 API 注册到 ModLoader，设置齿轮菜单可查 |
 | **智能 ID 迁移** | stableKey 稳定标识 + 读档后自动迁移存档引用 |
 
 ### 2.2 明确不做
@@ -401,27 +401,26 @@ ModLoader 暴露一个 API 供前置 Mod 注册日志入口：
 ```javascript
 // 前置 Mod 调用
 ModLoader.registerLogEntry({
-  icon: '⚠',               // 角落图标文字
-  label: '数据冲突',         // 悬停提示
-  getReport: function() { ... }  // 返回冲突报告数据
+  id: 'ModDataLoader',       // 去重键；同 id 再次注册则覆盖
+  label: '数据冲突日志',      // 设置菜单文案
+  getConflictCount: function() { return n; },  // 驱动齿轮红叹号
+  render: function(container) { /* 写入面板内容 */ }
 });
 ```
 
+- 管理器只提供设置菜单项 + 空壳面板（标题 / 关闭 / 内容容器）
+- 面板内容 HTML/样式由前置 Mod 的 `render` 负责
+- `refreshConflictLog()` 可主动刷新齿轮冲突提醒
+
 ### 5.2 冲突日志 UI
 
-- **位置**：紧贴游戏窗口**右下角**（不在管理器 UI 模态窗口内）
-- **外观**：圆角矩形按钮，配合 ModLoader 管理器 UI 风格
-- **交互**：点击弹出冲突列表面板
-- **面板设计**：仿照 ModLoader 管理器风格，展示冲突详情
-- **展示内容**：
-  - dataType（Items / Skills / System 等）
-  - id 号
-  - 冲突字段名
-  - 涉及的 Mod 名称 + 注册来源（api / manifest）+ order
-  - 哪个 Mod 的改动生效了
-  - 同一 Mod 通过不同来源（API + manifest）注册同一条目时，按 `modName:regSource` 去重
-- 数据前置和资源前置各自注册自己的日志入口
-- **常态隐藏**：⚠ 按钮仅在管理器打开时显示，关闭管理器时隐藏
+- **入口位置**：模组管理器左上角设置齿轮菜单底部（不在页面右下角）
+- **显示条件**：仅当有前置通过 `registerLogEntry` 注册后才出现对应菜单项；未安装/未加载则不显示
+- **交互**：点击菜单项关闭设置卡，打开管理器内空壳面板并调用该 entry 的 `render`
+- **冲突提醒**：任一源 `getConflictCount() > 0` 时，齿轮旁显示红色「!」
+- **生命周期**：面板随管理器开关；不再使用 body 浮层与定时 DOM 重建
+- **数据前置**：已实现（ModDataLoader 注册「数据冲突日志」并自带报告渲染）
+- **资源前置**：已实现（ModResourceLoader 注册「资源冲突日志」并自带报告渲染）
 
 ### 5.3 @base 依赖守卫
 
@@ -569,14 +568,14 @@ _localmods/
 | 地图数据 | MVP 包含，event 级浅合并 |
 | 自定义 DB | 不做（MVP + 后续均不做） |
 | manifest 支持 | MVP 支持 records + patches（数据前置）+ resources + modId（资源前置） |
-| 冲突处理 | last wins + 冲突日志 + UI（右下角圆角按钮） |
+| 冲突处理 | last wins + 冲突日志 + UI（设置齿轮菜单入口） |
 | 优先级 | 只用 mod_config order，无 API priority 参数 |
 | ID 策略 | compactNewEntryId 收紧，无硬限制 |
 | 部署方式 | _localmods 下独立包 + @base 声明 |
 | 加密绕过 | 资源前置内置，默认开启可参数关闭 |
 | 异步加载 | 保留，路径限制在游戏目录内 |
 | 智能 ID 迁移 | 前置内置 stableKey + 自动迁移 |
-| 冲突 UI 位置 | 游戏窗口右下角（非管理器模态内），圆角按钮 |
+| 冲突 UI 位置 | 管理器设置齿轮菜单底部；空壳面板在管理器内，内容由前置 render |
 | patches index | 数组表必填 index，对象表不写 |
 | 地图事件合并 | 浅合并（event 级），不深入 pages |
 | modId 别名 | 资源前置支持，Mod 定义稳定标识符，自动映射到实际包名 |
