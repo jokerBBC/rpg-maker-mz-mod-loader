@@ -28,7 +28,7 @@ and is **no longer written** to `plugins.js`, so mod toggles and parameters surv
 | --- | --- |
 | 🎮 **In-game management** | Manage mod toggles, parameters, and load order without external tools |
 | 🛒 **Steam Workshop** | Scans `workshop/content/<AppID>/` (AppID configurable); filter, refresh list; unified package layout for local and Workshop mods |
-| 🏪 **Mod store extension** | `libs/modStore.js`: multi-source HTTPS catalog subscribe, download/update packages to `_localmods`, resume for large files (>50MB) |
+| 🏪 **Mod store** | When Steam Workshop is **not enabled**, subscribe to authors' HTTPS catalogs and browse, download, and update full packages to `_localmods` in-game; coexists with Workshop (Workshop mods still update via Steam; requires `modStore.js`) |
 | 📦 **Unified package layout** | Local `_localmods/<package>/` matches Workshop subscription root layout (V4.1) |
 | ⚙️ **Parameter editor** | number, boolean, string, select, color, note, database refs, struct, table |
 | 🔀 **Order & dependencies** | Drag/index reordering; `@base` / `@orderAfter` checks; skips loading when `@base` is missing (dependency guard) |

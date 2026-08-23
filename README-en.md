@@ -32,6 +32,7 @@ A powerful RPG Maker MZ mod manager for **local mods** and **Steam Workshop mods
 | --- | --- |
 | 🎮 **In-game management** | Manage mod toggles, parameters, and load order without external tools |
 | 🛒 **Steam Workshop** | Scans `workshop/content/<AppID>/` (AppID configurable); filter, refresh; unified local/Workshop package layout |
+| 🏪 **Mod store** | When Steam Workshop is **not enabled** for a title, subscribe to authors' HTTPS catalogs and browse, download, and update mods in-game; coexists with Workshop (Workshop mods still update via Steam) |
 | 📦 **Unified package layout** | Local `_localmods/<package>/` matches Workshop subscription root (V4.1) |
 | ⚙️ **Parameter editor** | number, boolean, string, select, color, note, database refs, struct, table |
 | 🔀 **Order & dependencies** | Drag/index reordering; `@base` / `@orderAfter` checks; skips loading when `@base` is missing |
