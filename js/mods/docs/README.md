@@ -1,6 +1,6 @@
 # RMMZ ModLoader
 
-游戏内模组管理器 **V4.1.13**
+游戏内模组管理器 **V4.1.14**
 
 一款功能强大的 RPG Maker MZ 模组管理器，支持在游戏内管理 **本地 Mod** 与 **Steam 创意工坊 Mod** 的开启/关闭、参数编辑、排序与依赖检测。**现已支持多语言界面**（简体中文 / 繁體中文 / English）。
 
@@ -9,7 +9,7 @@
 > **运行环境**：Mod 配置保存在 `mod_config.json`  
 > **不再写入**： `plugins.js`，游戏更新官方插件后 Mod 开关与参数不会丢失  
 > **创意工坊**：需 Steam 正版安装路径才能解析工坊目录  
-> **libs 扩展**：`js/mods/libs/` 可放管理器扩展（如 `piracyGate.js`）；调用 `ModLoader` API 才生效。盗版检测：有该文件即开启，删除即关闭。  
+> **libs 扩展**：`js/mods/libs/` 可放管理器扩展（如 `piracyGate.js`、`modStore.js`）；调用 `ModLoader` API 才生效。盗版检测：有 `piracyGate.js` 即开启，删除即关闭。Mod 商店：有 `modStore.js` 即开启，删除即关闭。  
 
 ***
 
@@ -23,7 +23,8 @@
 | 功能 | 描述 |
 | --- | --- |
 | 🎮 **游戏内管理** | 无需额外程序，直接在游戏中管理 Mod 开关、参数与排序 |
-| 🛒 **Steam 创意工坊** | 扫描 `workshop/content/<AppID>/`（AppID 可配置）；筛选、刷新；本地与工坊统一包结构 |
+| 🛒 **Steam 创意工坊** | 扫描 `workshop/content/<AppID>/`（AppID 可配置）；筛选、刷新列表；本地与工坊统一包结构 |
+| 🏪 **Mod 商店拓展** | `libs/modStore.js`：多源 HTTPS catalog 订阅、下载/更新整包到 `_localmods`、断点续传（>50MB） |
 | 📦 **统一包结构** | 本地 `_localmods/<包名>/` 与工坊订阅包根目录布局一致（V4.1） |
 | ⚙️ **参数编辑** | 数值、开关、文本、单选、颜色、长文本、数据库引用、struct、table |
 | 🔀 **排序与依赖** | 拖拽/序号排序；`@base` / `@orderAfter` 依赖检测；缺失 `@base` 时自动跳过加载（依赖守卫） |
@@ -134,6 +135,7 @@ js/mods/
 ├── config/
 │   ├── modloader.css
 │   ├── modloader_config.json
+│   ├── mod_store.json              # Mod 商店订阅（有 modStore.js 时）
 │   └── language/
 ├── _localmods/                     # 本地 Mod 包
 │   ├── ModDataLoader/              # 数据前置（merge/replace/add）
@@ -148,11 +150,15 @@ js/mods/
 │   ├── README-en.md                # English guide
 │   ├── 使用手册.md
 │   ├── V4.1_测试文档.md
-│   └── modloader_CHANGELOG.md
+│   ├── V4.1_测试文档.md
+│   ├── modloader_CHANGELOG.md
+│   └── mod商店拓展plan.md
 ├── libs/                           # 依赖库 + 管理器扩展（调用 API 才生效）
 │   ├── marked.min.js               # Markdown 依赖（changelog / 攻略等）
+│   ├── modStore.js                 # 可选：Mod 商店（删除即关闭）
 │   └── piracyGate.js               # 可选：盗版检测闸门（删除即关闭）
-└── tools/ …
+└── tools/
+    └── modstore/                   # 作者打包与 catalog 发布工具
 ```
 
 Steam 工坊订阅包（与 `_localmods` 同布局，脚本在包根）：
@@ -189,6 +195,8 @@ ModLoader 仅管理 `.js` 插件的开关、排序与参数；**数据库与游�
 | [数据和资源前置Mod-V2-需求规格书.md](前置Mod更新日志等/数据和资源前置Mod-V2-需求规格书.md) | 前置 Mod V2 架构、API 与 MVP 规格 |
 | [前置Mod测试清单.md](前置Mod更新日志等/前置Mod测试清单.md) | 前置 Mod 功能测试清单（部分项已通过） |
 | [modloader_CHANGELOG.md](modloader_CHANGELOG.md) | ModLoader 完整更新日志 |
+| [mod商店拓展plan.md](mod商店拓展plan.md) | Mod 商店拓展设计与测试摘要 |
+| [tools/modstore/gui/README.md](../tools/modstore/gui/README.md) | 作者打包 GUI 与 catalog 发布 |
 | [ModDataLoader_CHANGELOG.md](前置Mod更新日志等/ModDataLoader_CHANGELOG.md) | ModDataLoader 更新日志 |
 | [ModResourceLoader_CHANGELOG.md](前置Mod更新日志等/ModResourceLoader_CHANGELOG.md) | ModResourceLoader 更新日志 |
 
@@ -264,4 +272,4 @@ MIT License — 详见 [LICENSE](LICENSE)
 
 ***
 
-**版本**: V4.1.13 | **更新日期**: 2026-07-29
+**版本**: V4.1.14 | **更新日期**: 2026-08-23

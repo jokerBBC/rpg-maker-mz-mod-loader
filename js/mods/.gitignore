@@ -1,0 +1,10 @@
+# 运行时本地配置（首次运行自动生成）
+config/mod_store.json
+config/modloader_config.json
+config/test-config.json
+mod_config.json
+_workshop/
+
+# Mod 商店 GUI 本地数据与输出
+tools/modstore/gui/user-data/
+tools/modstore/dist/

@@ -1090,26 +1090,38 @@ html[data-ml-theme="warm"] {
 /* ---------- 自定义滚动条 ---------- */
 .ml-list-scroll::-webkit-scrollbar,
 .ml-detail-panel::-webkit-scrollbar,
-.ml-modal-body::-webkit-scrollbar {
+.ml-modal-body::-webkit-scrollbar,
+.ml-log-panel-body::-webkit-scrollbar,
+.ml-store-list::-webkit-scrollbar,
+.ml-store-sources-scroll::-webkit-scrollbar {
     width: 6px;
 }
 
 .ml-list-scroll::-webkit-scrollbar-track,
 .ml-detail-panel::-webkit-scrollbar-track,
-.ml-modal-body::-webkit-scrollbar-track {
+.ml-modal-body::-webkit-scrollbar-track,
+.ml-log-panel-body::-webkit-scrollbar-track,
+.ml-store-list::-webkit-scrollbar-track,
+.ml-store-sources-scroll::-webkit-scrollbar-track {
     background: transparent;
 }
 
 .ml-list-scroll::-webkit-scrollbar-thumb,
 .ml-detail-panel::-webkit-scrollbar-thumb,
-.ml-modal-body::-webkit-scrollbar-thumb {
+.ml-modal-body::-webkit-scrollbar-thumb,
+.ml-log-panel-body::-webkit-scrollbar-thumb,
+.ml-store-list::-webkit-scrollbar-thumb,
+.ml-store-sources-scroll::-webkit-scrollbar-thumb {
     background: var(--ml-border-light);
     border-radius: 3px;
 }
 
 .ml-list-scroll::-webkit-scrollbar-thumb:hover,
 .ml-detail-panel::-webkit-scrollbar-thumb:hover,
-.ml-modal-body::-webkit-scrollbar-thumb:hover {
+.ml-modal-body::-webkit-scrollbar-thumb:hover,
+.ml-log-panel-body::-webkit-scrollbar-thumb:hover,
+.ml-store-list::-webkit-scrollbar-thumb:hover,
+.ml-store-sources-scroll::-webkit-scrollbar-thumb:hover {
     background: var(--ml-accent);
 }
 
@@ -1627,6 +1639,27 @@ html[data-ml-theme="warm"] {
     transform: rotate(60deg);
 }
 
+.ml-settings-update-badge {
+    position: absolute;
+    top: -5px;
+    left: -10px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background: var(--ml-success);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    pointer-events: none;
+    box-shadow: 0 0 0 2px var(--ml-bg-secondary);
+    z-index: 1;
+}
+
 .ml-settings-conflict-badge {
     position: absolute;
     top: -4px;
@@ -1727,7 +1760,10 @@ html[data-ml-theme="warm"] {
 }
 
 .ml-settings-log-item {
-    display: block;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     width: 100%;
     text-align: left;
     padding: 8px 10px;
@@ -1740,6 +1776,50 @@ html[data-ml-theme="warm"] {
     font-family: var(--ml-font);
     cursor: pointer;
     transition: all var(--ml-transition);
+}
+
+.ml-settings-log-item-label {
+    flex: 1;
+    min-width: 0;
+}
+
+.ml-settings-log-item-badges {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.ml-settings-log-item-update-badge {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: var(--ml-success);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    pointer-events: none;
+}
+
+.ml-settings-log-item-conflict-badge {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: var(--ml-danger);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    pointer-events: none;
 }
 
 .ml-settings-log-item:last-child {
@@ -1802,6 +1882,13 @@ html[data-ml-theme="warm"] {
     overflow-y: auto;
     padding: 8px 0;
     min-height: 0;
+}
+
+.ml-log-panel-body.ml-store-panel-root {
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
 }
 
 .ml-log-panel-empty {

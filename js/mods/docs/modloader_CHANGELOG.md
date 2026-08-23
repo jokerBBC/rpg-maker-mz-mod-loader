@@ -1,5 +1,22 @@
 # ModLoader 更新日志
 
+## V4.1.14 (2026-08-22)
+
+### Mod 商店拓展适配（`libs/modStore.js`）
+
+- **新增**：`registerLogEntry` 支持可选 `getUpdateCount()`；设置齿轮左侧显示可更新 Mod 数量角标（`ml-settings-update-badge`）
+- **变更**：冲突角标刷新扩展为 `_refreshSettingsBadges`，汇总各日志入口的 `getConflictCount` / `getUpdateCount`；`refreshConflictLog` 仍指向同一刷新函数
+- **变更**：工具栏「刷新工坊」文案改为「刷新列表」（`workshop.refresh`），**始终显示**；点击后 `scanAllMods` 全量重扫本地 + 工坊，日志为「Mod 列表已刷新」
+- **样式**：`modloader.css` 补充商店列表/来源 Tab 滚动条、`.ml-store-panel-root` 全屏布局、可更新角标样式
+- **修复**：设置齿轮下拉卡片中「Mod 商店」「数据/资源冲突日志」等入口文本后方同步显示绿色可更新角标与红色冲突角标（与齿轮汇总角标语义一致）；展开设置卡片时刷新各入口角标
+- **新增**：Mod 商店「新增」提醒——`mod_store.json` 落盘 `seenMods` 记录玩家已查看的包名；齿轮角标统计可更新 + 未查看新增（去重）；状态 Tab 增加「新增」；列表项显示 `New` 标识，点击条目后标记已读并移除
+
+### modloader.json 字段约定
+
+- **移除**：扫描本地 Mod 时读取 `manifest.title` 写入 `localPackageTitle`（已无 UI 消费，死代码）
+- **约定**：`name` = 包目录名；`description` = 简介；`version` = 包版本（多脚本包必填）。废弃 `title` 字段
+- **同步**：测试包 / 工坊自测包 `modloader.json` 与 Mod 商店打包工具改为上述约定
+
 ## V4.1.13 (2026-07-29)
 
 ### 长文本换行

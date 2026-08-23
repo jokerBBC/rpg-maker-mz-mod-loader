@@ -1,8 +1,10 @@
 {
-    "modId": "TestMRL-V2",
-    "title": "ModResourceLoader V2 资源测试",
-    "entries": ["TestMRL-V2.js"],
-    "resources": {
-        "img/菜单/现实时间图标": "img/clock.png"
-    }
+  "name": "TestMRL-V2",
+  "version": "V2.0.0",
+  "description": "ModResourceLoader V2 资源替换与新增功能验证",
+  "modId": "TestMRL-V2",
+  "entries": ["TestMRL-V2.js"],
+  "resources": {
+    "img/菜单/现实时间图标": "img/clock.png"
+  }
 }

@@ -6,7 +6,7 @@
 
 > **[中文版 README](README.md)**
 
-In-game mod manager **V4.1.13**
+In-game mod manager **V4.1.14**
 
 A powerful RPG Maker MZ mod manager for **local mods** and **Steam Workshop mods** — toggles, parameters, load order, and dependency checks, all in-game. **Multilingual UI** (Simplified Chinese / Traditional Chinese / English).
 
@@ -15,7 +15,7 @@ A powerful RPG Maker MZ mod manager for **local mods** and **Steam Workshop mods
 > **Runtime environment**: Mod configuration is saved in `mod_config.json`  
 > and is **no longer written** to `plugins.js`, so mod toggles and parameters survive official plugin updates.  
 > **Steam Workshop** requires a legitimate Steam install path to resolve Workshop directories (pirated installs cannot subscribe); local mods work normally.  
-> **libs extensions**: scripts under `js/mods/libs/` take effect only when they call ModLoader APIs. Piracy detection: ship `piracyGate.js` to enable; delete to disable.  
+> **libs extensions**: scripts under `js/mods/libs/` take effect only when they call ModLoader APIs. Piracy detection: ship `piracyGate.js` to enable; delete to disable. Mod store: ship `modStore.js` to enable; delete to disable.  
 
 ***
 

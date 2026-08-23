@@ -6,7 +6,7 @@
 
 > **[English README](README-en.md)**
 
-游戏内模组管理器 **V4.1.13**
+游戏内模组管理器 **V4.1.14**
 
 一款功能强大的 RPG Maker MZ 模组管理器，支持在游戏内管理 **本地 Mod** 与 **Steam 创意工坊 Mod** 的开启/关闭、参数编辑、排序与依赖检测。**现已支持多语言界面**（简体中文 / 繁體中文 / English）。
 
@@ -15,7 +15,7 @@
 > **运行环境**：Mod 配置保存在 `mod_config.json`  
 > **不再写入**： `plugins.js`，游戏更新官方插件后 Mod 开关与参数不会丢失。  
 > **创意工坊**：需 Steam 正版安装路径才能解析工坊目录（毕竟盗版都没法订阅），本地 Mod 正常使用。  
-> **libs 扩展**：`js/mods/libs/` 可放管理器扩展（如 `piracyGate.js`）；调用 `ModLoader` API 才生效。盗版检测：有该文件即开启，删除即关闭。  
+> **libs 扩展**：`js/mods/libs/` 可放管理器扩展（如 `piracyGate.js`、`modStore.js`）；调用 `ModLoader` API 才生效。盗版检测：有 `piracyGate.js` 即开启，删除即关闭。Mod 商店：有 `modStore.js` 即开启，删除即关闭。  
 
 ---
 

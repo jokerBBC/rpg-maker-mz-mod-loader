@@ -1,4 +1,5 @@
 {
-  "title": "数据合并前置 ModDataLoader",
+  "name": "ModDataLoader",
+  "description": "数据合并前置：字段级 merge、整条 replace、stableKey 迁移",
   "entries": ["ModDataLoader.js"]
 }

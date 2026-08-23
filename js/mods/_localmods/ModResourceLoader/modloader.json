@@ -1,4 +1,5 @@
 {
-  "title": "资源替换前置 ModResourceLoader",
+  "name": "ModResourceLoader",
+  "description": "资源替换前置：manifest resources 声明式替换与 loadBitmap",
   "entries": ["ModResourceLoader.js"]
 }

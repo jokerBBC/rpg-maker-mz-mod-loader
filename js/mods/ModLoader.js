@@ -2,7 +2,7 @@
  * @target MZ
  * @plugindesc 游戏内模组管理器（DOM化UI & 现代交互 & 拖放添加Mod & 滑动条/长文本/数据库引用）
  * @author joker创意 / GLM核心代码
- * @version V4.1.13
+ * @version V4.1.14
  *
  * @help
  * 【功能及使用方式】
@@ -96,7 +96,7 @@
 
     // ---- 1.1 常量、版本与日志 ----
     const ModName = "ModLoader";
-    const VERSION = "V4.1.13";
+    const VERSION = "V4.1.14";
     const DEBUG_LEVEL = 0;
 
     const log = (level, ...args) => {
@@ -1711,9 +1711,6 @@
                 const scripts = discoverPackageScripts(packageRoot);
                 if (scripts.length === 0) continue;
 
-                const manifest = readWorkshopManifest(packageRoot);
-                const packageTitle = manifest && manifest.title ? manifest.title : null;
-
                 for (const script of scripts) {
                     const scriptBaseName = pathMod.parse(script.relPath).name;
                     const modId = buildLocalModId(packageName, scriptBaseName);
@@ -1734,7 +1731,6 @@
                         workshopId: null,
                         workshopRoot: null,
                         localPackageName: packageName,
-                        localPackageTitle: packageTitle || '',
                         packageRoot: packageRoot,
                         subscribed: true,
                         readOnly: false,
@@ -2932,6 +2928,7 @@
                 <div class="ml-header">
             <div class="ml-header-left">
                 <span class="ml-settings-gear-wrap">
+                    <span class="ml-settings-update-badge" id="ml-settings-update-badge" style="display:none;" title=""></span>
                     <span class="ml-settings-gear" id="ml-settings-gear" title="${t('settings')}">⚙</span>
                     <span class="ml-settings-conflict-badge" id="ml-settings-conflict-badge" style="display:none;" title="">!</span>
                 </span>
@@ -3062,6 +3059,7 @@
             settingsGear.addEventListener('click', function(e) {
                 e.stopPropagation();
                 if (settingsCard.style.display === 'none') {
+                    _refreshSettingsBadges();
                     settingsCard.style.display = 'block';
                     populateLanguageSelect();
                     updateThemeButtons();
@@ -3239,7 +3237,7 @@
     }
 
     /**
-     * 刷新工坊 Mod 列表（重新扫描磁盘）
+     * 刷新 Mod 列表（scanAllMods：本地 + 工坊全量重扫）
      */
     function refreshWorkshopMods() {
         invalidateWorkshopConfigCache();
@@ -3259,7 +3257,7 @@
         } else {
             renderDetail(null);
         }
-        log(3, '工坊 Mod 已刷新');
+        log(3, 'Mod 列表已刷新');
     }
 
     function isWorkshopFeatureEnabled() {
@@ -3267,9 +3265,10 @@
     }
 
     function updateWorkshopToolbarState() {
+        // 「刷新列表」对本地/工坊均有效，始终显示
         const refreshBtn = document.getElementById('ml-btn-refresh-workshop');
         if (refreshBtn) {
-            refreshBtn.style.display = isWorkshopFeatureEnabled() ? '' : 'none';
+            refreshBtn.style.display = '';
         }
     }
 
@@ -6616,12 +6615,12 @@
     // 须在 loadLibsExtensions 与任何同步加载的 Mod 注册之前完成赋值。
     // 当前安全顺序：6.7 只 defer 加载 → 本小节先导出 → 再扫 libs → 事件循环后再跑 Mod。
 
-    var _logEntries = [];  // { id, label, getConflictCount, render }
+    var _logEntries = [];  // { id, label, getConflictCount, getUpdateCount, render }
     var _managerGates = [];
 
     /**
      * 供前置 Mod 注册冲突日志入口（设置菜单项 + 面板内容渲染）
-     * @param {{ id: string, label: string, getConflictCount: Function, render: Function }} entry
+     * @param {{ id: string, label: string, getConflictCount?: Function, getUpdateCount?: Function, render: Function }} entry
      */
     function registerLogEntry(entry) {
         if (!entry || !entry.id || typeof entry.render !== 'function') {
@@ -6633,6 +6632,9 @@
             label: entry.label || '日志',
             getConflictCount: typeof entry.getConflictCount === 'function'
                 ? entry.getConflictCount
+                : function() { return 0; },
+            getUpdateCount: typeof entry.getUpdateCount === 'function'
+                ? entry.getUpdateCount
                 : function() { return 0; },
             render: entry.render
         };
@@ -6715,6 +6717,39 @@
         }
     }
 
+    function _applyLogItemBadges(entry, updateBadge, conflictBadge) {
+        var conflictCount = 0;
+        var updateCount = 0;
+        try {
+            var c = entry.getConflictCount();
+            if (typeof c === 'number' && c > 0) conflictCount = c;
+            var u = entry.getUpdateCount();
+            if (typeof u === 'number' && u > 0) updateCount = u;
+        } catch (e) { /* ignore */ }
+        if (conflictBadge) {
+            if (conflictCount > 0) {
+                conflictBadge.style.display = 'flex';
+                conflictBadge.textContent = conflictCount > 99 ? '99+' : String(conflictCount);
+                conflictBadge.title = conflictCount + ' 处冲突';
+            } else {
+                conflictBadge.style.display = 'none';
+                conflictBadge.textContent = '';
+                conflictBadge.title = '';
+            }
+        }
+        if (updateBadge) {
+            if (updateCount > 0) {
+                updateBadge.style.display = 'flex';
+                updateBadge.textContent = updateCount > 99 ? '99+' : String(updateCount);
+                updateBadge.title = updateCount + ' 项待处理';
+            } else {
+                updateBadge.style.display = 'none';
+                updateBadge.textContent = '';
+                updateBadge.title = '';
+            }
+        }
+    }
+
     function _refreshSettingsLogMenu() {
         var container = document.getElementById('ml-settings-log-entries');
         if (!container) return;
@@ -6730,7 +6765,29 @@
                 var btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = 'ml-settings-log-item';
-                btn.textContent = entry.label;
+                btn.setAttribute('data-log-entry-id', entry.id);
+
+                var label = document.createElement('span');
+                label.className = 'ml-settings-log-item-label';
+                label.textContent = entry.label;
+
+                var badgesWrap = document.createElement('span');
+                badgesWrap.className = 'ml-settings-log-item-badges';
+
+                var updateBadge = document.createElement('span');
+                updateBadge.className = 'ml-settings-log-item-update-badge';
+                updateBadge.style.display = 'none';
+
+                var conflictBadge = document.createElement('span');
+                conflictBadge.className = 'ml-settings-log-item-conflict-badge';
+                conflictBadge.style.display = 'none';
+
+                badgesWrap.appendChild(updateBadge);
+                badgesWrap.appendChild(conflictBadge);
+                _applyLogItemBadges(entry, updateBadge, conflictBadge);
+
+                btn.appendChild(label);
+                btn.appendChild(badgesWrap);
                 btn.addEventListener('click', function(e) {
                     e.stopPropagation();
                     var settingsCard = document.getElementById('ml-settings-card');
@@ -6766,25 +6823,54 @@
         if (body) body.innerHTML = '';
     }
 
-    function _refreshConflictBadge() {
-        var badge = document.getElementById('ml-settings-conflict-badge');
-        if (!badge) return;
-        var total = 0;
+    function _refreshSettingsBadges() {
+        var conflictBadge = document.getElementById('ml-settings-conflict-badge');
+        var updateBadge = document.getElementById('ml-settings-update-badge');
+        var conflictTotal = 0;
+        var updateTotal = 0;
         for (var i = 0; i < _logEntries.length; i++) {
             try {
-                var n = _logEntries[i].getConflictCount();
-                if (typeof n === 'number' && n > 0) total += n;
+                var entry = _logEntries[i];
+                var c = entry.getConflictCount();
+                if (typeof c === 'number' && c > 0) conflictTotal += c;
+                var u = entry.getUpdateCount();
+                if (typeof u === 'number' && u > 0) updateTotal += u;
+
+                var menuItem = document.querySelector(
+                    '.ml-settings-log-item[data-log-entry-id="' + entry.id + '"]'
+                );
+                if (menuItem) {
+                    _applyLogItemBadges(
+                        entry,
+                        menuItem.querySelector('.ml-settings-log-item-update-badge'),
+                        menuItem.querySelector('.ml-settings-log-item-conflict-badge')
+                    );
+                }
             } catch (e) { /* ignore */ }
         }
-        if (total > 0) {
-            badge.style.display = 'flex';
-            badge.textContent = '!';
-            badge.title = total + ' 处冲突';
-        } else {
-            badge.style.display = 'none';
-            badge.title = '';
+        if (conflictBadge) {
+            if (conflictTotal > 0) {
+                conflictBadge.style.display = 'flex';
+                conflictBadge.textContent = '!';
+                conflictBadge.title = conflictTotal + ' 处冲突';
+            } else {
+                conflictBadge.style.display = 'none';
+                conflictBadge.title = '';
+            }
+        }
+        if (updateBadge) {
+            if (updateTotal > 0) {
+                updateBadge.style.display = 'flex';
+                updateBadge.textContent = updateTotal > 99 ? '99+' : String(updateTotal);
+                updateBadge.title = updateTotal + ' 项待处理';
+            } else {
+                updateBadge.style.display = 'none';
+                updateBadge.title = '';
+            }
         }
     }
+
+    var _refreshConflictBadge = _refreshSettingsBadges;
 
     // 导出公共 API（libs / 前置 Mod 依赖此对象；必须在 loadLibsExtensions 之前赋值）
     window.ModLoader = {

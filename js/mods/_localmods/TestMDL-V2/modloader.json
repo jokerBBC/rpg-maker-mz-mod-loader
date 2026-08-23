@@ -1,6 +1,8 @@
 {
+  "name": "TestMDL-V2",
+  "version": "V2.0.0",
+  "description": "ModDataLoader V2 功能验证",
   "schemaVersion": 1,
-  "title": "ModDataLoader V2 测试包",
   "entries": ["TestMDL-V2.js"],
   "data": {
     "enabled": true,

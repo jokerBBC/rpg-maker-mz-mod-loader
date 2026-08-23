@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "sourceId": "author-foo",
+  "sourceName": "作者 Foo",
+  "updatedAt": "2026-08-22",
+  "mods": [
+    {
+      "id": "ExampleMod",
+      "packageName": "ExampleMod",
+      "version": "V1.0.0",
+      "downloadUrl": "https://example.com/releases/ExampleMod-1.0.0.zip",
+      "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "size": 12345,
+      "summary": "Mod 简介（打包时从 modloader.json 的 description 写入；手填亦可）",
+      "hosts": ["example.com"]
+    }
+  ]
+}

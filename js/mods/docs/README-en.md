@@ -2,7 +2,7 @@
 
 > **[中文版 README](README.md)**
 
-In-game mod manager **V4.1.13**
+In-game mod manager **V4.1.14**
 
 A powerful RPG Maker MZ mod manager that lets you enable/disable, edit parameters, reorder, and check dependencies for **local mods** and **Steam Workshop mods** — all from inside the game. **Multilingual UI** is supported (Simplified Chinese / Traditional Chinese / English).
 
@@ -11,7 +11,7 @@ A powerful RPG Maker MZ mod manager that lets you enable/disable, edit parameter
 > **Runtime environment**: Mod configuration is saved in `mod_config.json` ,
 and is **no longer written** to `plugins.js`, so mod toggles and parameters survive official plugin updates.   
 > **Steam Workshop** requires a legitimate Steam install path to resolve Workshop directories.  
-> **libs extensions**: scripts under `js/mods/libs/` take effect only when they call ModLoader APIs. Piracy detection: ship `piracyGate.js` to enable; delete to disable.  
+> **libs extensions**: scripts under `js/mods/libs/` take effect only when they call ModLoader APIs. Piracy detection: ship `piracyGate.js` to enable; delete to disable. Mod store: ship `modStore.js` to enable; delete to disable.  
 
 ***
 
@@ -27,7 +27,8 @@ and is **no longer written** to `plugins.js`, so mod toggles and parameters surv
 | Feature | Description |
 | --- | --- |
 | 🎮 **In-game management** | Manage mod toggles, parameters, and load order without external tools |
-| 🛒 **Steam Workshop** | Scans `workshop/content/<AppID>/` (AppID configurable); filter, refresh; unified package layout for local and Workshop mods |
+| 🛒 **Steam Workshop** | Scans `workshop/content/<AppID>/` (AppID configurable); filter, refresh list; unified package layout for local and Workshop mods |
+| 🏪 **Mod store extension** | `libs/modStore.js`: multi-source HTTPS catalog subscribe, download/update packages to `_localmods`, resume for large files (>50MB) |
 | 📦 **Unified package layout** | Local `_localmods/<package>/` matches Workshop subscription root layout (V4.1) |
 | ⚙️ **Parameter editor** | number, boolean, string, select, color, note, database refs, struct, table |
 | 🔀 **Order & dependencies** | Drag/index reordering; `@base` / `@orderAfter` checks; skips loading when `@base` is missing (dependency guard) |
@@ -138,6 +139,7 @@ js/mods/
 ├── config/
 │   ├── modloader.css
 │   ├── modloader_config.json
+│   ├── mod_store.json              # Mod store subscriptions (when modStore.js is present)
 │   └── language/
 ├── _localmods/                     # Local mod packages
 │   ├── ModDataLoader/              # Data prerequisite (merge/replace/add)
@@ -152,11 +154,15 @@ js/mods/
 │   ├── README-en.md                # This guide
 │   ├── 使用手册.md
 │   ├── V4.1_测试文档.md
-│   └── modloader_CHANGELOG.md
+│   ├── V4.1_测试文档.md
+│   ├── modloader_CHANGELOG.md
+│   └── mod商店拓展plan.md
 ├── libs/                           # Dependencies + manager extensions (API call required)
 │   ├── marked.min.js               # Markdown (changelog / guides)
+│   ├── modStore.js                 # optional: Mod store (delete to disable)
 │   └── piracyGate.js               # optional: piracy gate (delete to disable)
-└── tools/ …
+└── tools/
+    └── modstore/                   # Author packaging & catalog publish tools
 ```
 
 Steam Workshop subscription package (same layout as `_localmods`, scripts at package root):
@@ -193,6 +199,8 @@ Sample packages: `_localmods/TestMDL-V2` (data), `_localmods/TestMRL-V2` (resour
 | [数据和资源前置Mod-V2-需求规格书.md](前置Mod更新日志等/数据和资源前置Mod-V2-需求规格书.md) | Prerequisite mod V2 architecture, API, and MVP spec |
 | [前置Mod测试清单.md](前置Mod更新日志等/前置Mod测试清单.md) | Prerequisite mod test checklist (some cases passed) |
 | [modloader_CHANGELOG.md](modloader_CHANGELOG.md) | ModLoader full changelog |
+| [mod商店拓展plan.md](mod商店拓展plan.md) | Mod store extension design & test summary |
+| [tools/modstore/gui/README.md](../tools/modstore/gui/README.md) | Author packaging GUI & catalog publishing |
 | [ModDataLoader_CHANGELOG.md](前置Mod更新日志等/ModDataLoader_CHANGELOG.md) | ModDataLoader changelog |
 | [ModResourceLoader_CHANGELOG.md](前置Mod更新日志等/ModResourceLoader_CHANGELOG.md) | ModResourceLoader changelog |
 
@@ -268,4 +276,4 @@ MIT License — see [LICENSE](LICENSE)
 
 ***
 
-**Version**: V4.1.13 | **Updated**: 2026-07-29
+**Version**: V4.1.14 | **Updated**: 2026-08-23

@@ -11,8 +11,9 @@
 | --- | --- |
 | [`ModLoader_模块结构.md`](ModLoader_模块结构.md) | 维护地图：改动归属、测试粒度、管理器边界 |
 | [`V4.1_测试文档.md`](V4.1_测试文档.md) | 发版前手工测试清单 |
-| [`使用手册.md`](使用手册.md) | 玩家 / 作者：路径、工坊、安装与配置 |
+| [`使用手册.md`](使用手册.md) | 玩家 / 作者 / 制作者：路径、工坊、Mod 商店、安装与配置 |
 | [`modloader_CHANGELOG.md`](modloader_CHANGELOG.md) | 版本史（权威） |
+| [`mod商店拓展plan.md`](mod商店拓展plan.md) | Mod 商店拓展设计与待办 |
 | [`adr/CONTEXT.md`](adr/CONTEXT.md) | 名词；ADR 记架构决策 |
 
 本文件不维护模块清单、行号对照或内部函数黄页。

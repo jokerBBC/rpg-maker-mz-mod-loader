@@ -141,7 +141,7 @@
   "tab.all": "All",
   "tab.local": "Local",
   "tab.workshop": "Workshop",
-  "workshop.refresh": "Refresh Workshop",
+  "workshop.refresh": "Refresh List",
   "workshop.disabledHint": "Workshop is not enabled for this game",
   "workshop.badge": "WS",
   "workshop.missing": "Subscribed but missing valid script files",

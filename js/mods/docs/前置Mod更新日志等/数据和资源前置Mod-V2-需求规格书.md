@@ -142,7 +142,9 @@ ModDataLoader.registerMapDataFromUrl()    // 不做网络 URL
 // modloader.json 完整示例
 {
   "schemaVersion": 1,
-  "title": "修仙扩展包",
+  "name": "修仙扩展包",
+  "version": "V1.0.0",
+  "description": "修仙扩展包",
   "entries": ["FY_XY_Mod.js"],
   "data": {
     "enabled": true,
@@ -339,8 +341,10 @@ Mod 在 `modloader.json` 中声明 `resources` 字段，ModResourceLoader 启动
 
 ```json
 {
+  "name": "MyMod",
+  "version": "V1.0.0",
+  "description": "我的 Mod",
   "modId": "MyMod",
-  "title": "我的 Mod",
   "entries": ["MyMod.js"],
   "resources": {
     "img/菜单/现实时间图标": "img/clock.png"
@@ -470,8 +474,10 @@ ModLoader 在加载 Mod 时检查 `@base` 声明：如果依赖的前置 Mod 未
 
 ```json
 {
+  "name": "MyMod",
+  "version": "V1.0.0",
+  "description": "我的 Mod",
   "modId": "MyMod",
-  "title": "我的 Mod",
   "entries": ["MyMod.js"],
   "resources": {
     "img/菜单/现实时间图标": "img/clock.png"
@@ -536,16 +542,16 @@ ModLoader 在加载 Mod 时检查 `@base` 声明：如果依赖的前置 Mod 未
 ```text
 _localmods/
   ModDataLoader/
-    modloader.json        # { "title": "数据前置", "entries": ["ModDataLoader.js"] }
+    modloader.json        # { "name": "ModDataLoader", "entries": ["ModDataLoader.js"] }
     ModDataLoader.js      # 数据前置核心
     调用规范.md            # Mod 作者调用指南
 
   ModResourceLoader/
-    modloader.json        # { "title": "资源前置", "entries": ["ModResourceLoader.js"] }
+    modloader.json        # { "name": "ModResourceLoader", "entries": ["ModResourceLoader.js"] }
     ModResourceLoader.js  # 资源前置核心
 
   某功能Mod/
-    modloader.json        # { "modId": "某功能Mod", "entries": ["某功能.js"],
+    modloader.json        # { "name": "某功能Mod", "modId": "...", "entries": ["某功能.js"],
                           #   "data": { ... }, "resources": { ... } }
     某功能.js             # @base ModDataLoader / @base ModResourceLoader
     data/
