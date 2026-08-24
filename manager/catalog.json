@@ -2,13 +2,13 @@
   "schema": 1,
   "id": "modloader-manager",
   "version": "V4.3.1",
-  "publishedAt": "2026-08-24T13:27:05Z",
+  "publishedAt": "2026-08-24T15:13:18Z",
   "changelogPath": "docs/modloader_CHANGELOG.md",
   "files": [
     {
       "path": "ModLoader.js",
-      "sha256": "514c406a6970e372ec361fd135b78f4d4c49ac971d0e4a7e5ded1c4c100b7797",
-      "size": 295787
+      "sha256": "73776685480b301636df0ac07191bfa388eea09783faf467fb5e42575bbd916c",
+      "size": 302767
     },
     {
       "path": "config/language/en.json",
@@ -192,8 +192,8 @@
     },
     {
       "path": "tools/modstore/gui/启动Mod打包工具.bat",
-      "sha256": "91fc54f8ba6785744be3c5870b9db9fe429c6af3e6bc66096800e055042177c9",
-      "size": 640
+      "sha256": "1ab46cf04556f1acb917f69ebf5f2a5de2a175ec8232b5146765b7ad8106297f",
+      "size": 612
     },
     {
       "path": "tools/modstore/modStorePublishCore.js",

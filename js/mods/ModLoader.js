@@ -2,7 +2,7 @@
  * @target MZ
  * @plugindesc 游戏内模组管理器（DOM化UI & 现代交互 & 拖放添加Mod & 滑动条/长文本/数据库引用）
  * @author joker创意 / GLM核心代码
- * @version V4.3.0
+ * @version V4.3.1
  *
  * @help
  * 【功能及使用方式】
