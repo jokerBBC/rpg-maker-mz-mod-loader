@@ -10,7 +10,7 @@
 | 文档 | 用途 |
 | --- | --- |
 | [`ModLoader_模块结构.md`](ModLoader_模块结构.md) | 维护地图：改动归属、测试粒度、管理器边界 |
-| [`V4.1_测试文档.md`](V4.1_测试文档.md) | 发版前手工测试清单 |
+| [`ModLoader_测试文档.md`](ModLoader_测试文档.md) | 发版前手工测试清单 |
 | [`使用手册.md`](使用手册.md) | 玩家 / 作者 / 制作者：路径、工坊、Mod 商店、安装与配置 |
 | [`modloader_CHANGELOG.md`](modloader_CHANGELOG.md) | 版本史（权威） |
 | [`mod商店拓展plan.md`](mod商店拓展plan.md) | Mod 商店拓展设计与待办 |
@@ -96,5 +96,5 @@
 
 1.  bump `VERSION`，写好 CHANGELOG  
 2. 按需同步使用手册 / README  
-3. 按 [`V4.1_测试文档.md`](V4.1_测试文档.md) 抽测相关章节  
+3. 按 [`ModLoader_测试文档.md`](ModLoader_测试文档.md) 抽测相关章节（如新功能对应 §O / §P 等）  
 4. 改到纯逻辑时，优先按模块结构补/跑自动测，再进游戏抽查 UI  

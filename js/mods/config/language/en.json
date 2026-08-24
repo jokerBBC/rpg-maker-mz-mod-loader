@@ -52,6 +52,8 @@
   "detail.statusDisabled": "Disabled",
   "detail.noHelp": "No help available",
   "detail.noModFound": "No mods found",
+  "detail.changelog": "Changelog",
+  "detail.changelogTitle": "{name} {version} Changelog",
 
   "param.title": "Edit Parameters",
   "param.typeText": "Text",

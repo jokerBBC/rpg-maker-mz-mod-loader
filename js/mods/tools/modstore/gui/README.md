@@ -82,9 +82,10 @@
 
 关闭工具后可删除整个 `user-data/` 文件夹，数据与工具同目录，不在 C 盘用户目录留残留。
 
-## 打包核心
+## 与 CLI 的关系
 
-- 核心逻辑：`../modStorePublishCore.js`（GUI 与发布流程共用）
+- 核心逻辑：`../modStorePublishCore.js`（GUI / CLI 共用）
+- 维护者 CLI：`../modStorePublish.js`、`../batchPublishGitee.js`
 - 版本读取规则：**`modloader.json` 优先**，单脚本包可读 js `@version`
 
 ## 命名与 catalog 字段
@@ -97,10 +98,12 @@
 | `sha256` | 是 | zip 的 64 位小写十六进制 |
 | `size` | 建议 | zip 字节数；**>50MB** 断点续传依赖准确 `size` |
 | `summary` | 建议 | 列表简介（来自 `modloader.json` 的 `description`） |
-| `hosts` | 建议 | 下载域名白名单，如 `["gitee.com"]` |
+| `changelogUrl` | 可选 | 包根有 `CHANGELOG.md` 时写入；指向仓库 `changelog/<包名>.md`；无则不写 |
+| `hosts` | 建议 | 下载域名白名单，如 `["gitee.com"]`；zip 与 changelog 不同域时须都列入 |
 | `id` | 与 `packageName` 相同 | 运行时规范化后等同 `packageName`；勿与目录名不一致 |
-| `title` | 可省略 | 历史字段；列表 UI 展示 `packageName`，非 `title` |
+| ~~`title`~~ | **已废弃** | 勿写入 catalog；历史字段，发布工具写入时会剔除；列表 UI 只用 `packageName` |
 
 - **zip 文件名**：`<packageName>-<version去V前缀>.zip`（例：`ExampleMod-1.0.0.zip`）
 - **多脚本包**：须在 `modloader.json` 写 `version`（包版本）
+- **更新日志**：包根唯一文件名 `CHANGELOG.md`（随 zip）；打包时复制到仓库 `changelog/` 并写 `changelogUrl`。详见 [`docs/mod商店拓展plan.md`](../../../docs/mod商店拓展plan.md) §5.1
 - 模板见：`../modstore-catalog.template.json`

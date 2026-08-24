@@ -2,6 +2,7 @@
 
 > 用途：以后小范围改功能时，先查「改动放哪 / 怎么测 / 别往哪塞」。  
 > 状态：可行性分析结论（2026-07-29）。**尚未拆文件**；当前代码仍在单文件 `ModLoader.js` 的注释分区里。  
+> 当前版本：**V4.3.0**（2026-08-24 文档维护）  
 > 玩家安装：整合包安装器整包拷贝 `js`，内部多几个脚本不影响小白。
 
 相关：`docs/adr/CONTEXT.md`（名词）· `docs/adr/0001-modloader-module-boundaries.md`（为何这样切）· [`RMMZ_ModLoader_开发规范.md`](RMMZ_ModLoader_开发规范.md)（代码约定与发版）
@@ -67,14 +68,16 @@ js/mods/
 | `@base` / `@orderAfter` 文案或状态 | **依赖判定** | 表驱动：缺插件/未开/顺序错等组合；UI 只抽查颜色/提示 |
 | 启用 Mod 却缺前置导致崩 | 加载守卫在主文件 5.5，判定规则应与 **依赖判定**一致 | 依赖模块自动测 + 游戏里关前置试一次 |
 | 列表筛选 / 详情布局 / 主题 / 语言切换文案 | 主文件界面 + `config/language` | 进游戏看一眼 |
+| Mod 详情「更新日志」/ 公用 changelog 弹窗 | 主文件 `showChangelogModal` / `showModChangelog`；包根 `CHANGELOG.md` | 选有版本 + 有 CHANGELOG 的包点链接；头部 (日志) 测管理器自身 |
 | Steam 风格拖拽排序手感 | 主文件 6.3.1 | 进游戏拖几下（逻辑未改时不必全量回归解析） |
 | 冲突日志**内容**（谁覆盖谁） | **不要**进管理器；走 `registerLogEntry`，由前置 Mod 的 `render` | 测前置 Mod；管理器只测「菜单有入口、空壳能打开」 |
 | 正版/盗版闸门 | **不要**进管理器核心；`libs/` + `registerManagerGate` | 有/无该文件各测一次能否进管理器 |
-| Mod 商店 UI / 下载管线 | **不要**进管理器；`libs/modStore.js` + `registerLogEntry` | 测订阅、下载、角标；管理器只提供 API 与「刷新列表」 |
-| Markdown 渲染库 | `libs/marked.min.js`，不要塞回主文件 | 更新日志弹窗打开即可 |
+| Mod 商店 UI / 下载管线 / 内嵌 i18n / 商店 changelog 按钮 | **不要**进管理器；`libs/modStore.js` + `registerLogEntry`（弹窗委托 `ModLoader.showChangelogModal`） | 测订阅、下载、角标、切换语言后重进商店、更新日志按钮 |
+| 管理器在线更新 / catalog 下载 / 备份替换 / 升级日志 UI | **不要**进管理器；`libs/modLoaderUpdater.js` + `registerLogEntry` | 测检查、更新、禁用、角标加算、F5 提示、复制日志；与商店分离 |
+| Markdown 渲染库 | `libs/marked.min.js`，不要塞回主文件 | 管理器 (日志) / 详情更新日志 / 商店更新日志 各打开一次 |
 | 工坊 `entries` 路径穿越、只允许文件名 | 将来 **包发现**；现 5.1 | 假 manifest 自动测；游戏里装一个合法包抽查 |
 | `mod_config` 键、meta 键过滤 | 配置核心 / 模块 2 | 假配置对象自动测；保存后看 json |
-| 对外 API（`registerLogEntry` 等） | 主文件 6.8，保持稳定 | 前置 Mod 注册后看设置菜单 |
+| 对外 API（`registerLogEntry` / `showChangelogModal` 等） | 主文件 6.8，保持稳定 | 前置 Mod 注册后看设置菜单；商店 / 详情 changelog 弹窗 |
 
 ---
 
@@ -84,10 +87,11 @@ js/mods/
 
 1. **冲突详情 UI / 数据冲突算法** → 前置 Mod（空壳 + `registerLogEntry`）  
 2. **盗版检测** → `libs` 闸门，文件在即开、删即关  
-3. **Mod 商店**（订阅、下载、解压、商店面板）→ `libs/modStore.js`，文件在即开、删即关  
-4. **具体游戏玩法、某功能 Mod 的业务** → `_localmods` / 工坊包，不要写进 `ModLoader.js`  
-5. **大段第三方库** → `libs/`，管理器只加载  
-6. **整份 CSS、语言包** → 已外置 `config/`，不要再内嵌回主文件养双份  
+3. **Mod 商店**（订阅、下载、解压、商店面板、内嵌多语言）→ `libs/modStore.js`，文件在即开、删即关  
+4. **管理器在线更新**（检查/手动更新本体、升级过程日志、角标）→ `libs/modLoaderUpdater.js`，文件在即开、删即关  
+5. **具体游戏玩法、某功能 Mod 的业务** → `_localmods` / 工坊包，不要写进 `ModLoader.js`  
+6. **大段第三方库** → `libs/`，管理器只加载  
+7. **整份 CSS、语言包** → 已外置 `config/`，不要再内嵌回主文件养双份  
 
 拿不准时问一句：**「这是所有 Mod 都需要的管理能力，还是某个前置/功能自己的事？」** 后者不要进主文件。
 

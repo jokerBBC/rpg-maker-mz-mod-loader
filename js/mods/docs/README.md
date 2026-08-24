@@ -1,6 +1,6 @@
 # RMMZ ModLoader
 
-游戏内模组管理器 **V4.1.14**
+游戏内模组管理器 **V4.3.0**
 
 一款功能强大的 RPG Maker MZ 模组管理器，支持在游戏内管理 **本地 Mod** 与 **Steam 创意工坊 Mod** 的开启/关闭、参数编辑、排序与依赖检测。**现已支持多语言界面**（简体中文 / 繁體中文 / English）。
 
@@ -9,7 +9,7 @@
 > **运行环境**：Mod 配置保存在 `mod_config.json`  
 > **不再写入**： `plugins.js`，游戏更新官方插件后 Mod 开关与参数不会丢失  
 > **创意工坊**：需 Steam 正版安装路径才能解析工坊目录  
-> **libs 扩展**：`js/mods/libs/` 可放管理器扩展（如 `piracyGate.js`、`modStore.js`）；调用 `ModLoader` API 才生效。盗版检测：有 `piracyGate.js` 即开启，删除即关闭。Mod 商店：有 `modStore.js` 即开启，删除即关闭。  
+> **libs 扩展**：`js/mods/libs/` 可放管理器扩展（如 `piracyGate.js`、`modStore.js`、`modLoaderUpdater.js`）；调用 `ModLoader` API 才生效。盗版检测：有 `piracyGate.js` 即开启，删除即关闭。Mod 商店：有 `modStore.js` 即开启，删除即关闭。管理器在线更新：有 `modLoaderUpdater.js` 即开启，删除即关闭。  
 
 ***
 
@@ -24,8 +24,10 @@
 | --- | --- |
 | 🎮 **游戏内管理** | 无需额外程序，直接在游戏中管理 Mod 开关、参数与排序 |
 | 🛒 **Steam 创意工坊** | 扫描 `workshop/content/<AppID>/`（AppID 可配置）；筛选、刷新列表；本地与工坊统一包结构 |
-| 🏪 **Mod 商店** | 游戏**未开通** Steam 创意工坊时，订阅 Mod 作者 HTTPS 源，在游戏内浏览、下载与一键更新整包到 `_localmods`；可与工坊并存（工坊 Mod 仍由 Steam 更新；需 `modStore.js`） |
-| 📦 **统一包结构** | 本地 `_localmods/<包名>/` 与工坊订阅包根目录布局一致（V4.1） |
+| 🏪 **Mod 商店拓展** | `libs/modStore.js`：多源 HTTPS catalog 订阅、下载/更新整包到 `_localmods`、断点续传（>50MB）；**UI 多语言**（简中 / 繁中 / English）；列表「更新日志」按钮 |
+| 🔄 **管理器在线更新** | `libs/modLoaderUpdater.js`：设置内手动检查/更新 ModLoader 本体（catalog + raw 单文件）；与 Mod 商店分离；禁用开关；绿色角标加算 |
+| 📦 **统一包结构** | 本地 `_localmods/<包名>/` 与工坊订阅包根目录布局一致（V4.1）；包根 `CHANGELOG.md` 为 Mod 更新日志唯一位置（V4.2） |
+| 📋 **Mod 更新日志** | 管理器详情版本旁「更新日志」；头部「(日志)」为管理器自身日志；商店 / 详情 / 管理器共用 Markdown 弹窗 |
 | ⚙️ **参数编辑** | 数值、开关、文本、单选、颜色、长文本、数据库引用、struct、table |
 | 🔀 **排序与依赖** | 拖拽/序号排序；`@base` / `@orderAfter` 依赖检测；缺失 `@base` 时自动跳过加载（依赖守卫） |
 | ⚠️ **冲突日志面板** | 设置齿轮菜单底部入口 + 管理器内空壳面板（内容由前置 Mod `render`）；有冲突时齿轮旁红叹号 |
@@ -126,7 +128,7 @@
 
 ***
 
-## 📁 项目结构（V4.1）
+## 📁 项目结构（V4.3）
 
 ```
 js/mods/
@@ -136,29 +138,36 @@ js/mods/
 │   ├── modloader.css
 │   ├── modloader_config.json
 │   ├── mod_store.json              # Mod 商店订阅（有 modStore.js 时）
-│   └── language/
+│   ├── modloader_updater.json      # 管理器更新偏好（有 modLoaderUpdater.js 时）
+│   └── language/                   # 管理器 UI 多语言（zh_CN / zh_TW / en）
 ├── _localmods/                     # 本地 Mod 包
 │   ├── ModDataLoader/              # 数据前置（merge/replace/add）
 │   ├── ModResourceLoader/          # 资源前置（替换/新增）
 │   └── <包名>/
 │       ├── <脚本>.js
+│       ├── CHANGELOG.md            # 可选；Mod 更新日志（V4.2 包根唯一名）
 │       ├── preview.png             # 可选
-│       └── modloader.json          # 可选（多脚本）
+│       └── modloader.json          # 可选（多脚本必填 version）
 ├── _workshop/<fileId>/             # 工坊 junction（自动生成）
 ├── docs/
 │   ├── README.md                   # 本说明
 │   ├── README-en.md                # English guide
 │   ├── 使用手册.md
-│   ├── V4.1_测试文档.md
-│   ├── V4.1_测试文档.md
-│   ├── modloader_CHANGELOG.md
-│   └── mod商店拓展plan.md
+│   ├── ModLoader_模块结构.md       # 维护地图（改哪 / 怎么测）
+│   ├── RMMZ_ModLoader_开发规范.md
+│   ├── ModLoader_测试文档.md         # 功能测试清单（发版抽测）
+│   ├── modloader_CHANGELOG.md      # 管理器自身更新日志
+│   ├── mod商店拓展plan.md
+│   ├── 管理器在线更新plan.md
+│   └── 前置Mod更新日志等/          # 前置 Mod 文档（非功能 Mod 包日志）
 ├── libs/                           # 依赖库 + 管理器扩展（调用 API 才生效）
-│   ├── marked.min.js               # Markdown 依赖（changelog / 攻略等）
-│   ├── modStore.js                 # 可选：Mod 商店（删除即关闭）
-│   └── piracyGate.js               # 可选：盗版检测闸门（删除即关闭）
+│   ├── marked.min.js               # Markdown 渲染（changelog 弹窗等）
+│   ├── modStore.js                 # 可选：Mod 商店（删即关；内嵌 STORE_I18N_PACKS）
+│   ├── modLoaderUpdater.js         # 可选：管理器在线更新（删即关；内嵌 I18N_PACKS）
+│   └── piracyGate.js               # 可选：盗版检测闸门（删即关）
 └── tools/
-    └── modstore/                   # 作者打包与 catalog 发布工具
+    ├── modstore/                   # 作者 Mod 商店打包与 catalog 发布
+    └── manager-release/            # 管理器发版 sync（channel / catalog）
 ```
 
 Steam 工坊订阅包（与 `_localmods` 同布局，脚本在包根）：
@@ -190,7 +199,7 @@ ModLoader 仅管理 `.js` 插件的开关、排序与参数；**数据库与游�
 | [使用手册.md](使用手册.md) | 游戏制作者 / 玩家 / Mod 作者完整指南 |
 | [ModLoader_模块结构.md](ModLoader_模块结构.md) | 维护地图：改动归属、测试粒度、管理器边界 |
 | [RMMZ_ModLoader_开发规范.md](RMMZ_ModLoader_开发规范.md) | 代码约定与发版流程 |
-| [V4.1_测试文档.md](V4.1_测试文档.md) | ModLoader V4.1 功能测试清单 |
+| [ModLoader_测试文档.md](ModLoader_测试文档.md) | ModLoader 功能测试清单（§O 商店、§P 更新日志等） |
 | [调用规范.md](前置Mod更新日志等/调用规范.md) | 前置 Mod 调用规范（数据 + 资源，Mod 作者必读） |
 | [数据和资源前置Mod-V2-需求规格书.md](前置Mod更新日志等/数据和资源前置Mod-V2-需求规格书.md) | 前置 Mod V2 架构、API 与 MVP 规格 |
 | [前置Mod测试清单.md](前置Mod更新日志等/前置Mod测试清单.md) | 前置 Mod 功能测试清单（部分项已通过） |
@@ -272,4 +281,4 @@ MIT License — 详见 [LICENSE](LICENSE)
 
 ***
 
-**版本**: V4.1.14 | **更新日期**: 2026-08-23
+**版本**: V4.3.0 | **更新日期**: 2026-08-24

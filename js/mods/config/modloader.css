@@ -1521,6 +1521,11 @@ html[data-ml-theme="warm"] {
     color: var(--ml-accent-hover, #64b5f6);
 }
 
+.ml-detail-value .ml-changelog-link {
+    font-size: 12px;
+    margin-left: 8px;
+}
+
 .ml-changelog-overlay {
     z-index: 10002;
 }
@@ -1884,7 +1889,8 @@ html[data-ml-theme="warm"] {
     min-height: 0;
 }
 
-.ml-log-panel-body.ml-store-panel-root {
+.ml-log-panel-body.ml-store-panel-root,
+.ml-log-panel-body.ml-updater-panel-root {
     overflow: hidden;
     display: flex;
     flex-direction: column;

@@ -13,8 +13,8 @@
  *
  * 在 modloader.json 中声明 resources 字段即可：
  * {
+ *     "name": "MyMod",
  *     "modId": "MyMod",
- *     "title": "MyMod",
  *     "entries": ["MyMod.js"],
  *     "resources": {
  *         "img/菜单/现实时间图标": "img/clock.png"

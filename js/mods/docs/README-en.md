@@ -2,7 +2,7 @@
 
 > **[中文版 README](README.md)**
 
-In-game mod manager **V4.1.14**
+In-game mod manager **V4.3.0**
 
 A powerful RPG Maker MZ mod manager that lets you enable/disable, edit parameters, reorder, and check dependencies for **local mods** and **Steam Workshop mods** — all from inside the game. **Multilingual UI** is supported (Simplified Chinese / Traditional Chinese / English).
 
@@ -11,7 +11,7 @@ A powerful RPG Maker MZ mod manager that lets you enable/disable, edit parameter
 > **Runtime environment**: Mod configuration is saved in `mod_config.json` ,
 and is **no longer written** to `plugins.js`, so mod toggles and parameters survive official plugin updates.   
 > **Steam Workshop** requires a legitimate Steam install path to resolve Workshop directories.  
-> **libs extensions**: scripts under `js/mods/libs/` take effect only when they call ModLoader APIs. Piracy detection: ship `piracyGate.js` to enable; delete to disable. Mod store: ship `modStore.js` to enable; delete to disable.  
+> **libs extensions**: scripts under `js/mods/libs/` take effect only when they call ModLoader APIs. Piracy detection: ship `piracyGate.js` to enable; delete to disable. Mod store: ship `modStore.js` to enable; delete to disable. Manager self-update: ship `modLoaderUpdater.js` to enable; delete to disable.  
 
 ***
 
@@ -28,8 +28,10 @@ and is **no longer written** to `plugins.js`, so mod toggles and parameters surv
 | --- | --- |
 | 🎮 **In-game management** | Manage mod toggles, parameters, and load order without external tools |
 | 🛒 **Steam Workshop** | Scans `workshop/content/<AppID>/` (AppID configurable); filter, refresh list; unified package layout for local and Workshop mods |
-| 🏪 **Mod store** | When Steam Workshop is **not enabled**, subscribe to authors' HTTPS catalogs and browse, download, and update full packages to `_localmods` in-game; coexists with Workshop (Workshop mods still update via Steam; requires `modStore.js`) |
-| 📦 **Unified package layout** | Local `_localmods/<package>/` matches Workshop subscription root layout (V4.1) |
+| 🏪 **Mod store extension** | `libs/modStore.js`: multi-source HTTPS catalog subscribe, download/update packages to `_localmods`, resume for large files (>50MB); **multilingual UI** (Simplified / Traditional Chinese, English — follows manager language); list **Changelog** button |
+| 🔄 **Manager self-update** | `libs/modLoaderUpdater.js`: manual check/update for ModLoader itself (catalog + raw files); separate from Mod store; disable toggle; green badge additive |
+| 📦 **Unified package layout** | Local `_localmods/<package>/` matches Workshop subscription root layout (V4.1); package-root `CHANGELOG.md` is the only mod changelog location (V4.2) |
+| 📋 **Mod changelogs** | Detail panel link next to version; header **(Changelog)** for ModLoader itself; shared Markdown modal for store / detail / manager |
 | ⚙️ **Parameter editor** | number, boolean, string, select, color, note, database refs, struct, table |
 | 🔀 **Order & dependencies** | Drag/index reordering; `@base` / `@orderAfter` checks; skips loading when `@base` is missing (dependency guard) |
 | ⚠️ **Conflict log panel** | Settings gear menu entry + empty shell panel (content from prerequisite mod `render`); red bang beside gear when conflicts exist |
@@ -130,7 +132,7 @@ Add `ModLoader.js` to the RMMZ Plugin Manager list.
 
 ***
 
-## 📁 Project structure (V4.1)
+## 📁 Project structure (V4.3)
 
 ```
 js/mods/
@@ -140,29 +142,36 @@ js/mods/
 │   ├── modloader.css
 │   ├── modloader_config.json
 │   ├── mod_store.json              # Mod store subscriptions (when modStore.js is present)
-│   └── language/
+│   ├── modloader_updater.json      # Manager update prefs (when modLoaderUpdater.js is present)
+│   └── language/                   # Manager UI i18n (zh_CN / zh_TW / en)
 ├── _localmods/                     # Local mod packages
 │   ├── ModDataLoader/              # Data prerequisite (merge/replace/add)
 │   ├── ModResourceLoader/          # Resource prerequisite (replace/add)
 │   └── <package>/
 │       ├── <script>.js
+│       ├── CHANGELOG.md            # optional; mod changelog (V4.2 package-root only)
 │       ├── preview.png             # optional
-│       └── modloader.json          # optional (multi-script)
+│       └── modloader.json          # optional (multi-script requires version)
 ├── _workshop/<fileId>/             # Workshop junction (auto-generated)
 ├── docs/
 │   ├── README.md                   # Chinese guide
 │   ├── README-en.md                # This guide
 │   ├── 使用手册.md
-│   ├── V4.1_测试文档.md
-│   ├── V4.1_测试文档.md
-│   ├── modloader_CHANGELOG.md
-│   └── mod商店拓展plan.md
+│   ├── ModLoader_模块结构.md       # Maintainer map
+│   ├── RMMZ_ModLoader_开发规范.md
+│   ├── ModLoader_测试文档.md         # Feature test checklist (release spot checks)
+│   ├── modloader_CHANGELOG.md      # ModLoader changelog
+│   ├── mod商店拓展plan.md
+│   ├── 管理器在线更新plan.md
+│   └── 前置Mod更新日志等/          # Prerequisite mod docs (not feature-mod changelogs)
 ├── libs/                           # Dependencies + manager extensions (API call required)
-│   ├── marked.min.js               # Markdown (changelog / guides)
-│   ├── modStore.js                 # optional: Mod store (delete to disable)
+│   ├── marked.min.js               # Markdown rendering (changelog modals, etc.)
+│   ├── modStore.js                 # optional: Mod store (delete to disable; embedded STORE_I18N_PACKS)
+│   ├── modLoaderUpdater.js         # optional: manager self-update (delete to disable; embedded I18N_PACKS)
 │   └── piracyGate.js               # optional: piracy gate (delete to disable)
 └── tools/
-    └── modstore/                   # Author packaging & catalog publish tools
+    ├── modstore/                   # Author Mod store packaging & catalog publish
+    └── manager-release/            # Manager release sync (channel / catalog)
 ```
 
 Steam Workshop subscription package (same layout as `_localmods`, scripts at package root):
@@ -194,7 +203,7 @@ Sample packages: `_localmods/TestMDL-V2` (data), `_localmods/TestMRL-V2` (resour
 | [使用手册.md](使用手册.md) | Full guide for game authors / players / mod authors |
 | [ModLoader_模块结构.md](ModLoader_模块结构.md) | Maintainer map: where changes go, how to test, manager boundaries |
 | [RMMZ_ModLoader_开发规范.md](RMMZ_ModLoader_开发规范.md) | Coding conventions and release checklist |
-| [V4.1_测试文档.md](V4.1_测试文档.md) | ModLoader V4.1 feature test checklist |
+| [ModLoader_测试文档.md](ModLoader_测试文档.md) | ModLoader feature test checklist (§O store, §P changelogs, etc.) |
 | [调用规范.md](前置Mod更新日志等/调用规范.md) | Prerequisite mod usage spec (data + resources; required for mod authors) |
 | [数据和资源前置Mod-V2-需求规格书.md](前置Mod更新日志等/数据和资源前置Mod-V2-需求规格书.md) | Prerequisite mod V2 architecture, API, and MVP spec |
 | [前置Mod测试清单.md](前置Mod更新日志等/前置Mod测试清单.md) | Prerequisite mod test checklist (some cases passed) |
@@ -276,4 +285,4 @@ MIT License — see [LICENSE](LICENSE)
 
 ***
 
-**Version**: V4.1.14 | **Updated**: 2026-08-23
+**Version**: V4.3.0 | **Updated**: 2026-08-24

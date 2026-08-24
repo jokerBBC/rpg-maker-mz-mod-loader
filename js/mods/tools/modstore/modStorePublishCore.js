@@ -17,6 +17,9 @@ function isSafePackageName(name) {
     return true;
 }
 
+var CHANGELOG_FILENAME = 'CHANGELOG.md';
+var CHANGELOG_REPO_DIR = 'changelog';
+
 function readManifest(packageRoot) {
     var p = path.join(packageRoot, 'modloader.json');
     if (!fs.existsSync(p)) return null;
@@ -25,6 +28,25 @@ function readManifest(packageRoot) {
     } catch (e) {
         throw new Error('modloader.json 解析失败: ' + (e.message || e));
     }
+}
+
+/** 包根是否存在唯一合法名 CHANGELOG.md */
+function hasPackageChangelog(packageRoot) {
+    try {
+        var p = path.join(packageRoot, CHANGELOG_FILENAME);
+        return fs.existsSync(p) && fs.statSync(p).isFile();
+    } catch (e) {
+        return false;
+    }
+}
+
+function packageChangelogPath(packageRoot) {
+    return path.join(packageRoot, CHANGELOG_FILENAME);
+}
+
+/** 仓库内 changelog 相对路径：changelog/<packageName>.md */
+function repoChangelogRelPath(packageName) {
+    return CHANGELOG_REPO_DIR + '/' + packageName + '.md';
 }
 
 function readVersionFromScripts(packageRoot) {
@@ -127,7 +149,6 @@ function resolvePackageMeta(packageName, packageRoot, opts) {
         || '';
     return {
         version: String(version).trim(),
-        title: packageName,
         summary: String(summary).trim(),
         manifest: manifest
     };
@@ -409,7 +430,44 @@ function loadOrCreateCatalog(catalogPath, opts) {
     };
 }
 
+function sanitizeCatalogModEntry(entry) {
+    var out = Object.assign({}, entry);
+    delete out.title;
+    if (out.changelogUrl != null && !String(out.changelogUrl).trim()) {
+        delete out.changelogUrl;
+    }
+    return out;
+}
+
+/** 合并 hosts 白名单（去重、小写主机名保持原样写入时用 URL hostname） */
+function mergeHosts(baseHosts, extraHostnames) {
+    var out = [];
+    var seen = {};
+    function add(h) {
+        var s = String(h || '').trim();
+        if (!s) return;
+        var key = s.toLowerCase();
+        if (seen[key]) return;
+        seen[key] = true;
+        out.push(s);
+    }
+    var base = Array.isArray(baseHosts) ? baseHosts : [];
+    for (var i = 0; i < base.length; i++) add(base[i]);
+    var extra = Array.isArray(extraHostnames) ? extraHostnames : [extraHostnames];
+    for (var j = 0; j < extra.length; j++) add(extra[j]);
+    return out;
+}
+
+function stripDeprecatedCatalogFields(catalog) {
+    if (!catalog || !Array.isArray(catalog.mods)) return catalog;
+    catalog.mods = catalog.mods.map(sanitizeCatalogModEntry);
+    return catalog;
+}
+
 function upsertCatalogEntry(catalog, entry) {
+    var clearChangelog = Object.prototype.hasOwnProperty.call(entry, 'changelogUrl')
+        && !String(entry.changelogUrl || '').trim();
+    entry = sanitizeCatalogModEntry(entry);
     var idx = -1;
     for (var i = 0; i < catalog.mods.length; i++) {
         var m = catalog.mods[i];
@@ -418,10 +476,12 @@ function upsertCatalogEntry(catalog, entry) {
     }
     if (idx >= 0) {
         var prev = catalog.mods[idx];
-        catalog.mods[idx] = Object.assign({}, prev, entry);
+        var merged = Object.assign({}, prev, entry);
+        if (clearChangelog) delete merged.changelogUrl;
+        catalog.mods[idx] = sanitizeCatalogModEntry(merged);
         if (!entry.hosts && prev.hosts) catalog.mods[idx].hosts = prev.hosts;
         if (!entry.summary && prev.summary) catalog.mods[idx].summary = prev.summary;
-        if (!entry.title && prev.title) catalog.mods[idx].title = prev.title;
+        if (clearChangelog) delete catalog.mods[idx].changelogUrl;
     } else {
         catalog.mods.push(entry);
     }
@@ -498,7 +558,6 @@ function scanLocalMods(localmodsDir, opts) {
             scriptCount: 0,
             modId: null,
             version: null,
-            title: packageName,
             summary: '',
             publishedVersion: null,
             status: 'error',
@@ -557,12 +616,13 @@ function publishPackage(opts) {
     var outDir = opts.outDir;
     var zipPath = path.join(outDir, zipName);
 
+    var hasChangelog = hasPackageChangelog(packageRoot);
     var result = {
         packageName: packageName,
         modId: modId,
         version: meta.version,
-        title: meta.title,
         summary: meta.summary,
+        hasChangelog: hasChangelog,
         fileCount: files.length,
         size: zipBuf.length,
         sha256: hash,
@@ -578,22 +638,30 @@ function publishPackage(opts) {
 
     if (opts.catalogPath && opts.downloadUrl) {
         var urlObj = assertHttpsUrl(opts.downloadUrl);
+        var hosts = opts.hosts && opts.hosts.length ? opts.hosts.slice() : [urlObj.hostname];
         var entry = {
             id: modId,
             packageName: packageName,
-            title: meta.title,
             version: meta.version,
             downloadUrl: opts.downloadUrl,
             sha256: hash,
             size: zipBuf.length,
             summary: meta.summary,
-            hosts: opts.hosts && opts.hosts.length ? opts.hosts : [urlObj.hostname]
+            hosts: hosts
         };
+        if (hasChangelog && opts.changelogUrl) {
+            var cu = assertHttpsUrl(opts.changelogUrl);
+            entry.changelogUrl = opts.changelogUrl;
+            entry.hosts = mergeHosts(hosts, cu.hostname);
+        } else {
+            entry.changelogUrl = '';
+        }
         var catalog = loadOrCreateCatalog(opts.catalogPath, opts);
         if (opts.sourceId) catalog.sourceId = opts.sourceId;
         if (opts.sourceName) catalog.sourceName = opts.sourceName;
         upsertCatalogEntry(catalog, entry);
-        result.catalogEntry = entry;
+        stripDeprecatedCatalogFields(catalog);
+        result.catalogEntry = sanitizeCatalogModEntry(entry);
         if (!opts.dryRun) {
             fs.mkdirSync(path.dirname(opts.catalogPath), { recursive: true });
             fs.writeFileSync(opts.catalogPath, JSON.stringify(catalog, null, 2) + '\n', 'utf-8');
@@ -615,6 +683,8 @@ function publishPackage(opts) {
 }
 
 module.exports = {
+    CHANGELOG_FILENAME: CHANGELOG_FILENAME,
+    CHANGELOG_REPO_DIR: CHANGELOG_REPO_DIR,
     isSafePackageName: isSafePackageName,
     discoverPackageScripts: discoverPackageScripts,
     resolveModId: resolveModId,
@@ -633,6 +703,12 @@ module.exports = {
     loadCatalog: loadCatalog,
     loadOrCreateCatalog: loadOrCreateCatalog,
     upsertCatalogEntry: upsertCatalogEntry,
+    sanitizeCatalogModEntry: sanitizeCatalogModEntry,
+    stripDeprecatedCatalogFields: stripDeprecatedCatalogFields,
+    mergeHosts: mergeHosts,
+    hasPackageChangelog: hasPackageChangelog,
+    packageChangelogPath: packageChangelogPath,
+    repoChangelogRelPath: repoChangelogRelPath,
     buildStandardZip: buildStandardZip,
     sha256Hex: sha256Hex,
     todayStr: todayStr,

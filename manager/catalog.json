@@ -1,0 +1,225 @@
+{
+  "schema": 1,
+  "id": "modloader-manager",
+  "version": "V4.3.0",
+  "publishedAt": "2026-08-24T11:32:29Z",
+  "changelogPath": "docs/modloader_CHANGELOG.md",
+  "files": [
+    {
+      "path": "ModLoader.js",
+      "sha256": "a66dbc0cbfd24e3c640501056f479279c7d77f4d46c9d79e5b8eb8ddebba0a12",
+      "size": 295787
+    },
+    {
+      "path": "config/language/en.json",
+      "sha256": "abd881d3b2d31b44cb103f6ef97f0b6a8d9ef8ab40956c98a64dac4dfbadf477",
+      "size": 7141
+    },
+    {
+      "path": "config/language/zh_CN.json",
+      "sha256": "0b90392517d302670121e610419ca3ff1dc01e8a38f6df76d79dd03933a56f95",
+      "size": 7116
+    },
+    {
+      "path": "config/language/zh_TW.json",
+      "sha256": "1c264a39a307ec1450b903f63b29bdfbb6d3315f6968adfb97b5c4b21d67e378",
+      "size": 7124
+    },
+    {
+      "path": "config/modloader.css",
+      "sha256": "8dfa39818d661e749f7fcf887ce24bc435759fdcb6b272f5527373cc2e3ed7e0",
+      "size": 45660
+    },
+    {
+      "path": "docs/LICENSE",
+      "sha256": "44f08d7e5cfb55216073e5e7f3d324a5ed357534d7affb96af05bec0a5018b91",
+      "size": 1066
+    },
+    {
+      "path": "docs/ModLoader_模块结构.md",
+      "sha256": "04f46c639fcb844f42502c20d37043d53ce6cddcbe9d6411c4d7a3b4835fd9cf",
+      "size": 9419
+    },
+    {
+      "path": "docs/ModLoader_测试文档.md",
+      "sha256": "aa1e8ec65885df2bd7fc4eaf61a98e7e1f444a47d86e32378529fa54386b9fc4",
+      "size": 10953
+    },
+    {
+      "path": "docs/README-en.md",
+      "sha256": "0540f365d3b132b66939e0587cc27f134e57ae17da390af1248579f0ea6070bc",
+      "size": 13023
+    },
+    {
+      "path": "docs/README.md",
+      "sha256": "3e02bddf93e86e0587fb46ce06b18c9b4d642e84ff7490de52046ff0a4577325",
+      "size": 12371
+    },
+    {
+      "path": "docs/RMMZ_ModLoader_开发规范.md",
+      "sha256": "a27e12c85d097118fbb8c4fa609d1b9bd9ffe2bdbe0975a4319b4859f1eb2f3e",
+      "size": 3361
+    },
+    {
+      "path": "docs/img/主界面-创意工坊.png",
+      "sha256": "b19294dca80a0465e7a735a7edee9d22bfd0705d36500e581bd4d6f07c56b763",
+      "size": 89273
+    },
+    {
+      "path": "docs/img/主界面.png",
+      "sha256": "b73201a810f927788edaa27dcfea2b254faf6088b42464bf4e400a8901fa56d2",
+      "size": 77050
+    },
+    {
+      "path": "docs/img/参数界面-一般.png",
+      "sha256": "3bf1ff7c37312821be475119fe4c8640fe246ee936ea2ade936ad80abbc95222",
+      "size": 32964
+    },
+    {
+      "path": "docs/img/参数界面-多级套娃.png",
+      "sha256": "649272cc09136d123f143961be68a07de246d4ab8456d65beac90644b5238c41",
+      "size": 47974
+    },
+    {
+      "path": "docs/img/参数界面-表格.png",
+      "sha256": "94d62aacdddbdaf771de0409ec5c397d2bc89d775fcb80d43f486956874757a9",
+      "size": 33944
+    },
+    {
+      "path": "docs/img/安装.png",
+      "sha256": "b01c0f0b0991a737976b42a1bbee50645a2433008553479ab8520d46bcefa4ac",
+      "size": 31766
+    },
+    {
+      "path": "docs/img/排序与删除.png",
+      "sha256": "93a922f9cb92bc7460f701c74df657a0fc5cb0a13955685a5202b6805f906f84",
+      "size": 125355
+    },
+    {
+      "path": "docs/modloader_CHANGELOG.md",
+      "sha256": "7da0ea4bf60b2e64b5f10e7f86ca67eeba726e3e9cfecc7e085ab170c6c6d3cb",
+      "size": 35691
+    },
+    {
+      "path": "docs/mod商店拓展plan.md",
+      "sha256": "e327e173a295bbd2484447d9cdf59fc5507b0ae6b6cc838848aaf8b22effd4af",
+      "size": 16879
+    },
+    {
+      "path": "docs/使用手册.md",
+      "sha256": "d87188799938030a8c7487730a85351be985e8d5b6ae27ee1463f0b49f42d7e9",
+      "size": 21940
+    },
+    {
+      "path": "docs/前置Mod更新日志等/ModDataLoader_CHANGELOG.md",
+      "sha256": "15912164df7cbbaf80bb13a78b4ca01fddd17184f3d4d88109bd7b286fdd8264",
+      "size": 2496
+    },
+    {
+      "path": "docs/前置Mod更新日志等/ModResourceLoader_CHANGELOG.md",
+      "sha256": "4afa62811460b0f5d5d0b7b1ebc54f04914e610f88e2e3416c7b5dc138d589f6",
+      "size": 2287
+    },
+    {
+      "path": "docs/前置Mod更新日志等/前置Mod测试清单.md",
+      "sha256": "34ec5a18113e5867c8966d2ac63da913ffd530de6e3bf335aa070e3f6bc69704",
+      "size": 9450
+    },
+    {
+      "path": "docs/前置Mod更新日志等/数据和资源前置Mod-V2-需求规格书.md",
+      "sha256": "8b808080f7d3011c7cd845507697bb139d90bcbb477904f70ad274aaee5fe907",
+      "size": 21939
+    },
+    {
+      "path": "docs/前置Mod更新日志等/调用规范.md",
+      "sha256": "8790c6145ccd8a5f4c27b87cc64b3694800ffc12de9953074e685f5d4589c086",
+      "size": 10300
+    },
+    {
+      "path": "libs/marked.min.js",
+      "sha256": "3e7e7d7feb3e5d58cb6c804f68ab5c24cc7e5eb6270fd6e5cbb9124739217d0c",
+      "size": 39903
+    },
+    {
+      "path": "libs/modLoaderUpdater.js",
+      "sha256": "58c6d2584909ca449d57658f4d0e59f38defc5831943ddd7fca076c5f444737e",
+      "size": 47019
+    },
+    {
+      "path": "libs/modStore.js",
+      "sha256": "a15a6dca2af14335d3286a261055f1f64d93366277bcd0b1c12954ae13741c67",
+      "size": 107918
+    },
+    {
+      "path": "libs/piracyGate.js",
+      "sha256": "cfcf8cd5c590bac644bac205d6265062e12ced225b0380aa12eaaa2dde98094b",
+      "size": 4904
+    },
+    {
+      "path": "tools/modstore/gui/README.md",
+      "sha256": "f6cad2629cd1cba44654f9c7026f74a7199c4600f0417eaa8ed35af564b72d40",
+      "size": 5367
+    },
+    {
+      "path": "tools/modstore/gui/folderDialog.js",
+      "sha256": "309661877a077260830b7c25c7f29506ef471fa64703c4a81a639e4fec3f0118",
+      "size": 1653
+    },
+    {
+      "path": "tools/modstore/gui/gitRemote.js",
+      "sha256": "7078aa3b88cf94814bd1ab0bb6b691d6b019161a96a5102116d9e580f2e18536",
+      "size": 20245
+    },
+    {
+      "path": "tools/modstore/gui/pick-folder.ps1",
+      "sha256": "9b44b295d6ea7a11e67b9bb0adda1215c41a1b44572cdd4bf8decfa6f59de14e",
+      "size": 625
+    },
+    {
+      "path": "tools/modstore/gui/public/app.css",
+      "sha256": "83aa42e3500b00045e985ed434e35dd0bfefdb24db9417eb2eedd8cc27a65217",
+      "size": 5191
+    },
+    {
+      "path": "tools/modstore/gui/public/app.js",
+      "sha256": "d088a223f17c66dda0f4f094991267e63d7c8516fa43b52c83121eafeef95525",
+      "size": 12563
+    },
+    {
+      "path": "tools/modstore/gui/public/index.html",
+      "sha256": "6aa0b41e888f2b07de691e446e576166bd7a491c492b1699632d053dc9e880e6",
+      "size": 6263
+    },
+    {
+      "path": "tools/modstore/gui/server.js",
+      "sha256": "096dd7a71ea0e6828cead621d151584dd2c642d50ae14b31466e5ea495d247f4",
+      "size": 12276
+    },
+    {
+      "path": "tools/modstore/gui/start-gui.bat",
+      "sha256": "1ab46cf04556f1acb917f69ebf5f2a5de2a175ec8232b5146765b7ad8106297f",
+      "size": 612
+    },
+    {
+      "path": "tools/modstore/gui/启动Mod打包工具.bat",
+      "sha256": "91fc54f8ba6785744be3c5870b9db9fe429c6af3e6bc66096800e055042177c9",
+      "size": 640
+    },
+    {
+      "path": "tools/modstore/modStorePublishCore.js",
+      "sha256": "12ffd247203ce23f5864dcaaf0022debbebad2671dffa193863de466037bedd9",
+      "size": 24820
+    },
+    {
+      "path": "tools/modstore/modstore-catalog.template.json",
+      "sha256": "723fc9bd338dc51b383291627c36c813a8a9d6054ba048695a570057abb0e9d2",
+      "size": 603
+    }
+  ],
+  "remove": [
+    "tools/manager-release/README.md",
+    "tools/manager-release/pathRules.js",
+    "tools/manager-release/sync.js",
+    "tools/modstore-catalog.template.json"
+  ]
+}

@@ -1,6 +1,6 @@
 # 小型 Mod 商店 · 拓展计划
 
-> 状态：**Phase 1 + 1.5 已完成 · §11 测试清单全部通过**（2026-08-22，含 Gitee + 本地 HTTPS E2E）  
+> 状态：**Phase 1 + 1.5 已完成 · §11 测试清单全部通过**（2026-08-22，含 Gitee + 本地 HTTPS E2E）· **V4.2.0** 管理器详情更新日志 + 公用弹窗已落地  
 > 目标：为未开通 Steam 创意工坊的发行场景，提供本地 `_localmods` 的发现、下载与更新。  
 > 创意工坊 Mod 仍由 Steam 更新，本商店不介入。
 
@@ -39,6 +39,7 @@
 - **>50MB** 断点续传（Range + `config/.modstore-tmp/resume/<sha256>.partial`）
 - 一键更新已安装（**跳过多源** Mod，须玩家逐条选来源）
 - 齿轮左侧**绿色数字角标**（可更新数）；冲突仍为右侧红色 `!`
+- **UI 多语言**（2026-08-24）：简中 / 繁中 / English，内嵌 `STORE_I18N_PACKS`，跟随管理器 `ml_language`（详见 §14）
 
 ### 不做（MVP）
 
@@ -46,7 +47,7 @@
 - 静默自动安装新 Mod（只做发现 + 玩家确认安装）
 - 改工坊订阅 / 扫描逻辑
 - 原生主列表角标、详情页「一键更新」（二期；需额外 API）
-- Phase 1 **不**给 ModLoader 增加 `refreshMods`：装完后点主界面「**刷新列表**」即可
+- 装完后同步主列表：管理器主界面已有「**刷新列表**」，无需额外 `refreshMods` API
 - Phase 1 玩家/作者长文档已补入 [`使用手册.md`](使用手册.md)，作者打包见 [`tools/modstore/gui/README.md`](../../tools/modstore/gui/README.md)
 - 自动剥除 zip 根目录、扁平 zip 兼容（**只认标准一层包目录**，见 §7.1）
 
@@ -59,8 +60,8 @@
 | 商店客户端 | `js/mods/libs/modStore.js` | 订阅、拉目录、比对、下载、解压、面板 UI |
 | 本地配置 | `js/mods/config/mod_store.json` | 已订阅源、`maxDownloadBytes`、`suppressInstallHint` 等 |
 | 远程协议 | 各源 `catalog.json` + 各包 zip | 作者 / 发行方自托管 |
-| 发布工具 | Phase 1.5 | `tools/modstore/gui/` + `modStorePublishCore.js` |
-| 开发测试 | 可选 | 本地 HTTPS 双源/续传/错误场景（非框架仓库分发） |
+| 发布工具 | Phase 1.5 | `tools/modstore/modStorePublish.js` 等 |
+| 本地测试服 | `tools/modstore/test/modStoreLocalHttps.js` | 开发用 HTTPS 双源/续传/错误场景（非运行时依赖） |
 | 管理器本体 | 小改 | `registerLogEntry` 增加可选 `getUpdateCount`；主列表按钮文案「刷新列表」 |
 
 ### 入口
@@ -109,17 +110,61 @@
 | 单脚本 | `modloader.json` → 插件头 `@version` |
 | 多脚本 | **仅** `modloader.json` 的 `version`（包版本）；不回退读某个 js |
 
-**catalog 约定**：`id` 与 `packageName` 相同（客户端加载时会规范化）；zip 名为 `<packageName>-<version去V前缀>.zip`（如 `V1.0.0` → `ExampleMod-1.0.0.zip`）。`summary` 为列表简介；`title` 可省略（UI 展示包目录名）。
+**catalog 约定**：`id` 与 `packageName` 相同（客户端加载时会规范化）；zip 名为 `<packageName>-<version去V前缀>.zip`（如 `V1.0.0` → `ExampleMod-1.0.0.zip`）。`summary` 为列表简介。列表标题一律用 **`packageName`**（包目录名），**勿写 `title`**（历史字段，已废弃；旧 catalog 中残留项由发布工具写入时自动剔除）。
 
 | 字段 | 必填 | 说明 |
 |------|------|------|
-| `packageName` | ✓ | `_localmods` 目录名 |
+| `packageName` | ✓ | `_localmods` 目录名；商店列表标题 |
 | `version` | ✓ | 推荐 `VX.Y.Z` |
 | `downloadUrl` | ✓ | `https` 直链 |
 | `sha256` | ✓ | 64 位小写 hex |
 | `size` | 建议 | 大包断点续传需准确值 |
 | `summary` | 建议 | 来自 `modloader.json` `description` |
-| `hosts` | 建议 | 下载域名白名单 |
+| `changelogUrl` | 可选 | 包根有 `CHANGELOG.md` 时由打包工具写入；指向仓库 `changelog/<packageName>.md` 的 https raw；旧客户端忽略 |
+| `hosts` | 建议 | 下载 / changelog 域名白名单（zip 与日志不同域时须都列入） |
+| ~~`title`~~ | — | **已废弃**（2026-08-23 起发布工具不再写入；客户端 UI 不读） |
+
+### 5.1 Mod 更新日志（changelog · 2026-08-24 定稿）
+
+**目标**：玩家下载/更新前可预览本 Mod 的 Markdown 更新说明；无日志的包零负担。
+
+| 项 | 约定 |
+|----|------|
+| 包内文件 | 根目录 **`CHANGELOG.md`**（唯一合法名；其它文件名不认） |
+| 进 zip | 有则随包打进 zip（与其它文件同一套 `collectFiles`）；**无则不写** `changelogUrl` |
+| 仓库布局 | 打包时复制到 **`changelog/<packageName>.md`**，生成 raw `changelogUrl` |
+| catalog 字段 | 可选 **`changelogUrl`**（与 `downloadUrl` 对称） |
+| 安全 | https + 条目 `hosts` 校验；拉取体积上限 **≤ 512KB** |
+| CDN ≠ Git raw | zip 走 CDN、日志走 Gitee/GitHub raw 时，`hosts` 须同时包含两边域名 |
+| 失败提示 | 弹窗内明确文案（如「无法加载更新日志」/「链接错误，未拉取到更新日志」），不静默 |
+| 兼容 | 旧管理器 / 无该字段的 catalog → 无按钮、行为不变 |
+
+**按钮是否出现**：catalog 条目有非空 `changelogUrl` → 显示「更新日志」；否则不显示。
+
+**管理器详情是否出现**：包元数据有版本号（优先 `modloader.json.version`，单脚本可回退 `@version`；多脚本不回退）且包根存在 `CHANGELOG.md` → 版本旁显示「更新日志」。多脚本包共用包根一份日志。
+
+**点按钮后读哪里**（列表刷新**不**预拉日志）：
+
+| 情况 | 优先 | 回退 |
+|------|------|------|
+| 已最新（本地版本 = 商店版本） | `_localmods/<包名>/CHANGELOG.md` | 无本地文件或空 → 拉 `changelogUrl` |
+| 可更新 / 本地无版本 / 未下载 | 拉 `changelogUrl` | — |
+| 远程有 URL 但拉取失败或空内容 | — | 弹窗提示链接错误 / 未拉取到更新日志 |
+
+要点：内容只来自**已安装包根**或 **catalog 链接**；不从 zip 外其它本地路径读。已最新先本地再远程，兼顾省流量与「旧安装包尚无该文件」的回退。
+
+**UI 行布局**：
+
+```
+[下载/更新]  [更新日志]  进度/提示文案……
+              ↑ 仅有 changelogUrl 时
+```
+
+进度文案固定在最右侧，避免下载时按钮左右跳动。
+
+**弹窗**：商店与管理器详情共用 `ModLoader.showChangelogModal(title, body, { mode })`（`.ml-changelog-*` + `marked`）。管理器头部「(日志)」走 `showChangelog()` → 该公用弹窗；详情「更新日志」读包根 `CHANGELOG.md`。标题示例：`随身传送 V1.2.1 更新日志`。
+
+**发布工具**：检测包根 `CHANGELOG.md` → 有则复制到仓库 `changelog/` 并写 `changelogUrl` + 合并 `hosts`；无则跳过且清理 catalog 中旧 `changelogUrl`（避免残留）。
 
 ---
 
@@ -134,7 +179,7 @@
 列表行:
   标题（多源时「多源」标记）
   本地 / 商店 / 大小 / 来源
-  [下载/更新]   进度 已下/总大小 % 速度 ETA
+  [下载/更新]  [更新日志?]  进度 已下/总大小 % 速度 ETA
 ```
 
 **进入商店时状态 Tab 默认**（来源始终「全部」）：
@@ -159,15 +204,12 @@
 
 ---
 
-## 8. 管理器 API（分期）
+## 8. 管理器 API
 
-### Phase 1（已落地）
+### 已落地（Phase 1）
 
 - 商店在 libs；`registerLogEntry` 扩展 **`getUpdateCount`**（与 `getConflictCount` 分离）
-
-### Phase 2（可选）
-
-- `ModLoader.refreshMods()` 等
+- 装包后玩家点主界面「**刷新列表**」即可同步 `_localmods`，**不需要** Phase 2 的 `ModLoader.refreshMods()` 等额外 API
 
 ---
 
@@ -179,26 +221,33 @@
 
 ### Phase 1.5 · 发布工具 ✅
 
-框架仓库随附 **GUI 打包工具** 与共用核心：
-
 | 文件 | 说明 |
 |------|------|
-| `tools/modstore/modStorePublishCore.js` | 打包标准 zip、sha256、更新 catalog（GUI 共用） |
-| `tools/modstore/gui/` | Mod 作者图形打包工具 |
+| `tools/modstore/modStorePublish.js` | 打包标准 zip、sha256、可选更新 catalog |
 | `tools/modstore/modstore-catalog.template.json` | catalog 模板 |
-| `tools/modstore/gui/user-data/` | GUI 本地设置与输出（gitignore） |
+| `tools/modstore/dist/` | 默认输出（gitignore） |
+| `tools/modstore/test/_modStore_selftest.js` | zip 结构 / 版本比对自检 |
+| `tools/modstore/test/modStoreLocalHttps.js` | 本地 HTTPS 测试服（setup / run / reset；**仅开发用，测完应停服**） |
 
-> CLI 批量脚本、本地 HTTPS 测试服等开发/维护者工具不在框架仓库内分发。
+**本地 HTTPS 测试服**（`node tools/modstore/test/modStoreLocalHttps.js`）：
 
-示例远程源（作者自管）：独立 git 仓托管 `catalog.json` + `packages/`（主仓不追踪）
+| 端口 | 场景 |
+|------|------|
+| 18443 | 双源 B（元素瓶 V1.0.2）、断点续传大包（~56MB、100KB/s、20MB 断线） |
+| 18444 | catalog sha256 故意错误 |
+| 18445 | 下载 URL 404 |
 
-### Phase 2 · 管理器小 API（可选）
+产物目录 `tools/modstore/test/local-test/`（gitignore）。测完后关闭终端或结束 node 进程；正常游玩勿保留 `127.0.0.1` 测试订阅。
 
-### Phase 3 · 体验（可选）
+示例远程源（作者自管）：`tools/gitee-catalog-seed/`（独立 git，主仓 gitignore）
 
-- 打开管理器时后台拉 catalog 更新角标（部分已有）
-- changelog、失败重试、订阅导入/导出
-- **Mod 商店 UI 多语言**：`modStore.js` 文案迁入 `config/language/`（见 §13）
+### Phase 3 · 体验
+
+| 项 | 状态 |
+|----|------|
+| Mod 更新日志（`changelogUrl` + 商店按钮 + 管理器详情 + 公用 MD 弹窗） | **已落地（2026-08-24）** · 定稿见 §5.1 |
+| 失败重试 | 可选，未做 |
+| 订阅导入/导出 | 可选，未做 |
 
 ---
 
@@ -214,6 +263,8 @@
 | 大包 | Release/CDN；raw 不适合 >50MB |
 | 状态筛选 | 来源 Tab × 状态 Tab；智能默认见 §6 |
 | 角标 | 绿色=可更新 + 未读新增（按 packageName 去重）；红色!=冲突 |
+| catalog `title` | **已废弃**（2026-08-23）；列表用 `packageName`；发布工具 `stripDeprecatedCatalogFields` 写入时剔除 |
+| catalog `changelogUrl` | 可选；包根 `CHANGELOG.md` 才写入；读策略与 UI 见 **§5.1** |
 
 ---
 
@@ -224,7 +275,7 @@
 - [x] 同 id 多源：均可见；须手动选来源更新；一键更新跳过
 - [x] 错误：HTTP 404、hash 错 → 正确报错（本地 HTTPS 18444/18445）
 - [x] 错误：超过 `maxDownloadBytes`（订阅管理调 1MB 测）
-- [x] 错误：扁平 zip / 路径穿越等 → 发布核心自检覆盖
+- [x] 错误：扁平 zip / 路径穿越等 → `tools/modstore/test/_modStore_selftest.js` 覆盖
 - [x] 合法标准 zip → `_localmods` + 主列表「刷新列表」可识别
 - [x] 单源 catalog 失败不影响其他源（设计支持；本地/ Gitee 抽测）
 - [x] 空源可开商店；手动订阅 Gitee catalog 全流程
@@ -233,7 +284,7 @@
 - [x] Gitee 小 zip raw 下载；Release 大包下载（无 Range）
 - [x] 订阅：禁用/删除源
 - [x] 绿色可更新角标 / 状态 Tab 默认与筛选
-- [x] 第二处非 Gitee 静态 HTTPS（双源、续传、hash 错、404、体积上限；开发环境抽测）
+- [x] 第二处非 Gitee 静态 HTTPS（`tools/modstore/test/modStoreLocalHttps.js` 18443/18444/18445；双源、续传、hash 错、404、体积上限）
 
 **E2E 验收摘要（2026-08-22）**：Gitee 小 zip raw + Release 大包；本地 HTTPS 覆盖错误路径、>50MB 断点续传（含关游戏再开）、双源手动选源、一键更新跳过多源、列表滚动/进度刷新不跳顶。本地测试服已停。
 
@@ -252,18 +303,49 @@
 - [`使用手册.md`](使用手册.md) 商店章节（制作者 / 玩家 / 作者）
 - 作者打包：[`tools/modstore/gui/README.md`](../../tools/modstore/gui/README.md)
 - [`README.md`](README.md) / [`README-en.md`](README-en.md) 功能与结构树
-- [`V4.1_测试文档.md`](V4.1_测试文档.md) §O Mod 商店
+- [`ModLoader_测试文档.md`](ModLoader_测试文档.md) §O Mod 商店
 
-### 暂缓
+### catalog 字段清理（2026-08-23）✅
 
-- 飞书整合包攻略（待 Mod 更新后再写商店玩法）
-- Gitee raw/Release 配额与作者托管建议（§4 已有摘要）
+- 废弃 catalog 条目 `title`：商店 UI、打包 GUI 均只展示 `packageName`
+- 发布核心 `modStorePublishCore.js`：`upsertCatalogEntry` 不再保留 `title`；`stripDeprecatedCatalogFields` 写入前剔除
+- 作者远程 catalog（Gitee）已全量去掉 `title`；增量发布不会带回该字段
+- 运行时 `modStore.js` 解析 catalog 时不再读取 `title`（兼容旧远程 catalog 亦忽略）
+
+### 飞书整合包攻略（2026-08-23）✅
+
+- 商店订阅、下载、刷新列表等玩法已写入飞书整合包攻略
+
+### Mod 商店 UI 多语言（2026-08-24）✅
+
+- `libs/modStore.js` 内嵌 `STORE_I18N_PACKS`（zh_CN / zh_TW / en），跟随管理器 `ml_language`；详见 §14
+
+### 作者托管说明 ✅
+
+- Gitee raw / Release 体积与断点续传限制见 §4「托管实测备忘」；[`使用手册.md`](使用手册.md) 商店章节亦有摘要
 
 ---
 
 ## 13. 待开发 / 内部跟进
 
-| 项 | 状态 | 说明 |
-|----|------|------|
-| Mod 商店 UI 多语言 | 待开发 | 当前 `modStore.js` 文案为硬编码中文；需迁入 `config/language/` 并与管理器语言切换联动 |
-| catalog / 打包链路字段清理 | 待调查 | 商店拓展与打包工具 UI 已不再展示部分历史字段；待确认运行时与发布工具无依赖后，再安全移除死代码 |
+- [x] §5.1 Mod 更新日志：打包写 `changelogUrl` + 商店按钮 / 弹窗（2026-08-24）
+- [x] 管理器详情「更新日志」+ 公用 `showChangelogModal`（2026-08-24 · **V4.2.0**）
+- 可选：失败重试、订阅导入/导出（§9 Phase 3）
+
+---
+
+## 14. Mod 商店多语言（2026-08-24 已落地）
+
+### 方案
+
+- **不**写入 `config/language/` 管理器语言包，**不**另建独立语言文件
+- 词条内嵌于 `libs/modStore.js` 顶部 `STORE_I18N_PACKS`（可追加语言码块扩展）
+- 语言读取：`modloader_config.json` → `ml_language`（与管理器设置一致）
+- **无热刷新**：打开商店面板时 `registerStoreEntry()` + `renderPanel()` 按当前语言渲染；设置菜单入口 `label` 同步更新
+- 扩展新语言时，贡献者须**同时为管理器** `config/language/` 提供对应语言包，否则管理器无法切换到该语言（符合预期）
+
+### 查找链
+
+当前 `ml_language` → `STORE_I18N_PACKS[lang]` → `zh_CN` 回退 → 键名原文
+
+---

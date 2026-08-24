@@ -52,6 +52,8 @@
   "detail.statusDisabled": "已禁用",
   "detail.noHelp": "无帮助信息",
   "detail.noModFound": "未发现任何模组",
+  "detail.changelog": "更新日志",
+  "detail.changelogTitle": "{name} {version} 更新日志",
 
   "param.title": "参数编辑",
   "param.typeText": "文本",

@@ -1,5 +1,53 @@
 # ModLoader 更新日志
 
+## V4.3.0 (2026-08-24)
+
+### 管理器在线更新（`libs/modLoaderUpdater.js`）
+
+- **新增**：设置 → **管理器更新** 独立入口（与 Mod 商店分离）；手动检查 / 更新 ModLoader 本体及白名单发行文件
+- **协议**：`main/manager/channel.json` 指针 → 同 tag 的 `manager/catalog.json` + raw 单文件；本地 sha256 相同则跳过下载
+- **安全**：全量下到 `config/.ml-updater-tmp/` → 备份 → 替换 → 成功后再 `remove[]`；失败从 backup 还原且不执行 remove
+- **偏好**：`config/modloader_updater.json`（含 `updatesDisabled`；永不被更新覆盖）
+- **角标**：有更新且未禁用时 `getUpdateCount` 返回 `1`，与商店角标加算；禁用时不预拉、无角标
+- **镜像**：写死 GitHub + Gitee；`zh_CN` / `zh_TW` 默认 Gitee，其它默认 GitHub；失败自动试另一源
+- **发版工具**：`tools/manager-release/sync.js` 同步白名单 + 演示 `_localmods` 到发行仓并生成 channel / catalog
+- **说明**：不做自动更新、不做版本回退；完成后须 **F5**；更新器自身可出现在 catalog 中（当次内存旧脚本，F5 后生效）
+
+## V4.2.0 (2026-08-24)
+
+> 自 V4.1.14 以来以补丁、修 bug、UI 改善与历史遗留清理为主；本版统一升 minor，并同步维护 README / 使用手册 / Skill / 模块结构等文档。
+
+### Mod 更新日志（管理器详情 + 公用弹窗）
+
+- **重构**：抽出公用 `showChangelogModal(title, body, options)`；头部「(日志)」仍展示 `docs/modloader_CHANGELOG.md`
+- **新增**：详情面板版本旁「更新日志」链接——仅当包元数据有版本号（`modloader.json.version`，单脚本可回退 `@version`）且包根存在 `CHANGELOG.md` 时显示
+- **约定**：多脚本包共用包根一份 `CHANGELOG.md`；Mod 商店弹窗改为调用同一公用 API
+- **导出**：`window.ModLoader.showChangelogModal` / `hideChangelogModal` / `isChangelogModalOpen`
+- **修复**：更新日志链接主题配色；弹窗 Markdown 渲染
+
+### Mod 包更新日志规范
+
+- **统一**：功能 Mod 更新日志迁至包根 **`CHANGELOG.md`**（唯一合法名）；不再使用 `docs/功能Mod更新日志/[ModName]_CHANGELOG.md`
+- **插件头**：`@help` 中【更新日志】改为指向包根 `CHANGELOG.md`
+- **商店**：catalog `changelogUrl` + 商店列表按钮；已最新时优先读本地包根文件（§5.1）
+
+### Mod 商店 UI 多语言（`libs/modStore.js`）
+
+- **新增**：商店面板 UI 多语言（简体中文 / 繁體中文 / English），内嵌 `STORE_I18N_PACKS`，跟随 `modloader_config.json` → `ml_language`
+- **约定**：词条不写入 `config/language/`，与管理器语言包分离；查找链为当前语言 → `zh_CN` 回退 → 键名原文
+- **说明**：打开商店面板时按当前语言渲染；切换语言后须重新进入 Mod 商店（或重开管理器）才刷新商店文案
+
+### Mod 商店与历史遗留清理
+
+- **修复**：移除商店面板多余「返回商店」按钮
+- **修复**：同名多源 Mod 禁止并发下载，避免覆盖竞态
+- **清理**：移除 `modloader.json` 废弃 `title` 字段相关遗留；`manifest.title` 扫描死代码（V4.1.14 已删，本版文档对齐）
+- **重构**：`modStore.js` 内部分 `var` 改为 `let`/`const`；删除僵尸代码
+
+### 文档
+
+- **维护**：`docs/README.md` / `README-en.md` / `使用手册.md` / `ModLoader_模块结构.md` / `.trae/skills/*` / `ModLoader_测试文档.md` 同步 V4.2.0 与包根 `CHANGELOG.md` 约定；测试文档去掉版本号前缀
+
 ## V4.1.14 (2026-08-22)
 
 ### Mod 商店拓展适配（`libs/modStore.js`）

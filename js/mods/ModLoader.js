@@ -2,7 +2,7 @@
  * @target MZ
  * @plugindesc 游戏内模组管理器（DOM化UI & 现代交互 & 拖放添加Mod & 滑动条/长文本/数据库引用）
  * @author joker创意 / GLM核心代码
- * @version V4.1.14
+ * @version V4.3.0
  *
  * @help
  * 【功能及使用方式】
@@ -96,7 +96,7 @@
 
     // ---- 1.1 常量、版本与日志 ----
     const ModName = "ModLoader";
-    const VERSION = "V4.1.14";
+    const VERSION = "V4.3.0";
     const DEBUG_LEVEL = 0;
 
     const log = (level, ...args) => {
@@ -1412,8 +1412,7 @@
                 if (fs.existsSync(absPath)) {
                     scripts.push({
                         relPath: fileName,
-                        absPath: absPath,
-                        title: null
+                        absPath: absPath
                     });
                 } else {
                     log(2, '包 entries 文件不存在: ' + fileName);
@@ -1427,8 +1426,7 @@
             for (const file of files) {
                 scripts.push({
                     relPath: file,
-                    absPath: pathMod.join(packageRoot, file),
-                    title: null
+                    absPath: pathMod.join(packageRoot, file)
                 });
             }
         } catch (e) {
@@ -1513,7 +1511,7 @@
                 if (seenLoadPaths.has(loadPath)) return;
                 seenLoadPaths.add(loadPath);
 
-                const displayName = script.title || scriptBaseName;
+                const displayName = scriptBaseName;
                 const entry = applyModConfigToEntry(
                     modId,
                     script.absPath,
@@ -1643,6 +1641,57 @@
         return mod.packageRoot || mod.workshopRoot || null;
     }
 
+    /** 包根更新日志文件名（与商店打包约定一致，唯一合法名） */
+    const PACKAGE_CHANGELOG_FILENAME = 'CHANGELOG.md';
+
+    function getPackageDisplayName(mod) {
+        if (!mod) return '';
+        if (mod.localPackageName) return mod.localPackageName;
+        const packageRoot = getModPackageRoot(mod);
+        if (packageRoot) return pathMod.basename(packageRoot);
+        return mod.displayName || '';
+    }
+
+    /**
+     * 解析包版本：优先 modloader.json.version；单脚本可回退 @version；多脚本无清单版本则无版本
+     */
+    function resolvePackageVersion(mod) {
+        if (!mod) return null;
+        const packageRoot = getModPackageRoot(mod);
+        if (packageRoot) {
+            const manifest = readWorkshopManifest(packageRoot);
+            if (manifest && manifest.version != null && String(manifest.version).trim()) {
+                return String(manifest.version).trim();
+            }
+            const scripts = discoverPackageScripts(packageRoot);
+            if (scripts.length > 1) return null;
+        }
+        if (mod.version != null && String(mod.version).trim()) {
+            return String(mod.version).trim();
+        }
+        return null;
+    }
+
+    function getPackageChangelogPath(mod) {
+        const packageRoot = getModPackageRoot(mod);
+        if (!packageRoot) return null;
+        return pathMod.join(packageRoot, PACKAGE_CHANGELOG_FILENAME);
+    }
+
+    function packageHasChangelog(mod) {
+        const changelogPath = getPackageChangelogPath(mod);
+        if (!changelogPath || !fs.existsSync(changelogPath)) return false;
+        try {
+            return fs.statSync(changelogPath).isFile();
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function canShowModChangelog(mod) {
+        return !!(resolvePackageVersion(mod) && packageHasChangelog(mod));
+    }
+
     function buildModPreviewHtml(mod) {
         if (mod.source !== 'workshop' && mod.source !== 'local') return '';
         const packageRoot = getModPackageRoot(mod);
@@ -1715,7 +1764,7 @@
                     const scriptBaseName = pathMod.parse(script.relPath).name;
                     const modId = buildLocalModId(packageName, scriptBaseName);
                     const loadPath = buildLocalLoadPath(packageName, scriptBaseName);
-                    const displayName = script.title || scriptBaseName;
+                    const displayName = scriptBaseName;
                     const entry = applyModConfigToEntry(
                         modId,
                         script.absPath,
@@ -3703,11 +3752,16 @@
         }
 
         let metaHtml = '';
-        if (mod.version) {
+        const packageVersion = resolvePackageVersion(mod);
+        const showModChangelogLink = canShowModChangelog(mod);
+        if (packageVersion) {
+            const changelogLinkHtml = showModChangelogLink
+                ? ' <a class="ml-changelog-link" id="ml-mod-changelog-link">' + escapeHtml(t('detail.changelog')) + '</a>'
+                : '';
             metaHtml += `
                 <div class="ml-detail-section">
                     <div class="ml-detail-label">${DT.labelVersion}</div>
-                    <div class="ml-detail-value">${escapeHtml(mod.version)}</div>
+                    <div class="ml-detail-value">${escapeHtml(packageVersion)}${changelogLinkHtml}</div>
                 </div>
             `;
         }
@@ -3842,6 +3896,14 @@
                     openPackagePreviewImage(packageRoot);
                 });
             }
+        }
+
+        const modChangelogLink = panel.querySelector('#ml-mod-changelog-link');
+        if (modChangelogLink) {
+            modChangelogLink.addEventListener('click', function(e) {
+                e.stopPropagation();
+                showModChangelog(mod);
+            });
         }
 
         // 切换时滚动条重置到最顶部
@@ -4092,11 +4154,61 @@
     }
 
     /**
-     * 显示更新日志弹窗
+     * 公用更新日志弹窗（管理器自身 / Mod 详情 / 商店均可复用）
+     * @param {string} title
+     * @param {string} body  markdown 或纯文本
+     * @param {{mode?: 'md'|'text'}} [options]  mode 默认 'md'
      */
-    function showChangelog() {
-        if (_changelogModal) return;
+    function showChangelogModal(title, body, options) {
+        options = options || {};
+        var mode = options.mode === 'text' ? 'text' : 'md';
+        hideChangelogModal();
 
+        var htmlContent = mode === 'text'
+            ? '<p>' + escapeHtml(body || '') + '</p>'
+            : parseMarkdownToHtml(body);
+
+        _changelogModal = document.createElement('div');
+        _changelogModal.className = 'ml-modal-overlay ml-changelog-overlay';
+        _changelogModal.innerHTML = '<div class="ml-modal ml-changelog-modal">'
+            + '<div class="ml-modal-header">'
+            + '<h3>' + escapeHtml(title || '') + '</h3>'
+            + '<button type="button" class="ml-modal-close" id="ml-changelog-close">&times;</button>'
+            + '</div>'
+            + '<div class="ml-modal-body ml-changelog-body">'
+            + htmlContent
+            + '</div>'
+            + '<div class="ml-modal-footer">'
+            + '<button type="button" class="ml-btn ml-btn-primary" id="ml-changelog-btn-close">' + t('button.close') + '</button>'
+            + '</div>'
+            + '</div>';
+
+        _changelogModal.addEventListener('click', function(e) {
+            if (e.target.id === 'ml-changelog-close'
+                || e.target.id === 'ml-changelog-btn-close'
+                || e.target === _changelogModal) {
+                hideChangelogModal();
+            }
+        });
+
+        _changelogModal.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                hideChangelogModal();
+            }
+        });
+
+        document.body.appendChild(_changelogModal);
+    }
+
+    function hideChangelogModal() {
+        if (_changelogModal) {
+            _changelogModal.remove();
+            _changelogModal = null;
+        }
+    }
+
+    /** 显示管理器自身更新日志 */
+    function showChangelog() {
         var changelogPath = pathMod.join(MODS_DIR, 'docs', 'modloader_CHANGELOG.md');
         var mdContent;
         try {
@@ -4105,50 +4217,26 @@
             log(1, '无法读取更新日志文件:', e.message);
             return;
         }
-
-        var htmlContent = parseMarkdownToHtml(mdContent);
-
-        _changelogModal = document.createElement('div');
-        _changelogModal.className = 'ml-modal-overlay ml-changelog-overlay';
-        _changelogModal.innerHTML = '<div class="ml-modal ml-changelog-modal">'
-            + '<div class="ml-modal-header">'
-            + '<h3>ModLoader ' + escapeHtml(VERSION) + ' ' + t('changelog.title') + '</h3>'
-            + '<button class="ml-modal-close" id="ml-changelog-close">&times;</button>'
-            + '</div>'
-            + '<div class="ml-modal-body ml-changelog-body">'
-            + htmlContent
-            + '</div>'
-            + '<div class="ml-modal-footer">'
-            + '<button class="ml-btn ml-btn-primary" id="ml-changelog-btn-close">' + t('button.close') + '</button>'
-            + '</div>'
-            + '</div>';
-
-        _changelogModal.addEventListener('click', function(e) {
-            if (e.target.id === 'ml-changelog-close' || e.target.id === 'ml-changelog-btn-close') {
-                hideChangelog();
-            }
-            if (e.target === _changelogModal) {
-                hideChangelog();
-            }
-        });
-
-        _changelogModal.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                hideChangelog();
-            }
-        });
-
-        document.body.appendChild(_changelogModal);
+        showChangelogModal('ModLoader ' + VERSION + ' ' + t('changelog.title'), mdContent);
     }
 
-    /**
-     * 隐藏更新日志弹窗
-     */
-    function hideChangelog() {
-        if (_changelogModal) {
-            _changelogModal.remove();
-            _changelogModal = null;
+    /** 显示当前选中 Mod 包的更新日志（包级 CHANGELOG.md，多脚本共用） */
+    function showModChangelog(mod) {
+        if (!canShowModChangelog(mod)) return;
+        var changelogPath = getPackageChangelogPath(mod);
+        var version = resolvePackageVersion(mod);
+        var name = getPackageDisplayName(mod);
+        var mdContent;
+        try {
+            mdContent = fs.readFileSync(changelogPath, 'utf-8');
+        } catch (e) {
+            log(1, '无法读取 Mod 更新日志:', e.message);
+            return;
         }
+        var title = t('detail.changelogTitle')
+            .replace('{name}', name)
+            .replace('{version}', version || '');
+        showChangelogModal(title, mdContent);
     }
 
     function populateLanguageSelect() {
@@ -6879,7 +6967,10 @@
         registerManagerGate: registerManagerGate,
         refreshConflictLog: _refreshConflictBadge,
         showConfirmDialog: showConfirmDialog,
-        hideConfirmDialog: hideConfirmDialog
+        hideConfirmDialog: hideConfirmDialog,
+        showChangelogModal: showChangelogModal,
+        hideChangelogModal: hideChangelogModal,
+        isChangelogModalOpen: function () { return !!_changelogModal; }
     };
 
     loadLibsExtensions();

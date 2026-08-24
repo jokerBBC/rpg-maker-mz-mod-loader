@@ -1,15 +1,14 @@
-# ModLoader V4.1 测试文档
+# ModLoader 测试文档
 
-> **适用版本**：V4.1.0 / V4.1.1  
-> **关联**：[模块结构](ModLoader_模块结构.md) · [开发规范](RMMZ_ModLoader_开发规范.md) · [使用手册](使用手册.md)
+> **关联**：[模块结构](ModLoader_模块结构.md) · [开发规范](RMMZ_ModLoader_开发规范.md) · [使用手册](使用手册.md) · [更新日志](modloader_CHANGELOG.md)（当前发布版以 `ModLoader.js` 的 `VERSION` 为准）
 
-本文件为 V4.1 统一包结构后的 **完整手工测试清单**，不再区分「迁移前/迁移后」。作者自用迁移脚本见 `tools/migrate-local-mods-to-localmods.js`、`tools/migrate-mod-config-keys.js`；玩家侧 `mod_config` 旧键兼容见 V4.1.1（保存一次自动升级）。
+本文件为统一包结构（`_localmods` / 工坊包根布局）后的 **完整手工测试清单**。作者自用迁移脚本见 `tools/migrate-local-mods-to-localmods.js`、`tools/migrate-mod-config-keys.js`；玩家侧 `mod_config` 旧键兼容：保存一次自动升级为新键。
 
 ---
 
 ## 测试前确认
 
-- [ ] 管理器版本：**V4.1.14**（或当前发布版）
+- [ ] 管理器版本与 `ModLoader.js` / 界面左下角显示一致（对照 [`modloader_CHANGELOG.md`](modloader_CHANGELOG.md) 当前发布版）
 - [ ] `modloader_config.json` → `workshop.enabled: true`（测工坊时）
 - [ ] Steam 自测包已 flatten（`<fileId>/` 包根直接放 `.js`，无 `js/mods/` 子目录）
 - [ ] 本地 Mod 位于 `_localmods/<包名>/`，根目录 `js/mods/*.js`（除 ModLoader.js）**不应被扫描**
@@ -144,7 +143,7 @@
 | # | 操作 | 预期 | 结果 |
 | --- | --- | --- | --- |
 | K1 | 根目录有 flat `.js` 但 `_localmods` 无对应包 | 列表不出现该 Mod | |
-| K2 | mod_config 含 `../mods/<名>` 旧键（V4.1.1+） | 可恢复开关/参数/顺序；保存后变 `local:` 新键 | |
+| K2 | mod_config 含 `../mods/<名>` 旧键 | 可恢复开关/参数/顺序；保存后变 `local:` 新键 | |
 | K3 | 工坊包内残留 `js/mods/*.js` 旧布局 | 不扫到脚本（仅认包根） | |
 | K4 | `migrate-local-mods-to-localmods.js`（作者） | 根 stray `.js` 迁入 `_localmods/` | ⏭ |
 | K5 | `config/`、`docs/` 等共享目录 | 仍在 `js/mods/` 原处 | |
@@ -185,7 +184,7 @@
 
 ## O. Mod 商店（需 `libs/modStore.js`）
 
-> 详细用例见 [`mod商店拓展plan.md`](mod商店拓展plan.md) §11。发版前至少抽测单源全流程（Gitee 或自建 HTTPS catalog）。
+> 详细用例见 [`mod商店拓展plan.md`](mod商店拓展plan.md) §11。发版前至少抽测单源全流程；本地 HTTPS 回归用 `tools/modstore/test/modStoreLocalHttps.js`（测完停服）。
 
 | # | 操作 | 预期 | 结果 |
 | --- | --- | --- | --- |
@@ -197,6 +196,37 @@
 | O6 | 状态 Tab「新增」/ 绿色角标 | 未读包有 New；点击条目后角标减少 | |
 | O7 | 同包名多源 | 均可见；一键更新跳过；须手动选来源 | |
 | O8 | >50MB + Range 服务器 | 断点续传；关游戏再开可续 | |
+| O9 | 系统设置切换语言 → 重进 Mod 商店 | 工具栏/Tab/按钮/提示与所选语言一致（简中 / 繁中 / English） | |
+
+---
+
+## P. Mod 更新日志
+
+| # | 操作 | 预期 | 结果 |
+| --- | --- | --- | --- |
+| P1 | 点击管理器左下角 **(日志)** | 弹出 ModLoader 自身 Markdown 更新日志 | |
+| P2 | 选有 `version` + 包根 `CHANGELOG.md` 的 Mod | 详情版本旁显示 **更新日志** 链接 | |
+| P3 | 点击详情 **更新日志** | 弹窗标题含包名与版本；正文为包根 `CHANGELOG.md` | |
+| P4 | 选无版本或无 CHANGELOG 的 Mod | 详情**不**显示更新日志链接 | |
+| P5 | 多脚本包任选一脚本 | 均显示同一包级更新日志 | |
+| P6 | 商店列表有 `changelogUrl` 的条目 → **更新日志** | 弹窗样式与 P1/P3 一致；已最新优先本地包根 | |
+
+---
+
+## Q. 管理器在线更新（需 `libs/modLoaderUpdater.js`）
+
+> 详细用例见 [`管理器在线更新plan.md`](管理器在线更新plan.md) §11。发版前至少抽测检查 + 更新全流程；远程须已 push `manager/channel.json` 并打同名 tag。
+
+| # | 操作 | 预期 | 结果 |
+| --- | --- | --- | --- |
+| Q1 | ⚙ → 管理器更新 | 面板打开；显示本地版本与升级日志区 | |
+| Q2 | 检查更新（中文语言） | 日志显示 Gitee 镜像；拉 channel → catalog | |
+| Q3 | 已是最新 | 日志说明无需更新；更新按钮不可用 | |
+| Q4 | 远端有新版本 → 更新 | 日志逐步打印 skip/下载/备份/替换；完成后提示 F5 | |
+| Q5 | 复制日志 | 剪贴板得完整纯文本 | |
+| Q6 | 勾选禁用管理器更新 | 无预拉角标；检查/更新按钮隐藏 | |
+| Q7 | 商店可更新 2 + 管理器可更新 | 齿轮绿色角标为 3 | |
+| Q8 | `node tools/manager-release/sync.js` | 发行仓 catalog / channel / README 版本正确；提示打 tag | |
 
 ---
 
@@ -220,5 +250,9 @@
 
 | 日期 | 说明 |
 | --- | --- |
-| 2026-08-23 | 新增 §O Mod 商店；「刷新工坊」改为「刷新列表」；版本 V4.1.14 |
+| 2026-08-24 | 新增 §Q 管理器在线更新抽测 |
+| 2026-08-24 | 文件名改为 `ModLoader_测试文档.md`，去掉版本号前缀；§P 独立成节 |
+| 2026-08-24 | 新增 §P Mod 更新日志抽测 |
+| 2026-08-24 | 新增 §O O9 Mod 商店多语言抽测 |
+| 2026-08-23 | 新增 §O Mod 商店；「刷新工坊」改为「刷新列表」 |
 | 2026-05-31 | 从 `V4.1_unified_package_plan.md` §7 合并为统一测试文档 |

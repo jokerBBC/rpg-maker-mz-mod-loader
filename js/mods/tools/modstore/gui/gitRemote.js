@@ -43,10 +43,24 @@ function buildRawPackageUrl(remote, zipName) {
     if (remote.rawUrlTemplate) {
         return applyDownloadUrlTemplate(remote.rawUrlTemplate, info, remote, zipName, sub);
     }
+    var fileSeg = encodeURIComponent(zipName).replace(/%2F/g, '/');
     if (info.host === 'gitee.com') {
-        return 'https://gitee.com/' + info.owner + '/' + info.repo + '/raw/' + branch + '/' + sub + '/' + zipName;
+        return 'https://gitee.com/' + info.owner + '/' + info.repo + '/raw/' + branch + '/' + sub + '/' + fileSeg;
     }
-    return 'https://raw.githubusercontent.com/' + info.owner + '/' + info.repo + '/' + branch + '/' + sub + '/' + zipName;
+    return 'https://raw.githubusercontent.com/' + info.owner + '/' + info.repo + '/' + branch + '/' + sub + '/' + fileSeg;
+}
+
+/** changelog 始终走 Git raw（与 CDN zip 可不同域） */
+function buildRawChangelogUrl(remote, packageName) {
+    if (!remote || !remote.repoUrl) return null;
+    var info = parseRepoUrl(remote.repoUrl);
+    var branch = remote.branch || 'master';
+    var fileSeg = encodeURIComponent(packageName + '.md').replace(/%2F/g, '/');
+    var rel = core.CHANGELOG_REPO_DIR + '/' + fileSeg;
+    if (info.host === 'gitee.com') {
+        return 'https://gitee.com/' + info.owner + '/' + info.repo + '/raw/' + branch + '/' + rel;
+    }
+    return 'https://raw.githubusercontent.com/' + info.owner + '/' + info.repo + '/' + branch + '/' + rel;
 }
 
 function buildCatalogPublicUrl(remote) {
@@ -202,6 +216,7 @@ function copyZipsFromDir(srcDir, destPkgDir) {
 function ensureRepoLayout(repoDir, remote, catalogMeta) {
     var pkgDir = path.join(repoDir, packagesSubdir(remote));
     fs.mkdirSync(pkgDir, { recursive: true });
+    fs.mkdirSync(path.join(repoDir, core.CHANGELOG_REPO_DIR), { recursive: true });
     var catRel = remote.catalogPathInRepo || 'catalog.json';
     var catPath = path.join(repoDir, catRel);
     if (!fs.existsSync(catPath)) {
@@ -221,22 +236,56 @@ function copyPublishResults(repoDir, remote, results) {
     }
 }
 
+/**
+ * 将包根 CHANGELOG.md 同步到仓库 changelog/<packageName>.md；无则删除仓库旧文件
+ * @param {string} localmodsDir
+ */
+function syncChangelogsToRepo(repoDir, localmodsDir, results) {
+    var dir = path.join(repoDir, core.CHANGELOG_REPO_DIR);
+    fs.mkdirSync(dir, { recursive: true });
+    var synced = [];
+    var removed = [];
+    for (var i = 0; i < results.length; i++) {
+        var r = results[i];
+        var dest = path.join(dir, r.packageName + '.md');
+        var src = path.join(localmodsDir, r.packageName, core.CHANGELOG_FILENAME);
+        if (r.hasChangelog && fs.existsSync(src)) {
+            fs.copyFileSync(src, dest);
+            synced.push(r.packageName);
+        } else if (fs.existsSync(dest)) {
+            fs.unlinkSync(dest);
+            removed.push(r.packageName);
+        }
+    }
+    return { synced: synced, removed: removed };
+}
+
 function upsertResultsIntoCatalog(catalog, remote, results) {
     for (var i = 0; i < results.length; i++) {
         var r = results[i];
         var downloadUrl = buildRawPackageUrl(remote, r.zipName);
         var urlObj = core.assertHttpsUrl(downloadUrl);
-        core.upsertCatalogEntry(catalog, {
+        var hosts = [urlObj.hostname];
+        var entry = {
             id: r.modId,
             packageName: r.packageName,
-            title: r.title,
             version: r.version,
             downloadUrl: downloadUrl,
             sha256: r.sha256,
             size: r.size,
             summary: r.summary,
-            hosts: [urlObj.hostname]
-        });
+            hosts: hosts,
+            changelogUrl: ''
+        };
+        if (r.hasChangelog) {
+            var changelogUrl = buildRawChangelogUrl(remote, r.packageName);
+            if (changelogUrl) {
+                var cu = core.assertHttpsUrl(changelogUrl);
+                entry.changelogUrl = changelogUrl;
+                entry.hosts = core.mergeHosts(hosts, cu.hostname);
+            }
+        }
+        core.upsertCatalogEntry(catalog, entry);
     }
 }
 
@@ -247,8 +296,14 @@ function writeCatalogFile(catalogPath, settings, results) {
     }
     var catalog = core.loadOrCreateCatalog(catalogPath, settings);
     upsertResultsIntoCatalog(catalog, settings.remote, results);
+    core.stripDeprecatedCatalogFields(catalog);
     fs.mkdirSync(path.dirname(catalogPath), { recursive: true });
     fs.writeFileSync(catalogPath, JSON.stringify(catalog, null, 2) + '\n', 'utf-8');
+    var root = settings.outputPath || path.dirname(catalogPath);
+    var localmods = settings.localmodsPath || settings.localmodsDir;
+    if (localmods && results && results.length) {
+        syncChangelogsToRepo(root, localmods, results);
+    }
     return catalogPath;
 }
 
@@ -260,6 +315,7 @@ function updateRepoCatalog(repoDir, remote, results, catalogMeta) {
         sourceName: catalogMeta.sourceName
     });
     upsertResultsIntoCatalog(catalog, remote, results);
+    core.stripDeprecatedCatalogFields(catalog);
     fs.mkdirSync(path.dirname(catPath), { recursive: true });
     fs.writeFileSync(catPath, JSON.stringify(catalog, null, 2) + '\n', 'utf-8');
     return catPath;
@@ -295,7 +351,20 @@ function syncLocalLayoutToRepo(repoDir, remote, local) {
         fs.mkdirSync(path.dirname(repoCat), { recursive: true });
         fs.copyFileSync(catalogPath, repoCat);
     }
-    return { copiedZips: copied, catalogPath: catalogPath };
+
+    var clSrc = path.join(local.outputPath, core.CHANGELOG_REPO_DIR);
+    var clDest = path.join(repoDir, core.CHANGELOG_REPO_DIR);
+    var copiedChangelogs = 0;
+    if (fs.existsSync(clSrc) && fs.statSync(clSrc).isDirectory()) {
+        fs.mkdirSync(clDest, { recursive: true });
+        var mdFiles = fs.readdirSync(clSrc);
+        for (var ci = 0; ci < mdFiles.length; ci++) {
+            if (!/\.md$/i.test(mdFiles[ci])) continue;
+            fs.copyFileSync(path.join(clSrc, mdFiles[ci]), path.join(clDest, mdFiles[ci]));
+            copiedChangelogs++;
+        }
+    }
+    return { copiedZips: copied, catalogPath: catalogPath, copiedChangelogs: copiedChangelogs };
 }
 
 function prunePackagesFromCatalog(repoDir, remote, catalogPath) {
@@ -386,11 +455,13 @@ function commitAndPush(repoDir, remote, message) {
     return { pushed: true, message: '已推送此前未同步的本地提交', sync: syncInfo };
 }
 
-/** 打包后立即推送（克隆远程 → 写入 zip/catalog → push） */
+/** 打包后立即推送（克隆远程 → 写入 zip/catalog/changelog → push） */
 function pushToRemote(remote, results, catalogMeta, workDirBase) {
     var local = { outputPath: catalogMeta && catalogMeta.outputPath };
     var repoDir = ensureRepo(remote, resolveRepoDir(local, workDirBase, remote));
     copyPublishResults(repoDir, remote, results);
+    var localmods = catalogMeta && (catalogMeta.localmodsPath || catalogMeta.localmodsDir);
+    if (localmods) syncChangelogsToRepo(repoDir, localmods, results);
     updateRepoCatalog(repoDir, remote, results, catalogMeta || {});
     var msg = 'modstore: publish ' + results.map(function (r) { return r.modId + '@' + r.version; }).join(', ');
     return commitAndPush(repoDir, remote, msg);
@@ -429,10 +500,12 @@ function pullRemoteToLocal(remote, local, workDirBase, catalogMeta) {
 module.exports = {
     parseRepoUrl: parseRepoUrl,
     buildRawPackageUrl: buildRawPackageUrl,
+    buildRawChangelogUrl: buildRawChangelogUrl,
     buildCatalogPublicUrl: buildCatalogPublicUrl,
     getRepoWorkDir: getRepoWorkDir,
     isLocalRepoInitialized: isLocalRepoInitialized,
     resolveLocalPackagesDir: resolveLocalPackagesDir,
+    syncChangelogsToRepo: syncChangelogsToRepo,
     writeCatalogFile: writeCatalogFile,
     pushToRemote: pushToRemote,
     pushLocalLayout: pushLocalLayout,

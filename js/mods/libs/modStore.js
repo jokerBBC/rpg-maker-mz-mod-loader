@@ -7,34 +7,352 @@
 (function () {
     'use strict';
 
-    var ML = typeof window !== 'undefined' ? window.ModLoader : null;
+    const ML = typeof window !== 'undefined' ? window.ModLoader : null;
     if (!ML || typeof ML.registerLogEntry !== 'function') {
         console.warn('[modStore] ModLoader.registerLogEntry 不可用，扩展未挂载');
         return;
     }
 
-    var fs = require('fs');
-    var pathMod = require('path');
-    var https = require('https');
-    var http = require('http');
-    var crypto = require('crypto');
-    var zlib = require('zlib');
-    var urlMod = require('url');
+    const fs = require('fs');
+    const pathMod = require('path');
+    const https = require('https');
+    const crypto = require('crypto');
+    const zlib = require('zlib');
+    const urlMod = require('url');
 
-    var MODS_DIR = pathMod.join(process.cwd(), 'js', 'mods');
-    var LOCALMODS_DIR = pathMod.join(MODS_DIR, '_localmods');
-    var CONFIG_PATH = pathMod.join(MODS_DIR, 'config', 'mod_store.json');
-    var TMP_ROOT = pathMod.join(MODS_DIR, 'config', '.modstore-tmp');
+    const MODS_DIR = pathMod.join(process.cwd(), 'js', 'mods');
+    const LOCALMODS_DIR = pathMod.join(MODS_DIR, '_localmods');
+    const CONFIG_PATH = pathMod.join(MODS_DIR, 'config', 'mod_store.json');
+    const TMP_ROOT = pathMod.join(MODS_DIR, 'config', '.modstore-tmp');
+    const MODLOADER_CONFIG_PATH = pathMod.join(MODS_DIR, 'config', 'modloader_config.json');
 
-    var DEFAULT_MAX_BYTES = 104857600;
-    var DOWNLOAD_CONCURRENCY = 2;
-    var REQUEST_TIMEOUT_MS = 60000;
-    var USER_AGENT = 'ModLoader-ModStore/1.0';
-    var RESUME_THRESHOLD_BYTES = 50 * 1024 * 1024; // >50MB 才断点续传
-    var PROGRESS_UI_THROTTLE_MS = 200;
+    // ================================================================
+    // 内嵌 i18n（跟随 modloader_config.json 的 ml_language）
+    // 打开商店面板时读取；无热刷新。扩展：在 STORE_I18N_PACKS 追加语言码与词条；
+    // 新语言须同步为管理器 config/language/ 提供语言包，否则管理器无法切到该语言。
+    // ================================================================
+    const STORE_I18N_FALLBACK = 'zh_CN';
+    const STORE_I18N_PACKS = {
+        zh_CN: {
+            entryLabel: 'Mod 商店',
+            btnSubscribeManage: '订阅管理',
+            btnRefresh: '刷新',
+            btnRefreshing: '刷新中…',
+            btnUpdateAll: '更新已安装（{n}）',
+            btnBack: '← 返回',
+            btnSaveMax: '保存上限',
+            btnAddSource: '添加来源',
+            btnDelete: '删除',
+            btnOk: '知道了',
+            btnEnabled: '启用',
+            hintToolbar: '仅管理本地 _localmods；创意工坊 Mod 不在此更新。装完后请在主界面点「刷新列表」。',
+            hintMultiSourceTitle: '多源 Mod 需逐条选择来源，不会纳入一键更新',
+            statusLabel: '状态',
+            statusAll: '全部',
+            statusUpdatable: '可更新',
+            statusNew: '新增',
+            statusMissing: '未下载',
+            tabAll: '全部',
+            actionDownload: '下载',
+            actionUpdate: '更新',
+            actionLatest: '已是最新',
+            actionDownloadOverwrite: '下载覆盖',
+            btnChangelog: '更新日志',
+            changelogTitle: '{name} {version} 更新日志',
+            changelogLoading: '加载中…',
+            changelogLoadFailed: '无法加载更新日志',
+            changelogLinkEmpty: '链接错误，未拉取到更新日志',
+            jobQueued: '排队中…',
+            jobDownloading: '下载中 {recv} / {total}（{pct}）· {speed} · 剩余 {eta}',
+            jobVerifying: '校验中…',
+            jobExtracting: '解压中…',
+            jobDone: '完成',
+            jobFailed: '失败',
+            localNotDownloaded: '未下载',
+            localUnknown: '未知',
+            metaLocal: '本地',
+            metaStore: '商店',
+            metaSize: '大小',
+            metaSource: '来源',
+            badgeMultiSource: '多源',
+            badgeNewTitle: '点击查看',
+            emptyNoSources: '尚未订阅任何来源。<br>点击「订阅管理」添加 catalog URL。',
+            emptyClickRefresh: '点击「刷新」拉取订阅目录。',
+            emptyAllSourcesFailed: '所有已启用来源均加载失败。',
+            emptyNoMods: '当前来源没有可显示的 Mod。',
+            emptyNoModsFiltered: '当前来源下没有「{filter}」的 Mod。',
+            emptyNoSubscriptions: '暂无订阅来源。',
+            sourceLoadFailed: '来源「{name}」加载失败：{error}',
+            sourceUnknownError: '未知错误',
+            settingsTitle: '下载设置',
+            settingsMaxMbLabel: '单包体积上限（MB）',
+            settingsMaxMbHint: '默认 100MB。超过此大小的 Mod 将中止下载（可调低做拦截测试）。',
+            formDisplayName: '显示名',
+            formDisplayNamePh: '例如：作者 Foo',
+            formCatalogUrl: 'Catalog URL（https）',
+            formCatalogUrlPh: 'https://example.com/mods/catalog.json',
+            installDoneTitle: '安装完成',
+            installDoneBody: 'Mod 已写入本地目录。请关闭商店面板，在主界面点击「刷新列表」，即可识别新包或更新。',
+            installDoneSuppress: '不再提示',
+            dialogNotice: '提示',
+            unnamedSource: '未命名来源',
+            alertMaxMbRange: '请输入 1～2048 之间的整数（MB）',
+            alertMaxMbSaved: '已保存下载体积上限',
+            alertCatalogRequired: '请填写 Catalog URL',
+            alertCatalogHttps: '仅允许 https Catalog URL',
+            alertMultiSourcePick: '存在多源可更新 Mod，请逐条选择要使用的来源',
+            alertNoAutoUpdate: '当前没有可一键更新的已安装 Mod',
+            alertQueuedSkipped: '已加入 {queued} 项；另有 {skipped} 个多源 Mod 请手动选择来源',
+            unitEmDash: '—',
+            unitQuestion: '？',
+            errUrlInvalid: 'URL 无效',
+            errHttpsOnly: '仅允许 https',
+            errRedirectTooMany: '重定向过多',
+            errRedirectInvalid: '重定向 URL 无效',
+            errSizeLimit: '超过体积上限',
+            errTimeout: '请求超时',
+            errHttp: 'HTTP {code}',
+            errInvalidZip: '无效的 ZIP 文件',
+            errInvalidZipEocd: '无效的 ZIP 文件（找不到 EOCD）',
+            errInvalidZipCentral: '无效的 ZIP 中央目录',
+            errUnsafePath: 'ZIP 含不安全路径',
+            errInvalidZipLocal: '无效的 ZIP 本地头',
+            errInvalidZipSig: '无效的 ZIP 本地头签名',
+            errZipOutOfBounds: 'ZIP 数据越界',
+            errZipMethod: '不支持的 ZIP 压缩方法: {method}',
+            errPackageNameInvalid: 'packageName 非法',
+            errFormatInvalid: '格式不正确',
+            errHostNotAllowed: '下载域名不在白名单',
+            errCatalogInvalid: 'catalog 无效',
+            errSha256Failed: 'sha256 校验失败'
+        },
+        zh_TW: {
+            entryLabel: 'Mod 商店',
+            btnSubscribeManage: '訂閱管理',
+            btnRefresh: '重新整理',
+            btnRefreshing: '重新整理中…',
+            btnUpdateAll: '更新已安裝（{n}）',
+            btnBack: '← 返回',
+            btnSaveMax: '儲存上限',
+            btnAddSource: '新增來源',
+            btnDelete: '刪除',
+            btnOk: '知道了',
+            btnEnabled: '啟用',
+            hintToolbar: '僅管理本機 _localmods；創意工坊 Mod 不在此更新。裝完後請在主介面點「重新整理列表」。',
+            hintMultiSourceTitle: '多源 Mod 需逐條選擇來源，不會納入一鍵更新',
+            statusLabel: '狀態',
+            statusAll: '全部',
+            statusUpdatable: '可更新',
+            statusNew: '新增',
+            statusMissing: '未下載',
+            tabAll: '全部',
+            actionDownload: '下載',
+            actionUpdate: '更新',
+            actionLatest: '已是最新',
+            actionDownloadOverwrite: '下載覆蓋',
+            btnChangelog: '更新日誌',
+            changelogTitle: '{name} {version} 更新日誌',
+            changelogLoading: '載入中…',
+            changelogLoadFailed: '無法載入更新日誌',
+            changelogLinkEmpty: '連結錯誤，未拉取到更新日誌',
+            jobQueued: '排隊中…',
+            jobDownloading: '下載中 {recv} / {total}（{pct}）· {speed} · 剩餘 {eta}',
+            jobVerifying: '校驗中…',
+            jobExtracting: '解壓中…',
+            jobDone: '完成',
+            jobFailed: '失敗',
+            localNotDownloaded: '未下載',
+            localUnknown: '未知',
+            metaLocal: '本機',
+            metaStore: '商店',
+            metaSize: '大小',
+            metaSource: '來源',
+            badgeMultiSource: '多源',
+            badgeNewTitle: '點擊查看',
+            emptyNoSources: '尚未訂閱任何來源。<br>點擊「訂閱管理」新增 catalog URL。',
+            emptyClickRefresh: '點擊「重新整理」拉取訂閱目錄。',
+            emptyAllSourcesFailed: '所有已啟用來源均載入失敗。',
+            emptyNoMods: '目前來源沒有可顯示的 Mod。',
+            emptyNoModsFiltered: '目前來源下沒有「{filter}」的 Mod。',
+            emptyNoSubscriptions: '暫無訂閱來源。',
+            sourceLoadFailed: '來源「{name}」載入失敗：{error}',
+            sourceUnknownError: '未知錯誤',
+            settingsTitle: '下載設定',
+            settingsMaxMbLabel: '單包體積上限（MB）',
+            settingsMaxMbHint: '預設 100MB。超過此大小的 Mod 將中止下載（可調低做攔截測試）。',
+            formDisplayName: '顯示名',
+            formDisplayNamePh: '例如：作者 Foo',
+            formCatalogUrl: 'Catalog URL（https）',
+            formCatalogUrlPh: 'https://example.com/mods/catalog.json',
+            installDoneTitle: '安裝完成',
+            installDoneBody: 'Mod 已寫入本機目錄。請關閉商店面板，在主介面點擊「重新整理列表」，即可識別新包或更新。',
+            installDoneSuppress: '不再提示',
+            dialogNotice: '提示',
+            unnamedSource: '未命名來源',
+            alertMaxMbRange: '請輸入 1～2048 之間的整數（MB）',
+            alertMaxMbSaved: '已儲存下載體積上限',
+            alertCatalogRequired: '請填寫 Catalog URL',
+            alertCatalogHttps: '僅允許 https Catalog URL',
+            alertMultiSourcePick: '存在多源可更新 Mod，請逐條選擇要使用的來源',
+            alertNoAutoUpdate: '目前沒有可一鍵更新的已安裝 Mod',
+            alertQueuedSkipped: '已加入 {queued} 項；另有 {skipped} 個多源 Mod 請手動選擇來源',
+            unitEmDash: '—',
+            unitQuestion: '？',
+            errUrlInvalid: 'URL 無效',
+            errHttpsOnly: '僅允許 https',
+            errRedirectTooMany: '重定向過多',
+            errRedirectInvalid: '重定向 URL 無效',
+            errSizeLimit: '超過體積上限',
+            errTimeout: '請求逾時',
+            errHttp: 'HTTP {code}',
+            errInvalidZip: '無效的 ZIP 檔案',
+            errInvalidZipEocd: '無效的 ZIP 檔案（找不到 EOCD）',
+            errInvalidZipCentral: '無效的 ZIP 中央目錄',
+            errUnsafePath: 'ZIP 含不安全路徑',
+            errInvalidZipLocal: '無效的 ZIP 本機頭',
+            errInvalidZipSig: '無效的 ZIP 本機頭簽名',
+            errZipOutOfBounds: 'ZIP 資料越界',
+            errZipMethod: '不支援的 ZIP 壓縮方法: {method}',
+            errPackageNameInvalid: 'packageName 非法',
+            errFormatInvalid: '格式不正確',
+            errHostNotAllowed: '下載域名不在白名單',
+            errCatalogInvalid: 'catalog 無效',
+            errSha256Failed: 'sha256 校驗失敗'
+        },
+        en: {
+            entryLabel: 'Mod Store',
+            btnSubscribeManage: 'Subscriptions',
+            btnRefresh: 'Refresh',
+            btnRefreshing: 'Refreshing…',
+            btnUpdateAll: 'Update installed ({n})',
+            btnBack: '← Back',
+            btnSaveMax: 'Save limit',
+            btnAddSource: 'Add source',
+            btnDelete: 'Delete',
+            btnOk: 'OK',
+            btnEnabled: 'Enabled',
+            hintToolbar: 'Local _localmods only; Workshop mods are not updated here. After install, click Refresh list on the main screen.',
+            hintMultiSourceTitle: 'Multi-source mods must be updated one source at a time; excluded from batch update',
+            statusLabel: 'Status',
+            statusAll: 'All',
+            statusUpdatable: 'Updates',
+            statusNew: 'New',
+            statusMissing: 'Not installed',
+            tabAll: 'All',
+            actionDownload: 'Download',
+            actionUpdate: 'Update',
+            actionLatest: 'Up to date',
+            actionDownloadOverwrite: 'Download (overwrite)',
+            btnChangelog: 'Changelog',
+            changelogTitle: '{name} {version} Changelog',
+            changelogLoading: 'Loading…',
+            changelogLoadFailed: 'Failed to load changelog',
+            changelogLinkEmpty: 'Invalid link or empty changelog',
+            jobQueued: 'Queued…',
+            jobDownloading: 'Downloading {recv} / {total} ({pct}) · {speed} · ETA {eta}',
+            jobVerifying: 'Verifying…',
+            jobExtracting: 'Extracting…',
+            jobDone: 'Done',
+            jobFailed: 'Failed',
+            localNotDownloaded: 'Not installed',
+            localUnknown: 'Unknown',
+            metaLocal: 'Local',
+            metaStore: 'Store',
+            metaSize: 'Size',
+            metaSource: 'Source',
+            badgeMultiSource: 'Multi',
+            badgeNewTitle: 'Click to dismiss',
+            emptyNoSources: 'No sources subscribed.<br>Open Subscriptions to add a catalog URL.',
+            emptyClickRefresh: 'Click Refresh to fetch catalogs.',
+            emptyAllSourcesFailed: 'All enabled sources failed to load.',
+            emptyNoMods: 'No mods to show for this source.',
+            emptyNoModsFiltered: 'No mods in「{filter}」for this source.',
+            emptyNoSubscriptions: 'No subscribed sources.',
+            sourceLoadFailed: 'Source「{name}」failed: {error}',
+            sourceUnknownError: 'Unknown error',
+            settingsTitle: 'Download settings',
+            settingsMaxMbLabel: 'Max package size (MB)',
+            settingsMaxMbHint: 'Default 100MB. Downloads above this size are aborted (lower for testing).',
+            formDisplayName: 'Display name',
+            formDisplayNamePh: 'e.g. Author Foo',
+            formCatalogUrl: 'Catalog URL (https)',
+            formCatalogUrlPh: 'https://example.com/mods/catalog.json',
+            installDoneTitle: 'Install complete',
+            installDoneBody: 'Mod saved locally. Close this panel and click Refresh list on the main screen to see the package.',
+            installDoneSuppress: 'Do not show again',
+            dialogNotice: 'Notice',
+            unnamedSource: 'Unnamed source',
+            alertMaxMbRange: 'Enter an integer between 1 and 2048 (MB)',
+            alertMaxMbSaved: 'Download size limit saved',
+            alertCatalogRequired: 'Please enter a Catalog URL',
+            alertCatalogHttps: 'HTTPS Catalog URL only',
+            alertMultiSourcePick: 'Multi-source updates available; pick a source for each mod',
+            alertNoAutoUpdate: 'No installed mods can be batch-updated',
+            alertQueuedSkipped: 'Queued {queued}; {skipped} multi-source mod(s) need manual source pick',
+            unitEmDash: '—',
+            unitQuestion: '?',
+            errUrlInvalid: 'Invalid URL',
+            errHttpsOnly: 'HTTPS only',
+            errRedirectTooMany: 'Too many redirects',
+            errRedirectInvalid: 'Invalid redirect URL',
+            errSizeLimit: 'Size limit exceeded',
+            errTimeout: 'Request timed out',
+            errHttp: 'HTTP {code}',
+            errInvalidZip: 'Invalid ZIP file',
+            errInvalidZipEocd: 'Invalid ZIP (EOCD not found)',
+            errInvalidZipCentral: 'Invalid ZIP central directory',
+            errUnsafePath: 'Unsafe path in ZIP',
+            errInvalidZipLocal: 'Invalid ZIP local header',
+            errInvalidZipSig: 'Invalid ZIP local header signature',
+            errZipOutOfBounds: 'ZIP data out of bounds',
+            errZipMethod: 'Unsupported ZIP compression: {method}',
+            errPackageNameInvalid: 'Invalid packageName',
+            errFormatInvalid: 'Invalid package format',
+            errHostNotAllowed: 'Download host not allowed',
+            errCatalogInvalid: 'Invalid catalog',
+            errSha256Failed: 'SHA256 verification failed'
+        }
+    };
+
+    function readManagerLanguage() {
+        try {
+            if (fs.existsSync(MODLOADER_CONFIG_PATH)) {
+                const raw = JSON.parse(fs.readFileSync(MODLOADER_CONFIG_PATH, 'utf8'));
+                const lang = String(raw.ml_language || '').trim();
+                if (lang && STORE_I18N_PACKS[lang]) return lang;
+            }
+        } catch (e) { /* ignore */ }
+        return STORE_I18N_FALLBACK;
+    }
+
+    function storeT(key, params) {
+        const lang = readManagerLanguage();
+        const pack = STORE_I18N_PACKS[lang] || STORE_I18N_PACKS[STORE_I18N_FALLBACK] || {};
+        const fb = STORE_I18N_PACKS[STORE_I18N_FALLBACK] || {};
+        let text = pack[key];
+        if (text == null) text = fb[key];
+        if (text == null) text = key;
+        if (params) {
+            for (const pk in params) {
+                if (Object.prototype.hasOwnProperty.call(params, pk)) {
+                    text = String(text).replace(new RegExp('\\{' + pk + '\\}', 'g'), String(params[pk]));
+                }
+            }
+        }
+        return text;
+    }
+
+    const DEFAULT_MAX_BYTES = 104857600;
+    const CHANGELOG_MAX_BYTES = 512 * 1024;
+    const LOCAL_CHANGELOG_NAME = 'CHANGELOG.md';
+    const DOWNLOAD_CONCURRENCY = 2;
+    const REQUEST_TIMEOUT_MS = 60000;
+    const USER_AGENT = 'ModLoader-ModStore/1.0';
+    const RESUME_THRESHOLD_BYTES = 50 * 1024 * 1024; // >50MB 才断点续传
+    const PROGRESS_UI_THROTTLE_MS = 200;
 
     function isLocalHttpsHost(hostname) {
-        var h = String(hostname || '').toLowerCase();
+        const h = String(hostname || '').toLowerCase();
         return h === '127.0.0.1' || h === 'localhost' || h === '::1';
     }
 
@@ -43,25 +361,25 @@
     }
 
     // ---- 运行时状态 ----
-    var _config = null;
-    var _catalogBySource = {}; // sourceId -> { ok, error?, catalog?, fetchedAt }
-    var _activeTab = 'all';
-    var _activeStatusFilter = 'all'; // all | update | new | missing
-    var _statusFilterPinnedByUser = false;
-    var _viewMode = 'list'; // list | sources
-    var _panelRoot = null;
-    var _listScrollTop = 0;
-    var _jobState = {}; // key: sourceId::modId -> { status, progress, error }
-    var _queue = [];
-    var _activeJobs = 0;
-    var _multiSourceIds = {}; // packageName -> true when appears in >1 enabled sources
+    let _config = null;
+    const _catalogBySource = {}; // sourceId -> { ok, error?, catalog?, fetchedAt }
+    let _activeTab = 'all';
+    let _activeStatusFilter = 'all'; // all | update | new | missing
+    let _statusFilterPinnedByUser = false;
+    let _viewMode = 'list'; // list | sources
+    let _panelRoot = null;
+    let _listScrollTop = 0;
+    const _jobState = {}; // key: sourceId::modId -> { status, progress, error }
+    const _queue = [];
+    let _activeJobs = 0;
+    let _multiSourceIds = {}; // packageName -> true when appears in >1 enabled sources
 
     // ================================================================
     // 工具
     // ================================================================
 
     function logWarn() {
-        var args = Array.prototype.slice.call(arguments);
+        const args = Array.prototype.slice.call(arguments);
         args.unshift('[modStore]');
         console.warn.apply(console, args);
     }
@@ -81,7 +399,7 @@
     function removePathSafe(targetPath) {
         if (!fs.existsSync(targetPath)) return;
         try {
-            var stat = fs.lstatSync(targetPath);
+            const stat = fs.lstatSync(targetPath);
             if (stat.isDirectory()) {
                 fs.rmSync(targetPath, { recursive: true, force: true });
             } else {
@@ -94,11 +412,11 @@
 
     function copyDirRecursive(src, dest) {
         ensureDir(dest);
-        var entries = fs.readdirSync(src, { withFileTypes: true });
-        for (var i = 0; i < entries.length; i++) {
-            var ent = entries[i];
-            var from = pathMod.join(src, ent.name);
-            var to = pathMod.join(dest, ent.name);
+        const entries = fs.readdirSync(src, { withFileTypes: true });
+        for (let i = 0; i < entries.length; i++) {
+            const ent = entries[i];
+            const from = pathMod.join(src, ent.name);
+            const to = pathMod.join(dest, ent.name);
             if (ent.isDirectory()) {
                 copyDirRecursive(from, to);
             } else if (ent.isFile()) {
@@ -109,6 +427,24 @@
 
     function jobKey(sourceId, modId) {
         return String(sourceId) + '::' + String(modId);
+    }
+
+    function isBusyJobStatus(status) {
+        return status === 'queued' || status === 'downloading' ||
+            status === 'verifying' || status === 'extracting';
+    }
+
+    /** 任一来源正在安装同名包时，其它来源按钮也应禁用（防并发写同一目录） */
+    function isPackageInstallBusy(packageName) {
+        if (!packageName) return false;
+        for (const key in _jobState) {
+            if (!Object.prototype.hasOwnProperty.call(_jobState, key)) continue;
+            const sep = key.indexOf('::');
+            if (sep < 0) continue;
+            if (key.slice(sep + 2) !== packageName) continue;
+            if (isBusyJobStatus(_jobState[key].status)) return true;
+        }
+        return false;
     }
 
     function isSafePackageName(name) {
@@ -123,33 +459,33 @@
     /** 体积展示：B → KB → MB → GB（满 1024 进位） */
     function formatBytes(n) {
         n = Number(n);
-        if (!isFinite(n) || n < 0) return '—';
+        if (!isFinite(n) || n < 0) return storeT('unitEmDash');
         if (n < 1024) return Math.round(n) + ' B';
-        var kb = n / 1024;
+        const kb = n / 1024;
         if (kb < 1024) {
             return (kb < 10 ? kb.toFixed(1) : String(Math.round(kb))) + ' KB';
         }
-        var mb = kb / 1024;
+        const mb = kb / 1024;
         if (mb < 1024) {
             return (mb < 10 ? mb.toFixed(1) : String(Math.round(mb))) + ' MB';
         }
-        var gb = mb / 1024;
+        const gb = mb / 1024;
         return (gb < 10 ? gb.toFixed(2) : String(Math.round(gb))) + ' GB';
     }
 
     function formatSpeed(bytesPerSec) {
-        if (!isFinite(bytesPerSec) || bytesPerSec <= 0) return '—';
+        if (!isFinite(bytesPerSec) || bytesPerSec <= 0) return storeT('unitEmDash');
         return formatBytes(bytesPerSec) + '/s';
     }
 
     function formatEta(seconds) {
-        if (!isFinite(seconds) || seconds < 0) return '—';
+        if (!isFinite(seconds) || seconds < 0) return storeT('unitEmDash');
         seconds = Math.ceil(seconds);
         if (seconds < 60) return seconds + 's';
-        var m = Math.floor(seconds / 60);
-        var s = seconds % 60;
+        let m = Math.floor(seconds / 60);
+        const s = seconds % 60;
         if (m < 60) return m + 'm' + (s < 10 ? '0' : '') + s + 's';
-        var h = Math.floor(m / 60);
+        const h = Math.floor(m / 60);
         m = m % 60;
         return h + 'h' + m + 'm';
     }
@@ -168,20 +504,20 @@
     }
 
     function normalizeSeenMods(raw) {
-        var seen = {};
+        const seen = {};
         if (!raw) return seen;
         if (Array.isArray(raw)) {
-            for (var i = 0; i < raw.length; i++) {
-                var pkg = String(raw[i] || '').trim();
+            for (let i = 0; i < raw.length; i++) {
+                const pkg = String(raw[i] || '').trim();
                 if (isSafePackageName(pkg)) seen[pkg] = true;
             }
             return seen;
         }
         if (typeof raw === 'object') {
-            for (var key in raw) {
+            for (const key in raw) {
                 if (!Object.prototype.hasOwnProperty.call(raw, key)) continue;
                 if (!raw[key]) continue;
-                var name = String(key).trim();
+                const name = String(key).trim();
                 if (isSafePackageName(name)) seen[name] = true;
             }
         }
@@ -189,20 +525,20 @@
     }
 
     function normalizeConfig(raw) {
-        var cfg = defaultConfig();
+        const cfg = defaultConfig();
         if (!raw || typeof raw !== 'object') return cfg;
-        var max = Number(raw.maxDownloadBytes);
+        const max = Number(raw.maxDownloadBytes);
         if (isFinite(max) && max > 0) cfg.maxDownloadBytes = Math.floor(max);
         cfg.suppressInstallHint = !!raw.suppressInstallHint;
         cfg.seenMods = normalizeSeenMods(raw.seenMods);
         cfg.sources = [];
         if (Array.isArray(raw.sources)) {
-            for (var i = 0; i < raw.sources.length; i++) {
-                var s = raw.sources[i];
+            for (let i = 0; i < raw.sources.length; i++) {
+                const s = raw.sources[i];
                 if (!s || typeof s !== 'object') continue;
-                var id = String(s.id || '').trim();
-                var name = String(s.name || '').trim();
-                var catalogUrl = String(s.catalogUrl || '').trim();
+                const id = String(s.id || '').trim();
+                const name = String(s.name || '').trim();
+                const catalogUrl = String(s.catalogUrl || '').trim();
                 if (!id || !catalogUrl) continue;
                 cfg.sources.push({
                     id: id,
@@ -222,7 +558,7 @@
                 saveConfig(_config);
                 return _config;
             }
-            var raw = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
+            const raw = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
             _config = normalizeConfig(raw);
             return _config;
         } catch (e) {
@@ -244,7 +580,7 @@
     }
 
     function isPackageSeen(packageName) {
-        var cfg = getConfig();
+        const cfg = getConfig();
         return !!(cfg.seenMods && cfg.seenMods[packageName]);
     }
 
@@ -254,7 +590,7 @@
 
     function markPackageSeen(packageName) {
         if (!isSafePackageName(packageName)) return false;
-        var cfg = getConfig();
+        const cfg = getConfig();
         if (cfg.seenMods[packageName]) return false;
         cfg.seenMods[packageName] = true;
         saveConfig(cfg);
@@ -265,11 +601,11 @@
     }
 
     function forEachDedupedPackage(callback) {
-        var rows = dedupePackageRows(collectStoreRows('all'));
+        const rows = dedupePackageRows(collectStoreRows('all'));
         rebuildMultiSourceMap(rows);
-        var seenPkg = {};
-        for (var i = 0; i < rows.length; i++) {
-            var row = rows[i];
+        const seenPkg = {};
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
             if (seenPkg[row.packageName]) continue;
             seenPkg[row.packageName] = true;
             callback(enrichRow(row), row);
@@ -277,7 +613,7 @@
     }
 
     function makeSourceId(name, catalogUrl) {
-        var base = String(name || '')
+        let base = String(name || '')
             .trim()
             .toLowerCase()
             .replace(/[^a-z0-9\u4e00-\u9fff]+/g, '-')
@@ -285,9 +621,9 @@
         if (!base) {
             base = crypto.createHash('sha1').update(String(catalogUrl || '')).digest('hex').slice(0, 8);
         }
-        var cfg = getConfig();
-        var id = base;
-        var n = 2;
+        const cfg = getConfig();
+        let id = base;
+        let n = 2;
         while (cfg.sources.some(function (s) { return s.id === id; })) {
             id = base + '-' + n;
             n++;
@@ -301,13 +637,13 @@
 
     function normalizeVersion(raw) {
         if (raw == null) return null;
-        var s = String(raw).trim();
+        let s = String(raw).trim();
         if (!s) return null;
         s = s.replace(/^[vV]/, '');
-        var m = s.match(/(\d+(?:\.\d+)*)/);
+        const m = s.match(/(\d+(?:\.\d+)*)/);
         if (!m) return null;
         return m[1].split('.').map(function (p) {
-            var n = parseInt(p, 10);
+            const n = parseInt(p, 10);
             return isFinite(n) ? n : 0;
         });
     }
@@ -317,13 +653,13 @@
      *          null if either side unknown
      */
     function compareVersions(localRaw, storeRaw) {
-        var a = normalizeVersion(localRaw);
-        var b = normalizeVersion(storeRaw);
+        const a = normalizeVersion(localRaw);
+        const b = normalizeVersion(storeRaw);
         if (!a || !b) return null;
-        var len = Math.max(a.length, b.length);
-        for (var i = 0; i < len; i++) {
-            var x = a[i] || 0;
-            var y = b[i] || 0;
+        const len = Math.max(a.length, b.length);
+        for (let i = 0; i < len; i++) {
+            const x = a[i] || 0;
+            const y = b[i] || 0;
             if (x < y) return -1;
             if (x > y) return 1;
         }
@@ -331,10 +667,10 @@
     }
 
     function resolvePackageEntryFileName(entry) {
-        var raw = String(entry).trim();
+        const raw = String(entry).trim();
         if (!raw) return null;
         if (/[\\/]/.test(raw) || raw.indexOf('..') !== -1) return null;
-        var fileName = pathMod.basename(raw);
+        const fileName = pathMod.basename(raw);
         if (!/\.js$/i.test(fileName) || fileName === 'ModLoader.js') return null;
         return fileName;
     }
@@ -351,17 +687,17 @@
     }
 
     function discoverPackageScripts(packageRoot) {
-        var scripts = [];
-        var manifestPath = pathMod.join(packageRoot, 'modloader.json');
-        var manifest = null;
+        const scripts = [];
+        const manifestPath = pathMod.join(packageRoot, 'modloader.json');
+        let manifest = null;
         if (fs.existsSync(manifestPath)) {
             try {
                 manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
             } catch (e) { /* ignore */ }
         }
         if (manifest && Array.isArray(manifest.entries) && manifest.entries.length > 0) {
-            for (var i = 0; i < manifest.entries.length; i++) {
-                var fileName = resolvePackageEntryFileName(manifest.entries[i]);
+            for (let i = 0; i < manifest.entries.length; i++) {
+                const fileName = resolvePackageEntryFileName(manifest.entries[i]);
                 if (!fileName) continue;
                 if (fs.existsSync(pathMod.join(packageRoot, fileName))) scripts.push(fileName);
             }
@@ -372,15 +708,15 @@
 
     function readLocalPackageVersion(packageName) {
         if (!isSafePackageName(packageName)) return { exists: false, version: null };
-        var root = pathMod.join(LOCALMODS_DIR, packageName);
+        const root = pathMod.join(LOCALMODS_DIR, packageName);
         if (!fs.existsSync(root) || !fs.statSync(root).isDirectory()) {
             return { exists: false, version: null };
         }
 
-        var scripts = discoverPackageScripts(root);
-        var isMultiScript = scripts.length > 1;
-        var manifest = null;
-        var manifestPath = pathMod.join(root, 'modloader.json');
+        const scripts = discoverPackageScripts(root);
+        const isMultiScript = scripts.length > 1;
+        let manifest = null;
+        const manifestPath = pathMod.join(root, 'modloader.json');
         if (fs.existsSync(manifestPath)) {
             try {
                 manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
@@ -394,11 +730,11 @@
         }
 
         try {
-            for (var i = 0; i < scripts.length; i++) {
-                var content = fs.readFileSync(pathMod.join(root, scripts[i]), 'utf-8');
-                var block = content.match(/\/\*:[\s\S]*?\*\//);
+            for (let i = 0; i < scripts.length; i++) {
+                const content = fs.readFileSync(pathMod.join(root, scripts[i]), 'utf-8');
+                const block = content.match(/\/\*:[\s\S]*?\*\//);
                 if (!block) continue;
-                var vm = block[0].match(/@version\s+(.+?)$/m);
+                const vm = block[0].match(/@version\s+(.+?)$/m);
                 if (vm && vm[1].trim()) {
                     return { exists: true, version: vm[1].trim() };
                 }
@@ -410,7 +746,7 @@
 
     function resolveEntryStatus(localInfo, storeVersion) {
         if (!localInfo.exists) return 'missing';
-        var cmp = compareVersions(localInfo.version, storeVersion);
+        const cmp = compareVersions(localInfo.version, storeVersion);
         if (cmp === null) return 'unknown';
         if (cmp < 0) return 'update';
         return 'latest';
@@ -421,30 +757,30 @@
     // ================================================================
 
     function parseHttpsUrl(raw) {
-        var u;
+        let u;
         try {
             u = new urlMod.URL(String(raw || ''));
         } catch (e) {
-            throw new Error('URL 无效');
+            throw new Error(storeT('errUrlInvalid'));
         }
         if (u.protocol !== 'https:') {
-            throw new Error('仅允许 https');
+            throw new Error(storeT('errHttpsOnly'));
         }
         return u;
     }
 
     function requestBuffer(rawUrl, options) {
         options = options || {};
-        var maxBytes = options.maxBytes != null ? options.maxBytes : DEFAULT_MAX_BYTES;
-        var onProgress = typeof options.onProgress === 'function' ? options.onProgress : null;
-        var redirectLeft = options.redirectLeft != null ? options.redirectLeft : 5;
-        var rangeStart = options.rangeStart != null ? options.rangeStart : 0;
-        var u = parseHttpsUrl(rawUrl);
+        const maxBytes = options.maxBytes != null ? options.maxBytes : DEFAULT_MAX_BYTES;
+        const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null;
+        const redirectLeft = options.redirectLeft != null ? options.redirectLeft : 5;
+        const rangeStart = options.rangeStart != null ? options.rangeStart : 0;
+        const u = parseHttpsUrl(rawUrl);
 
         return new Promise(function (resolve, reject) {
-            var chunks = [];
-            var received = 0;
-            var settled = false;
+            const chunks = [];
+            let received = 0;
+            let settled = false;
 
             function fail(err) {
                 if (settled) return;
@@ -458,7 +794,7 @@
                 resolve(result);
             }
 
-            var headers = {
+            const headers = {
                 'User-Agent': USER_AGENT,
                 'Accept': '*/*'
             };
@@ -466,7 +802,7 @@
                 headers['Range'] = 'bytes=' + rangeStart + '-';
             }
 
-            var req = https.request(Object.assign({
+            const req = https.request(Object.assign({
                 protocol: u.protocol,
                 hostname: u.hostname,
                 port: u.port || 443,
@@ -475,18 +811,18 @@
                 headers: headers,
                 timeout: REQUEST_TIMEOUT_MS
             }, httpsTlsOptions(u.hostname)), function (res) {
-                var code = res.statusCode || 0;
+                const code = res.statusCode || 0;
                 if (code >= 300 && code < 400 && res.headers.location) {
                     res.resume();
                     if (redirectLeft <= 0) {
-                        fail(new Error('重定向过多'));
+                        fail(new Error(storeT('errRedirectTooMany')));
                         return;
                     }
-                    var next = res.headers.location;
+                    let next = res.headers.location;
                     try {
                         next = new urlMod.URL(next, u).href;
                     } catch (e) {
-                        fail(new Error('重定向 URL 无效'));
+                        fail(new Error(storeT('errRedirectInvalid')));
                         return;
                     }
                     requestBuffer(next, {
@@ -501,15 +837,15 @@
                 // 206 = 续传；若请求了 Range 却返回 200，由调用方决定是否整包重下
                 if (code !== 200 && code !== 206) {
                     res.resume();
-                    fail(new Error('HTTP ' + code));
+                    fail(new Error(storeT('errHttp', { code: code })));
                     return;
                 }
 
-                var contentLength = parseInt(res.headers['content-length'], 10);
-                var total = null;
+                const contentLength = parseInt(res.headers['content-length'], 10);
+                let total = null;
                 if (code === 206) {
-                    var cr = String(res.headers['content-range'] || '');
-                    var m = cr.match(/\/(\d+)\s*$/);
+                    const cr = String(res.headers['content-range'] || '');
+                    const m = cr.match(/\/(\d+)\s*$/);
                     if (m) total = parseInt(m[1], 10);
                     else if (isFinite(contentLength)) total = rangeStart + contentLength;
                 } else if (isFinite(contentLength)) {
@@ -518,21 +854,21 @@
 
                 if (isFinite(total) && total > maxBytes) {
                     res.destroy();
-                    fail(new Error('超过体积上限'));
+                    fail(new Error(storeT('errSizeLimit')));
                     return;
                 }
 
                 res.on('data', function (chunk) {
                     received += chunk.length;
-                    var absolute = rangeStart + received;
+                    const absolute = rangeStart + received;
                     if (absolute > maxBytes) {
                         res.destroy();
-                        fail(new Error('超过体积上限'));
+                        fail(new Error(storeT('errSizeLimit')));
                         return;
                     }
                     chunks.push(chunk);
                     if (onProgress) {
-                        var pct = isFinite(total) && total > 0
+                        const pct = isFinite(total) && total > 0
                             ? Math.min(99, Math.floor(absolute / total * 100))
                             : null;
                         onProgress({
@@ -556,7 +892,7 @@
 
             req.on('timeout', function () {
                 req.destroy();
-                fail(new Error('请求超时'));
+                fail(new Error(storeT('errTimeout')));
             });
             req.on('error', fail);
             req.end();
@@ -569,14 +905,14 @@
      */
     function downloadToFile(rawUrl, destPath, options) {
         options = options || {};
-        var maxBytes = options.maxBytes != null ? options.maxBytes : DEFAULT_MAX_BYTES;
-        var expectedSize = options.expectedSize != null ? Number(options.expectedSize) : null;
-        var onProgress = typeof options.onProgress === 'function' ? options.onProgress : null;
-        var allowResume = expectedSize != null && expectedSize > RESUME_THRESHOLD_BYTES;
+        const maxBytes = options.maxBytes != null ? options.maxBytes : DEFAULT_MAX_BYTES;
+        const expectedSize = options.expectedSize != null ? Number(options.expectedSize) : null;
+        const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null;
+        const allowResume = expectedSize != null && expectedSize > RESUME_THRESHOLD_BYTES;
 
         ensureDir(pathMod.dirname(destPath));
 
-        var existing = 0;
+        let existing = 0;
         if (fs.existsSync(destPath)) {
             existing = fs.statSync(destPath).size;
             if (expectedSize != null && existing >= expectedSize && expectedSize > 0) {
@@ -600,22 +936,22 @@
             }
         }
 
-        var startedAt = Date.now();
-        var baselineExisting = existing;
-        var lastUiAt = 0;
+        let startedAt = Date.now();
+        let baselineExisting = existing;
+        let lastUiAt = 0;
 
         function emitProgress(received, total) {
             if (!onProgress) return;
-            var now = Date.now();
+            const now = Date.now();
             if (now - lastUiAt < PROGRESS_UI_THROTTLE_MS && received !== total) return;
             lastUiAt = now;
-            var elapsedSec = Math.max(0.001, (now - startedAt) / 1000);
-            var delta = Math.max(0, received - baselineExisting);
-            var speed = delta / elapsedSec;
-            var pct = isFinite(total) && total > 0
+            const elapsedSec = Math.max(0.001, (now - startedAt) / 1000);
+            const delta = Math.max(0, received - baselineExisting);
+            const speed = delta / elapsedSec;
+            const pct = isFinite(total) && total > 0
                 ? Math.min(99, Math.floor(received / total * 100))
                 : null;
-            var eta = (isFinite(total) && total > received && speed > 0)
+            const eta = (isFinite(total) && total > received && speed > 0)
                 ? (total - received) / speed
                 : null;
             onProgress({
@@ -633,15 +969,15 @@
 
         function pipeResponse(url, rangeStart, redirectLeft) {
             redirectLeft = redirectLeft != null ? redirectLeft : 5;
-            var u = parseHttpsUrl(url);
+            const u = parseHttpsUrl(url);
             return new Promise(function (resolve, reject) {
-                var headers = {
+                const headers = {
                     'User-Agent': USER_AGENT,
                     'Accept': '*/*'
                 };
                 if (rangeStart > 0) headers['Range'] = 'bytes=' + rangeStart + '-';
 
-                var req = https.request(Object.assign({
+                const req = https.request(Object.assign({
                     protocol: u.protocol,
                     hostname: u.hostname,
                     port: u.port || 443,
@@ -650,18 +986,18 @@
                     headers: headers,
                     timeout: allowResume ? 0 : REQUEST_TIMEOUT_MS
                 }, httpsTlsOptions(u.hostname)), function (res) {
-                    var code = res.statusCode || 0;
+                    const code = res.statusCode || 0;
                     if (code >= 300 && code < 400 && res.headers.location) {
                         res.resume();
                         if (redirectLeft <= 0) {
-                            reject(new Error('重定向过多'));
+                            reject(new Error(storeT('errRedirectTooMany')));
                             return;
                         }
-                        var next = res.headers.location;
+                        let next = res.headers.location;
                         try {
                             next = new urlMod.URL(next, u).href;
                         } catch (e) {
-                            reject(new Error('重定向 URL 无效'));
+                            reject(new Error(storeT('errRedirectInvalid')));
                             return;
                         }
                         pipeResponse(next, rangeStart, redirectLeft - 1).then(resolve, reject);
@@ -680,15 +1016,15 @@
 
                     if (code !== 200 && code !== 206) {
                         res.resume();
-                        reject(new Error('HTTP ' + code));
+                        reject(new Error(storeT('errHttp', { code: code })));
                         return;
                     }
 
-                    var contentLength = parseInt(res.headers['content-length'], 10);
-                    var total = null;
+                    const contentLength = parseInt(res.headers['content-length'], 10);
+                    let total = null;
                     if (code === 206) {
-                        var cr = String(res.headers['content-range'] || '');
-                        var m = cr.match(/\/(\d+)\s*$/);
+                        const cr = String(res.headers['content-range'] || '');
+                        const m = cr.match(/\/(\d+)\s*$/);
                         if (m) total = parseInt(m[1], 10);
                         else if (isFinite(contentLength)) total = rangeStart + contentLength;
                     } else if (isFinite(contentLength)) {
@@ -700,13 +1036,13 @@
 
                     if (isFinite(total) && total > maxBytes) {
                         res.destroy();
-                        reject(new Error('超过体积上限'));
+                        reject(new Error(storeT('errSizeLimit')));
                         return;
                     }
 
-                    var received = rangeStart;
-                    var ws = openWriteStream(rangeStart > 0);
-                    var settled = false;
+                    let received = rangeStart;
+                    const ws = openWriteStream(rangeStart > 0);
+                    let settled = false;
 
                     function fail(err) {
                         if (settled) return;
@@ -721,7 +1057,7 @@
                     res.on('data', function (chunk) {
                         received += chunk.length;
                         if (received > maxBytes) {
-                            fail(new Error('超过体积上限'));
+                            fail(new Error(storeT('errSizeLimit')));
                             return;
                         }
                         if (!ws.write(chunk)) {
@@ -742,7 +1078,7 @@
 
                 req.on('timeout', function () {
                     req.destroy();
-                    reject(new Error('请求超时'));
+                    reject(new Error(storeT('errTimeout')));
                 });
                 req.on('error', reject);
                 req.end();
@@ -751,7 +1087,7 @@
 
         return pipeResponse(rawUrl, existing, 5).then(function () {
             return hashFile(destPath).then(function (sha) {
-                var st = fs.statSync(destPath);
+                const st = fs.statSync(destPath);
                 return { path: destPath, sha256: sha, bytes: st.size };
             });
         });
@@ -759,16 +1095,13 @@
 
     function hashFile(filePath) {
         return new Promise(function (resolve, reject) {
-            var hash = crypto.createHash('sha256');
-            var stream = fs.createReadStream(filePath);
+            const hash = crypto.createHash('sha256');
+            const stream = fs.createReadStream(filePath);
             stream.on('data', function (chunk) { hash.update(chunk); });
             stream.on('error', reject);
             stream.on('end', function () { resolve(hash.digest('hex')); });
         });
     }
-
-    // 避免 http 未使用告警（仅 https）；保留引用便于日后扩展
-    void http;
 
     // ================================================================
     // ZIP（内嵌 zlib，标准一层包目录）
@@ -776,11 +1109,11 @@
 
     function isUnsafeZipEntryName(name) {
         if (!name) return true;
-        var n = String(name).replace(/\\/g, '/');
+        const n = String(name).replace(/\\/g, '/');
         if (n.charAt(0) === '/' || n.charAt(0) === '\\') return true;
         if (/^[a-zA-Z]:/.test(n)) return true;
-        var parts = n.split('/');
-        for (var i = 0; i < parts.length; i++) {
+        const parts = n.split('/');
+        for (let i = 0; i < parts.length; i++) {
             if (parts[i] === '..') return true;
         }
         return false;
@@ -791,68 +1124,68 @@
      */
     function readZipEntries(buf) {
         if (!Buffer.isBuffer(buf) || buf.length < 22) {
-            throw new Error('无效的 ZIP 文件');
+            throw new Error(storeT('errInvalidZip'));
         }
-        var eocdPos = -1;
-        var scanStart = Math.max(0, buf.length - 65557);
-        for (var i = buf.length - 22; i >= scanStart; i--) {
+        let eocdPos = -1;
+        const scanStart = Math.max(0, buf.length - 65557);
+        for (let i = buf.length - 22; i >= scanStart; i--) {
             if (buf.readUInt32LE(i) === 0x06054b50) {
                 eocdPos = i;
                 break;
             }
         }
-        if (eocdPos < 0) throw new Error('无效的 ZIP 文件（找不到 EOCD）');
+        if (eocdPos < 0) throw new Error(storeT('errInvalidZipEocd'));
 
-        var totalEntries = buf.readUInt16LE(eocdPos + 10);
-        var centralSize = buf.readUInt32LE(eocdPos + 12);
-        var centralOffset = buf.readUInt32LE(eocdPos + 16);
-        if (centralOffset + 4 > buf.length) throw new Error('无效的 ZIP 中央目录');
+        const totalEntries = buf.readUInt16LE(eocdPos + 10);
+        const centralSize = buf.readUInt32LE(eocdPos + 12);
+        const centralOffset = buf.readUInt32LE(eocdPos + 16);
+        if (centralOffset + 4 > buf.length) throw new Error(storeT('errInvalidZipCentral'));
 
-        var entries = [];
-        var pos = centralOffset;
-        var end = centralOffset + centralSize;
+        const entries = [];
+        let pos = centralOffset;
+        const end = centralOffset + centralSize;
 
-        for (var idx = 0; idx < totalEntries; idx++) {
+        for (let idx = 0; idx < totalEntries; idx++) {
             if (pos + 46 > buf.length) break;
             if (buf.readUInt32LE(pos) !== 0x02014b50) break;
-            var gpFlag = buf.readUInt16LE(pos + 8);
-            var method = buf.readUInt16LE(pos + 10);
-            var compSize = buf.readUInt32LE(pos + 20);
-            var uncompSize = buf.readUInt32LE(pos + 24);
-            var nameLen = buf.readUInt16LE(pos + 28);
-            var extraLen = buf.readUInt16LE(pos + 30);
-            var commentLen = buf.readUInt16LE(pos + 32);
-            var localOffset = buf.readUInt32LE(pos + 42);
-            var nameBuf = buf.subarray(pos + 46, pos + 46 + nameLen);
-            var name = nameBuf.toString((gpFlag & 0x800) ? 'utf8' : 'utf8');
+            const gpFlag = buf.readUInt16LE(pos + 8);
+            const method = buf.readUInt16LE(pos + 10);
+            const compSize = buf.readUInt32LE(pos + 20);
+            const uncompSize = buf.readUInt32LE(pos + 24);
+            const nameLen = buf.readUInt16LE(pos + 28);
+            const extraLen = buf.readUInt16LE(pos + 30);
+            const commentLen = buf.readUInt16LE(pos + 32);
+            const localOffset = buf.readUInt32LE(pos + 42);
+            const nameBuf = buf.subarray(pos + 46, pos + 46 + nameLen);
+            let name = nameBuf.toString((gpFlag & 0x800) ? 'utf8' : 'utf8');
             name = name.replace(/\\/g, '/');
 
             if (isUnsafeZipEntryName(name)) {
-                throw new Error('ZIP 含不安全路径');
+                throw new Error(storeT('errUnsafePath'));
             }
 
             if (localOffset + 30 > buf.length) {
-                throw new Error('无效的 ZIP 本地头');
+                throw new Error(storeT('errInvalidZipLocal'));
             }
             if (buf.readUInt32LE(localOffset) !== 0x04034b50) {
-                throw new Error('无效的 ZIP 本地头签名');
+                throw new Error(storeT('errInvalidZipSig'));
             }
-            var lNameLen = buf.readUInt16LE(localOffset + 26);
-            var lExtraLen = buf.readUInt16LE(localOffset + 28);
-            var dataStart = localOffset + 30 + lNameLen + lExtraLen;
+            const lNameLen = buf.readUInt16LE(localOffset + 26);
+            const lExtraLen = buf.readUInt16LE(localOffset + 28);
+            const dataStart = localOffset + 30 + lNameLen + lExtraLen;
             if (dataStart + compSize > buf.length) {
-                throw new Error('ZIP 数据越界');
+                throw new Error(storeT('errZipOutOfBounds'));
             }
-            var compData = buf.subarray(dataStart, dataStart + compSize);
-            var outData = null;
-            var isDir = /\/$/.test(name);
+            const compData = buf.subarray(dataStart, dataStart + compSize);
+            let outData = null;
+            const isDir = /\/$/.test(name);
             if (!isDir) {
                 if (method === 0) {
                     outData = Buffer.from(compData);
                 } else if (method === 8) {
                     outData = zlib.inflateRawSync(compData);
                 } else {
-                    throw new Error('不支持的 ZIP 压缩方法: ' + method);
+                    throw new Error(storeT('errZipMethod', { method: method }));
                 }
                 if (uncompSize > 0 && outData.length !== uncompSize) {
                     // 部分工具 uncompSize 不可靠，仅警告级跳过严格校验
@@ -875,18 +1208,18 @@
      */
     function extractStandardPackage(zipBuf, packageName, destRoot) {
         if (!isSafePackageName(packageName)) {
-            throw new Error('packageName 非法');
+            throw new Error(storeT('errPackageNameInvalid'));
         }
-        var entries = readZipEntries(zipBuf);
-        if (!entries.length) throw new Error('格式不正确');
+        const entries = readZipEntries(zipBuf);
+        if (!entries.length) throw new Error(storeT('errFormatInvalid'));
 
-        var topNames = {};
-        var hasRootFile = false;
-        for (var i = 0; i < entries.length; i++) {
-            var n = entries[i].name.replace(/^\/+/, '');
+        const topNames = {};
+        let hasRootFile = false;
+        for (let i = 0; i < entries.length; i++) {
+            const n = entries[i].name.replace(/^\/+/, '');
             if (!n || n === '/') continue;
-            var parts = n.split('/');
-            var top = parts[0];
+            const parts = n.split('/');
+            const top = parts[0];
             if (!top) continue;
             topNames[top] = true;
             if (parts.length === 1 && !entries[i].isDir) {
@@ -894,37 +1227,37 @@
             }
         }
 
-        var tops = Object.keys(topNames);
+        const tops = Object.keys(topNames);
         if (hasRootFile || tops.length !== 1 || tops[0] !== packageName) {
-            throw new Error('格式不正确');
+            throw new Error(storeT('errFormatInvalid'));
         }
 
-        var prefix = packageName + '/';
-        var outPkg = pathMod.join(destRoot, packageName);
+        const prefix = packageName + '/';
+        const outPkg = pathMod.join(destRoot, packageName);
         removePathSafe(outPkg);
         ensureDir(outPkg);
 
-        var wroteFile = false;
-        var hasJs = false;
-        var hasManifest = false;
+        let wroteFile = false;
+        let hasJs = false;
+        let hasManifest = false;
 
-        for (var j = 0; j < entries.length; j++) {
-            var ent = entries[j];
-            var rel = ent.name.replace(/^\/+/, '');
+        for (let j = 0; j < entries.length; j++) {
+            const ent = entries[j];
+            const rel = ent.name.replace(/^\/+/, '');
             if (!rel || rel === packageName || rel === prefix) continue;
             if (rel.indexOf(prefix) !== 0) {
-                throw new Error('格式不正确');
+                throw new Error(storeT('errFormatInvalid'));
             }
-            var inner = rel.slice(prefix.length);
+            const inner = rel.slice(prefix.length);
             if (!inner || inner === '/') continue;
             if (isUnsafeZipEntryName(inner)) {
-                throw new Error('ZIP 含不安全路径');
+                throw new Error(storeT('errUnsafePath'));
             }
 
-            var outPath = pathMod.join(outPkg, inner);
-            var resolved = pathMod.resolve(outPath);
+            const outPath = pathMod.join(outPkg, inner);
+            const resolved = pathMod.resolve(outPath);
             if (resolved !== outPkg && resolved.indexOf(outPkg + pathMod.sep) !== 0) {
-                throw new Error('ZIP 含不安全路径');
+                throw new Error(storeT('errUnsafePath'));
             }
 
             if (ent.isDir || /\/$/.test(inner)) {
@@ -938,46 +1271,42 @@
             if (inner === 'modloader.json') hasManifest = true;
         }
 
-        if (!wroteFile) throw new Error('格式不正确');
+        if (!wroteFile) throw new Error(storeT('errFormatInvalid'));
 
         if (hasManifest) {
             try {
                 JSON.parse(fs.readFileSync(pathMod.join(outPkg, 'modloader.json'), 'utf-8'));
             } catch (e) {
-                throw new Error('格式不正确');
+                throw new Error(storeT('errFormatInvalid'));
             }
         } else if (!hasJs) {
             // 允许仅有子目录 js？计划：至少一个 .js 或合法 modloader.json
             // 再扫一遍包内任意 .js
-            var anyJs = false;
+            let anyJs = false;
             (function walk(dir) {
-                var list = fs.readdirSync(dir, { withFileTypes: true });
-                for (var k = 0; k < list.length; k++) {
+                const list = fs.readdirSync(dir, { withFileTypes: true });
+                for (let k = 0; k < list.length; k++) {
                     if (list[k].isDirectory()) walk(pathMod.join(dir, list[k].name));
                     else if (/\.js$/i.test(list[k].name)) anyJs = true;
                 }
             })(outPkg);
-            if (!anyJs) throw new Error('格式不正确');
+            if (!anyJs) throw new Error(storeT('errFormatInvalid'));
         }
 
         return outPkg;
     }
 
-    function sha256Hex(buf) {
-        return crypto.createHash('sha256').update(buf).digest('hex');
-    }
-
     function assertDownloadHost(entry, downloadUrl) {
-        var u = parseHttpsUrl(downloadUrl);
-        var host = u.hostname.toLowerCase();
-        var allowed = null;
+        const u = parseHttpsUrl(downloadUrl);
+        const host = u.hostname.toLowerCase();
+        let allowed = null;
         if (Array.isArray(entry.hosts) && entry.hosts.length) {
             allowed = entry.hosts.map(function (h) { return String(h).toLowerCase(); });
         } else {
             allowed = [host];
         }
         if (allowed.indexOf(host) === -1) {
-            throw new Error('下载域名不在白名单');
+            throw new Error(storeT('errHostNotAllowed'));
         }
     }
 
@@ -986,17 +1315,17 @@
     // ================================================================
 
     function validateCatalog(raw, source) {
-        if (!raw || typeof raw !== 'object') throw new Error('catalog 无效');
-        var mods = Array.isArray(raw.mods) ? raw.mods : [];
-        var list = [];
-        for (var i = 0; i < mods.length; i++) {
-            var m = mods[i];
+        if (!raw || typeof raw !== 'object') throw new Error(storeT('errCatalogInvalid'));
+        const mods = Array.isArray(raw.mods) ? raw.mods : [];
+        const list = [];
+        for (let i = 0; i < mods.length; i++) {
+            const m = mods[i];
             if (!m || typeof m !== 'object') continue;
-            var id = String(m.id || '').trim();
-            var packageName = String(m.packageName || '').trim();
-            var version = String(m.version || '').trim();
-            var downloadUrl = String(m.downloadUrl || '').trim();
-            var sha256 = String(m.sha256 || '').trim().toLowerCase();
+            let id = String(m.id || '').trim();
+            const packageName = String(m.packageName || '').trim();
+            const version = String(m.version || '').trim();
+            const downloadUrl = String(m.downloadUrl || '').trim();
+            const sha256 = String(m.sha256 || '').trim().toLowerCase();
             if (!packageName || !version || !downloadUrl || !sha256) continue;
             if (!isSafePackageName(packageName)) continue;
             id = packageName;
@@ -1006,18 +1335,26 @@
             } catch (e) {
                 continue;
             }
+            let changelogUrl = String(m.changelogUrl || '').trim();
+            if (changelogUrl) {
+                try {
+                    parseHttpsUrl(changelogUrl);
+                } catch (eCl) {
+                    changelogUrl = '';
+                }
+            }
             list.push({
                 id: id,
                 packageName: packageName,
-                title: String(m.title || packageName).trim() || packageName,
                 version: version,
                 downloadUrl: downloadUrl,
                 sha256: sha256,
                 size: (function () {
-                    var n = Number(m.size);
+                    const n = Number(m.size);
                     return isFinite(n) && n > 0 ? Math.floor(n) : null;
                 })(),
                 summary: String(m.summary || '').trim(),
+                changelogUrl: changelogUrl || null,
                 hosts: Array.isArray(m.hosts) ? m.hosts.slice() : null,
                 sourceId: source.id,
                 sourceName: source.name
@@ -1036,17 +1373,17 @@
         return requestBuffer(source.catalogUrl, {
             maxBytes: Math.min(getConfig().maxDownloadBytes, 2 * 1024 * 1024)
         }).then(function (result) {
-            var buf = Buffer.isBuffer(result) ? result : result.buffer;
-            var text = buf.toString('utf-8');
-            var json = JSON.parse(text);
+            const buf = Buffer.isBuffer(result) ? result : result.buffer;
+            const text = buf.toString('utf-8');
+            const json = JSON.parse(text);
             return validateCatalog(json, source);
         });
     }
 
     function rebuildMultiSourceMap(rows) {
-        var counts = {};
-        for (var i = 0; i < rows.length; i++) {
-            var pkg = rows[i].packageName;
+        const counts = {};
+        for (let i = 0; i < rows.length; i++) {
+            const pkg = rows[i].packageName;
             if (!pkg) continue;
             counts[pkg] = (counts[pkg] || 0) + 1;
         }
@@ -1057,37 +1394,29 @@
     }
 
     function dedupePackageRows(rows) {
-        var map = {};
-        var out = [];
-        for (var i = 0; i < rows.length; i++) {
-            var row = rows[i];
-            var key = row.sourceId + '::' + row.packageName;
-            if (!map[key]) {
-                map[key] = row;
-                out.push(row);
-                continue;
-            }
-            var prev = map[key];
-            if (row.id === row.packageName && prev.id !== prev.packageName) {
-                var idx = out.indexOf(prev);
-                out[idx] = row;
-                map[key] = row;
-            }
+        const map = {};
+        const out = [];
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const key = row.sourceId + '::' + row.packageName;
+            if (map[key]) continue;
+            map[key] = row;
+            out.push(row);
         }
         return out;
     }
 
     function collectStoreRows(filterSourceId) {
-        var rows = [];
-        var cfg = getConfig();
-        for (var i = 0; i < cfg.sources.length; i++) {
-            var src = cfg.sources[i];
+        const rows = [];
+        const cfg = getConfig();
+        for (let i = 0; i < cfg.sources.length; i++) {
+            const src = cfg.sources[i];
             if (!src.enabled) continue;
             if (filterSourceId && filterSourceId !== 'all' && src.id !== filterSourceId) continue;
-            var cached = _catalogBySource[src.id];
+            const cached = _catalogBySource[src.id];
             if (!cached || !cached.ok || !cached.catalog) continue;
-            var mods = cached.catalog.mods || [];
-            for (var j = 0; j < mods.length; j++) {
+            const mods = cached.catalog.mods || [];
+            for (let j = 0; j < mods.length; j++) {
                 rows.push(mods[j]);
             }
         }
@@ -1095,10 +1424,10 @@
     }
 
     function enrichRow(row) {
-        var local = readLocalPackageVersion(row.packageName);
-        var status = resolveEntryStatus(local, row.version);
-        var key = jobKey(row.sourceId, row.packageName);
-        var job = _jobState[key] || null;
+        const local = readLocalPackageVersion(row.packageName);
+        const status = resolveEntryStatus(local, row.version);
+        const key = jobKey(row.sourceId, row.packageName);
+        const job = _jobState[key] || null;
         return {
             row: row,
             local: local,
@@ -1110,7 +1439,7 @@
     }
 
     function countUpdatable() {
-        var n = 0;
+        let n = 0;
         forEachDedupedPackage(function (info) {
             if (info.status === 'update') n++;
         });
@@ -1118,7 +1447,7 @@
     }
 
     function countNew() {
-        var n = 0;
+        let n = 0;
         forEachDedupedPackage(function (info) {
             if (info.isNew) n++;
         });
@@ -1127,7 +1456,7 @@
 
     /** 齿轮角标：可更新 + 未查看的新增 Mod（按 packageName 去重） */
     function countBadgeNotices() {
-        var n = 0;
+        let n = 0;
         forEachDedupedPackage(function (info) {
             if (info.status === 'update' || info.isNew) n++;
         });
@@ -1136,13 +1465,13 @@
 
     /** 一键更新可自动处理的条目（跳过多源，须玩家手动选来源） */
     function countAutoUpdatable() {
-        var rows = dedupePackageRows(collectStoreRows('all'));
+        const rows = dedupePackageRows(collectStoreRows('all'));
         rebuildMultiSourceMap(rows);
-        var seenPkg = {};
-        var n = 0;
-        for (var i = 0; i < rows.length; i++) {
-            var row = rows[i];
-            var info = enrichRow(row);
+        const seenPkg = {};
+        let n = 0;
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const info = enrichRow(row);
             if (info.status !== 'update') continue;
             if (_multiSourceIds[row.packageName]) continue;
             if (seenPkg[row.packageName]) continue;
@@ -1153,21 +1482,21 @@
     }
 
     function countMultiSourceUpdatable() {
-        var rows = dedupePackageRows(collectStoreRows('all'));
+        const rows = dedupePackageRows(collectStoreRows('all'));
         rebuildMultiSourceMap(rows);
-        var pkgs = {};
-        for (var i = 0; i < rows.length; i++) {
-            var row = rows[i];
-            var info = enrichRow(row);
+        const pkgs = {};
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const info = enrichRow(row);
             if (info.status === 'update' && _multiSourceIds[row.packageName]) pkgs[row.packageName] = true;
         }
         return Object.keys(pkgs).length;
     }
 
     function refreshAllCatalogs() {
-        var cfg = getConfig();
-        var enabled = cfg.sources.filter(function (s) { return s.enabled; });
-        var tasks = enabled.map(function (src) {
+        const cfg = getConfig();
+        const enabled = cfg.sources.filter(function (s) { return s.enabled; });
+        const tasks = enabled.map(function (src) {
             return fetchOneCatalog(src).then(function (catalog) {
                 _catalogBySource[src.id] = {
                     ok: true,
@@ -1197,8 +1526,8 @@
     // ================================================================
 
     function setJob(sourceId, modId, patch) {
-        var key = jobKey(sourceId, modId);
-        var cur = _jobState[key] || {
+        const key = jobKey(sourceId, modId);
+        const cur = _jobState[key] || {
             status: 'idle',
             progress: 0,
             received: 0,
@@ -1207,7 +1536,7 @@
             eta: null,
             error: ''
         };
-        for (var k in patch) {
+        for (const k in patch) {
             if (Object.prototype.hasOwnProperty.call(patch, k)) cur[k] = patch[k];
         }
         _jobState[key] = cur;
@@ -1219,15 +1548,15 @@
     }
 
     function installFromEntry(entry) {
-        var cfg = getConfig();
-        var maxBytes = cfg.maxDownloadBytes || DEFAULT_MAX_BYTES;
-        var tmpId = 'dl-' + Date.now() + '-' + Math.random().toString(16).slice(2);
-        var tmpDir = pathMod.join(TMP_ROOT, tmpId);
-        var extractRoot = pathMod.join(tmpDir, 'extract');
+        const cfg = getConfig();
+        const maxBytes = cfg.maxDownloadBytes || DEFAULT_MAX_BYTES;
+        const tmpId = 'dl-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+        const tmpDir = pathMod.join(TMP_ROOT, tmpId);
+        const extractRoot = pathMod.join(tmpDir, 'extract');
         // 大包续传：按 sha256 固定 partial，失败重试可接着下
-        var resumeDir = pathMod.join(TMP_ROOT, 'resume');
-        var partialPath = pathMod.join(resumeDir, entry.sha256 + '.partial');
-        var zipPath = pathMod.join(tmpDir, 'pack.zip');
+        const resumeDir = pathMod.join(TMP_ROOT, 'resume');
+        const partialPath = pathMod.join(resumeDir, entry.sha256 + '.partial');
+        const zipPath = pathMod.join(tmpDir, 'pack.zip');
 
         ensureDir(tmpDir);
         ensureDir(extractRoot);
@@ -1274,7 +1603,7 @@
                 });
                 if (dl.sha256 !== entry.sha256.toLowerCase()) {
                     removePathSafe(partialPath);
-                    throw new Error('sha256 校验失败');
+                    throw new Error(storeT('errSha256Failed'));
                 }
                 fs.copyFileSync(partialPath, zipPath);
                 setJob(entry.sourceId, entry.packageName, {
@@ -1284,12 +1613,12 @@
                     total: dl.bytes,
                     error: ''
                 });
-                var buf = fs.readFileSync(partialPath);
-                var extractedPkg = extractStandardPackage(buf, entry.packageName, extractRoot);
+                const buf = fs.readFileSync(partialPath);
+                const extractedPkg = extractStandardPackage(buf, entry.packageName, extractRoot);
                 ensureDir(LOCALMODS_DIR);
-                var finalPkg = pathMod.join(LOCALMODS_DIR, entry.packageName);
-                var backup = finalPkg + '.bak-' + Date.now();
-                var hadOld = fs.existsSync(finalPkg);
+                const finalPkg = pathMod.join(LOCALMODS_DIR, entry.packageName);
+                const backup = finalPkg + '.bak-' + Date.now();
+                const hadOld = fs.existsSync(finalPkg);
                 if (hadOld) {
                     removePathSafe(backup);
                     fs.renameSync(finalPkg, backup);
@@ -1332,12 +1661,10 @@
     }
 
     function enqueueInstall(entry) {
-        var key = jobKey(entry.sourceId, entry.packageName);
-        var cur = _jobState[key];
-        if (cur && (cur.status === 'queued' || cur.status === 'downloading' ||
-            cur.status === 'verifying' || cur.status === 'extracting')) {
-            return false;
-        }
+        if (isPackageInstallBusy(entry.packageName)) return false;
+        const key = jobKey(entry.sourceId, entry.packageName);
+        const cur = _jobState[key];
+        if (cur && isBusyJobStatus(cur.status)) return false;
         setJob(entry.sourceId, entry.packageName, {
             status: 'queued',
             progress: 0,
@@ -1354,15 +1681,15 @@
 
     /** 一键更新：可自动处理的条目；多源 Mod 须玩家逐条选择来源 */
     function enqueueAllUpdates() {
-        var rows = dedupePackageRows(collectStoreRows('all'));
+        const rows = dedupePackageRows(collectStoreRows('all'));
         rebuildMultiSourceMap(rows);
-        var seenPkg = {};
-        var skippedMultiPkgs = {};
-        var queued = 0;
-        var skippedMulti = 0;
-        for (var i = 0; i < rows.length; i++) {
-            var row = rows[i];
-            var info = enrichRow(row);
+        const seenPkg = {};
+        const skippedMultiPkgs = {};
+        let queued = 0;
+        let skippedMulti = 0;
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const info = enrichRow(row);
             if (info.status !== 'update') continue;
             if (_multiSourceIds[row.packageName]) {
                 if (!skippedMultiPkgs[row.packageName]) {
@@ -1380,7 +1707,7 @@
 
     function pumpQueue() {
         while (_activeJobs < DOWNLOAD_CONCURRENCY && _queue.length > 0) {
-            var entry = _queue.shift();
+            const entry = _queue.shift();
             _activeJobs++;
             installFromEntry(entry).then(function () {
                 _activeJobs--;
@@ -1396,32 +1723,32 @@
     }
 
     function showInstallHint() {
-        var cfg = getConfig();
+        const cfg = getConfig();
         if (cfg.suppressInstallHint) return;
         ensureStyles();
         if (document.getElementById('ml-store-hint-overlay')) return;
 
-        var overlay = document.createElement('div');
+        const overlay = document.createElement('div');
         overlay.id = 'ml-store-hint-overlay';
         overlay.className = 'ml-store-hint-overlay';
         overlay.innerHTML =
             '<div class="ml-store-hint-modal" role="dialog">' +
-            '<div class="ml-store-hint-header">安装完成</div>' +
+            '<div class="ml-store-hint-header">' + escHtml(storeT('installDoneTitle')) + '</div>' +
             '<div class="ml-store-hint-body">' +
-            '<p>Mod 已写入本地目录。请关闭商店面板，在主界面点击「刷新列表」，即可识别新包或更新。</p>' +
+            '<p>' + escHtml(storeT('installDoneBody')) + '</p>' +
             '<label class="ml-store-hint-check">' +
-            '<input type="checkbox" id="ml-store-hint-suppress"> 不再提示' +
+            '<input type="checkbox" id="ml-store-hint-suppress"> ' + escHtml(storeT('installDoneSuppress')) +
             '</label>' +
             '</div>' +
             '<div class="ml-store-hint-footer">' +
-            '<button type="button" class="ml-btn ml-btn-primary" id="ml-store-hint-ok">知道了</button>' +
+            '<button type="button" class="ml-btn ml-btn-primary" id="ml-store-hint-ok">' + escHtml(storeT('btnOk')) + '</button>' +
             '</div>' +
             '</div>';
 
         function closeHint() {
-            var box = document.getElementById('ml-store-hint-suppress');
+            const box = document.getElementById('ml-store-hint-suppress');
             if (box && box.checked) {
-                var next = getConfig();
+                const next = getConfig();
                 next.suppressInstallHint = true;
                 saveConfig(next);
             }
@@ -1432,8 +1759,84 @@
             if (e.target === overlay) closeHint();
         });
         document.body.appendChild(overlay);
-        var okBtn = document.getElementById('ml-store-hint-ok');
+        const okBtn = document.getElementById('ml-store-hint-ok');
         if (okBtn) okBtn.addEventListener('click', closeHint);
+    }
+
+    // ================================================================
+    // 更新日志（changelogUrl · 见 docs/mod商店拓展plan.md §5.1）
+    // ================================================================
+
+    function readLocalChangelog(packageName) {
+        if (!isSafePackageName(packageName)) return null;
+        const p = pathMod.join(LOCALMODS_DIR, packageName, LOCAL_CHANGELOG_NAME);
+        if (!fs.existsSync(p) || !fs.statSync(p).isFile()) return null;
+        try {
+            const text = fs.readFileSync(p, 'utf-8');
+            return String(text || '').trim() ? text : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function fetchRemoteChangelog(entry) {
+        assertDownloadHost(entry, entry.changelogUrl);
+        return requestBuffer(entry.changelogUrl, { maxBytes: CHANGELOG_MAX_BYTES }).then(function (result) {
+            const buf = Buffer.isBuffer(result) ? result : result.buffer;
+            const text = buf.toString('utf-8');
+            if (!String(text || '').trim()) {
+                throw new Error(storeT('changelogLinkEmpty'));
+            }
+            return text;
+        });
+    }
+
+    /** 已最新：本地优先，无则远程；可更新/未下载/无版本：远程 */
+    function loadChangelogMarkdown(info) {
+        const row = info.row;
+        if (!row.changelogUrl) {
+            return Promise.reject(new Error(storeT('changelogLoadFailed')));
+        }
+        const preferLocal = info.status === 'latest';
+        if (preferLocal) {
+            const local = readLocalChangelog(row.packageName);
+            if (local) return Promise.resolve(local);
+        }
+        return fetchRemoteChangelog(row).catch(function (err) {
+            const msg = err && err.message ? String(err.message) : '';
+            if (msg === storeT('changelogLinkEmpty') || msg.indexOf(storeT('changelogLinkEmpty')) !== -1) {
+                throw err;
+            }
+            throw new Error(storeT('changelogLoadFailed') + (msg ? '：' + msg : ''));
+        });
+    }
+
+    function showStoreChangelog(title, body, mode) {
+        const ML = window.ModLoader;
+        if (!ML || typeof ML.showChangelogModal !== 'function') return;
+        ML.showChangelogModal(title, body, { mode: mode === 'text' ? 'text' : 'md' });
+    }
+
+    function isStoreChangelogOpen() {
+        const ML = window.ModLoader;
+        return !!(ML && typeof ML.isChangelogModalOpen === 'function' && ML.isChangelogModalOpen());
+    }
+
+    function openStoreChangelog(info) {
+        const row = info.row;
+        const title = storeT('changelogTitle', {
+            name: row.packageName,
+            version: row.version || ''
+        });
+        showStoreChangelog(title, storeT('changelogLoading'), 'text');
+        loadChangelogMarkdown(info).then(function (md) {
+            if (!isStoreChangelogOpen()) return;
+            showStoreChangelog(title, md, 'md');
+        }).catch(function (err) {
+            if (!isStoreChangelogOpen()) return;
+            const msg = err && err.message ? String(err.message) : storeT('changelogLoadFailed');
+            showStoreChangelog(title, msg, 'text');
+        });
     }
 
     // ================================================================
@@ -1442,7 +1845,7 @@
 
     function ensureStyles() {
         if (document.getElementById('ml-store-styles')) return;
-        var style = document.createElement('style');
+        const style = document.createElement('style');
         style.id = 'ml-store-styles';
         style.textContent = [
             '.ml-store{display:flex;flex-direction:column;height:100%;min-height:0;padding:0 0 8px;box-sizing:border-box;font-size:13px;color:var(--ml-text-primary,#e8e8ec);}',
@@ -1495,34 +1898,34 @@
     }
 
     function statusButtonLabel(status) {
-        if (status === 'missing') return '下载';
-        if (status === 'update') return '更新';
-        if (status === 'latest') return '已是最新';
-        if (status === 'unknown') return '下载覆盖';
-        return '下载';
+        if (status === 'missing') return storeT('actionDownload');
+        if (status === 'update') return storeT('actionUpdate');
+        if (status === 'latest') return storeT('actionLatest');
+        if (status === 'unknown') return storeT('actionDownloadOverwrite');
+        return storeT('actionDownload');
     }
 
-    function statusButtonDisabled(status, job) {
-        if (job && (job.status === 'queued' || job.status === 'downloading' ||
-            job.status === 'verifying' || job.status === 'extracting')) return true;
+    function statusButtonDisabled(status, job, packageName) {
+        if (job && isBusyJobStatus(job.status)) return true;
+        if (packageName && isPackageInstallBusy(packageName)) return true;
         return status === 'latest';
     }
 
     function jobStatusText(job) {
         if (!job) return '';
-        if (job.status === 'queued') return '排队中…';
+        if (job.status === 'queued') return storeT('jobQueued');
         if (job.status === 'downloading') {
-            var recv = formatBytes(job.received || 0);
-            var totalPart = job.total != null ? formatBytes(job.total) : '？';
-            var pct = (job.progress != null && job.total) ? (job.progress + '%') : '…';
-            var speed = formatSpeed(job.speed || 0);
-            var eta = formatEta(job.eta);
-            return '下载中 ' + recv + ' / ' + totalPart + '（' + pct + '）· ' + speed + ' · 剩余 ' + eta;
+            const recv = formatBytes(job.received || 0);
+            const totalPart = job.total != null ? formatBytes(job.total) : storeT('unitQuestion');
+            const pct = (job.progress != null && job.total) ? (job.progress + '%') : '…';
+            const speed = formatSpeed(job.speed || 0);
+            const eta = formatEta(job.eta);
+            return storeT('jobDownloading', { recv: recv, total: totalPart, pct: pct, speed: speed, eta: eta });
         }
-        if (job.status === 'verifying') return '校验中…';
-        if (job.status === 'extracting') return '解压中…';
-        if (job.status === 'done') return '完成';
-        if (job.status === 'error') return job.error || '失败';
+        if (job.status === 'verifying') return storeT('jobVerifying');
+        if (job.status === 'extracting') return storeT('jobExtracting');
+        if (job.status === 'done') return storeT('jobDone');
+        if (job.status === 'error') return job.error || storeT('jobFailed');
         return '';
     }
 
@@ -1535,30 +1938,30 @@
     }
 
     function saveListScroll() {
-        var el = getListScrollEl();
+        const el = getListScrollEl();
         _listScrollTop = el ? el.scrollTop : 0;
     }
 
     function restoreListScroll() {
-        var el = getListScrollEl();
+        const el = getListScrollEl();
         if (el) el.scrollTop = _listScrollTop;
     }
 
     function updateToolbar() {
         if (!_panelRoot || _viewMode !== 'list') return;
-        var btn = _panelRoot.querySelector('.ml-store-update-all');
+        const btn = _panelRoot.querySelector('.ml-store-update-all');
         if (!btn) return;
-        var n = countAutoUpdatable();
-        var multi = countMultiSourceUpdatable();
+        const n = countAutoUpdatable();
+        const multi = countMultiSourceUpdatable();
         btn.disabled = n <= 0;
-        btn.textContent = '更新已安装（' + n + '）';
-        btn.title = multi > 0 ? '多源 Mod 需逐条选择来源，不会纳入一键更新' : '';
+        btn.textContent = storeT('btnUpdateAll', { n: n });
+        btn.title = multi > 0 ? storeT('hintMultiSourceTitle') : '';
     }
 
     function countMissing() {
-        var rows = dedupePackageRows(collectStoreRows('all'));
-        var n = 0;
-        for (var i = 0; i < rows.length; i++) {
+        const rows = dedupePackageRows(collectStoreRows('all'));
+        let n = 0;
+        for (let i = 0; i < rows.length; i++) {
             if (enrichRow(rows[i]).status === 'missing') n++;
         }
         return n;
@@ -1584,14 +1987,14 @@
     }
 
     function buildStatusTabsHtml() {
-        var upd = countUpdatable();
-        var newest = countNew();
-        var miss = countMissing();
-        var html = '<span class="ml-store-tabs-label">状态</span>';
-        html += buildStatusTabBtn('all', '全部');
-        html += buildStatusTabBtn('update', '可更新' + (upd > 0 ? '（' + upd + '）' : ''));
-        html += buildStatusTabBtn('new', '新增' + (newest > 0 ? '（' + newest + '）' : ''));
-        html += buildStatusTabBtn('missing', '未下载' + (miss > 0 ? '（' + miss + '）' : ''));
+        const upd = countUpdatable();
+        const newest = countNew();
+        const miss = countMissing();
+        let html = '<span class="ml-store-tabs-label">' + escHtml(storeT('statusLabel')) + '</span>';
+        html += buildStatusTabBtn('all', storeT('statusAll'));
+        html += buildStatusTabBtn('update', storeT('statusUpdatable') + (upd > 0 ? '（' + upd + '）' : ''));
+        html += buildStatusTabBtn('new', storeT('statusNew') + (newest > 0 ? '（' + newest + '）' : ''));
+        html += buildStatusTabBtn('missing', storeT('statusMissing') + (miss > 0 ? '（' + miss + '）' : ''));
         return html;
     }
 
@@ -1602,8 +2005,8 @@
     }
 
     function bindStatusTabEvents(root) {
-        var tabs = root.querySelectorAll('.ml-store-status-tab');
-        for (var i = 0; i < tabs.length; i++) {
+        const tabs = root.querySelectorAll('.ml-store-status-tab');
+        for (let i = 0; i < tabs.length; i++) {
             tabs[i].addEventListener('click', function (e) {
                 _statusFilterPinnedByUser = true;
                 _activeStatusFilter = e.currentTarget.getAttribute('data-status') || 'all';
@@ -1615,7 +2018,7 @@
 
     function syncStatusTabsUi() {
         if (!_panelRoot || _viewMode !== 'list') return;
-        var wrap = _panelRoot.querySelector('.ml-store-status-tabs');
+        const wrap = _panelRoot.querySelector('.ml-store-status-tabs');
         if (!wrap) return;
         wrap.innerHTML = buildStatusTabsHtml();
         bindStatusTabEvents(wrap);
@@ -1632,107 +2035,113 @@
 
     function rerenderListOnly() {
         if (!_panelRoot || _viewMode !== 'list') return;
-        var list = _panelRoot.querySelector('.ml-store-list');
+        const list = _panelRoot.querySelector('.ml-store-list');
         if (!list) return;
         list.innerHTML = buildListHtml();
         bindListEvents(list);
     }
 
     function buildListHtml() {
-        var cfg = getConfig();
-        var enabled = cfg.sources.filter(function (s) { return s.enabled; });
+        const cfg = getConfig();
+        const enabled = cfg.sources.filter(function (s) { return s.enabled; });
         if (!enabled.length) {
-            return '<div class="ml-store-empty">尚未订阅任何来源。<br>点击「订阅管理」添加 catalog URL。</div>';
+            return '<div class="ml-store-empty">' + storeT('emptyNoSources') + '</div>';
         }
 
-        var errHtml = '';
-        for (var i = 0; i < enabled.length; i++) {
-            var c = _catalogBySource[enabled[i].id];
+        let errHtml = '';
+        for (let i = 0; i < enabled.length; i++) {
+            const c = _catalogBySource[enabled[i].id];
             if (c && !c.ok) {
-                errHtml += '<div class="ml-store-src-err">来源「' + escHtml(enabled[i].name) +
-                    '」加载失败：' + escHtml(c.error || '未知错误') + '</div>';
+                errHtml += '<div class="ml-store-src-err">' + escHtml(storeT('sourceLoadFailed', {
+                    name: enabled[i].name,
+                    error: c.error || storeT('sourceUnknownError')
+                })) + '</div>';
             }
         }
 
-        var filter = _activeTab === 'all' ? 'all' : _activeTab;
-        var rows = dedupePackageRows(collectStoreRows(filter));
+        const filter = _activeTab === 'all' ? 'all' : _activeTab;
+        const rows = dedupePackageRows(collectStoreRows(filter));
         rebuildMultiSourceMap(dedupePackageRows(collectStoreRows('all')));
 
         if (!rows.length) {
-            var anyOk = enabled.some(function (s) {
+            const anyOk = enabled.some(function (s) {
                 return _catalogBySource[s.id] && _catalogBySource[s.id].ok;
             });
-            var anyFetched = enabled.some(function (s) {
+            const anyFetched = enabled.some(function (s) {
                 return !!_catalogBySource[s.id];
             });
             if (!anyFetched) {
-                return errHtml + '<div class="ml-store-empty">点击「刷新」拉取订阅目录。</div>';
+                return errHtml + '<div class="ml-store-empty">' + escHtml(storeT('emptyClickRefresh')) + '</div>';
             }
             if (!anyOk) {
-                return errHtml + '<div class="ml-store-empty">所有已启用来源均加载失败。</div>';
+                return errHtml + '<div class="ml-store-empty">' + escHtml(storeT('emptyAllSourcesFailed')) + '</div>';
             }
-            return errHtml + '<div class="ml-store-empty">当前来源没有可显示的 Mod。</div>';
+            return errHtml + '<div class="ml-store-empty">' + escHtml(storeT('emptyNoMods')) + '</div>';
         }
 
-        var html = errHtml;
-        var shown = 0;
-        for (var j = 0; j < rows.length; j++) {
-            var info = enrichRow(rows[j]);
+        let html = errHtml;
+        let shown = 0;
+        for (let j = 0; j < rows.length; j++) {
+            const info = enrichRow(rows[j]);
             if (!rowMatchesStatusFilter(info)) continue;
             shown++;
-            var r = info.row;
-            var localText = !info.local.exists
-                ? '未下载'
-                : (info.local.version || '未知');
-            var disabled = statusButtonDisabled(info.status, info.job);
-            var label = statusButtonLabel(info.status);
-            var jobText = jobStatusText(info.job);
-            var jobClass = info.job && info.job.status === 'error' ? 'ml-store-error' : 'ml-store-progress';
+            const r = info.row;
+            const localText = !info.local.exists
+                ? storeT('localNotDownloaded')
+                : (info.local.version || storeT('localUnknown'));
+            const disabled = statusButtonDisabled(info.status, info.job, r.packageName);
+            const label = statusButtonLabel(info.status);
+            const jobText = jobStatusText(info.job);
+            const jobClass = info.job && info.job.status === 'error' ? 'ml-store-error' : 'ml-store-progress';
 
             html += '<div class="ml-store-item' + (info.isNew ? ' ml-store-item-has-new' : '') +
                 '" data-source="' + escHtml(r.sourceId) +
                 '" data-mod="' + escHtml(r.packageName) + '">';
             html += '<div class="ml-store-item-title">' + escHtml(r.packageName);
             if (info.isNew) {
-                html += '<span class="ml-store-badge ml-store-badge-new" title="点击查看">New</span>';
+                html += '<span class="ml-store-badge ml-store-badge-new" title="' + escHtml(storeT('badgeNewTitle')) + '">New</span>';
             }
             if (info.multiSource) {
-                html += '<span class="ml-store-badge">多源</span>';
+                html += '<span class="ml-store-badge">' + escHtml(storeT('badgeMultiSource')) + '</span>';
             }
             html += '</div>';
             if (r.summary) {
                 html += '<div class="ml-store-summary">' + escHtml(r.summary) + '</div>';
             }
-            html += '<div class="ml-store-meta">本地: ' + escHtml(localText) +
-                '　商店: ' + escHtml(r.version) +
-                '　大小: ' + escHtml(r.size != null ? formatBytes(r.size) : '未知') +
-                '　来源: ' + escHtml(r.sourceName) + '</div>';
+            html += '<div class="ml-store-meta">' + escHtml(storeT('metaLocal')) + ': ' + escHtml(localText) +
+                '　' + escHtml(storeT('metaStore')) + ': ' + escHtml(r.version) +
+                '　' + escHtml(storeT('metaSize')) + ': ' + escHtml(r.size != null ? formatBytes(r.size) : storeT('localUnknown')) +
+                '　' + escHtml(storeT('metaSource')) + ': ' + escHtml(r.sourceName) + '</div>';
             html += '<div class="ml-store-actions">';
             html += '<button type="button" class="ml-btn ml-btn-primary ml-store-action-btn"' +
                 (disabled ? ' disabled' : '') + '>' + escHtml(label) + '</button>';
+            if (r.changelogUrl) {
+                html += '<button type="button" class="ml-btn ml-btn-secondary ml-store-changelog-btn">' +
+                    escHtml(storeT('btnChangelog')) + '</button>';
+            }
             if (jobText) {
                 html += '<span class="' + jobClass + '">' + escHtml(jobText) + '</span>';
             }
             html += '</div></div>';
         }
         if (!shown) {
-            var filterLabel = _activeStatusFilter === 'update' ? '可更新'
-                : (_activeStatusFilter === 'new' ? '新增'
-                    : (_activeStatusFilter === 'missing' ? '未下载' : ''));
-            var msg = filterLabel
-                ? '当前来源下没有「' + filterLabel + '」的 Mod。'
-                : '当前来源没有可显示的 Mod。';
+            const filterLabel = _activeStatusFilter === 'update' ? storeT('statusUpdatable')
+                : (_activeStatusFilter === 'new' ? storeT('statusNew')
+                    : (_activeStatusFilter === 'missing' ? storeT('statusMissing') : ''));
+            const msg = filterLabel
+                ? storeT('emptyNoModsFiltered', { filter: filterLabel })
+                : storeT('emptyNoMods');
             return errHtml + '<div class="ml-store-empty">' + escHtml(msg) + '</div>';
         }
         return html;
     }
 
     function bindListEvents(listEl) {
-        var items = listEl.querySelectorAll('.ml-store-item');
-        for (var i = 0; i < items.length; i++) {
+        const items = listEl.querySelectorAll('.ml-store-item');
+        for (let i = 0; i < items.length; i++) {
             items[i].addEventListener('click', function (e) {
-                var item = e.currentTarget;
-                var modId = item.getAttribute('data-mod');
+                const item = e.currentTarget;
+                const modId = item.getAttribute('data-mod');
                 if (modId && isModNew(modId)) {
                     markPackageSeen(modId);
                     syncStatusTabsUi();
@@ -1741,17 +2150,17 @@
                 }
             });
         }
-        var btns = listEl.querySelectorAll('.ml-store-action-btn');
-        for (var j = 0; j < btns.length; j++) {
+        const btns = listEl.querySelectorAll('.ml-store-action-btn');
+        for (let j = 0; j < btns.length; j++) {
             btns[j].addEventListener('click', function (e) {
                 e.stopPropagation();
-                var item = e.currentTarget.closest('.ml-store-item');
+                const item = e.currentTarget.closest('.ml-store-item');
                 if (!item) return;
-                var sourceId = item.getAttribute('data-source');
-                var modId = item.getAttribute('data-mod');
-                var rows = dedupePackageRows(collectStoreRows('all'));
-                var entry = null;
-                for (var k = 0; k < rows.length; k++) {
+                const sourceId = item.getAttribute('data-source');
+                const modId = item.getAttribute('data-mod');
+                const rows = dedupePackageRows(collectStoreRows('all'));
+                let entry = null;
+                for (let k = 0; k < rows.length; k++) {
                     if (rows[k].sourceId === sourceId && rows[k].packageName === modId) {
                         entry = rows[k];
                         break;
@@ -1760,14 +2169,33 @@
                 if (entry) enqueueInstall(entry);
             });
         }
+        const clBtns = listEl.querySelectorAll('.ml-store-changelog-btn');
+        for (let c = 0; c < clBtns.length; c++) {
+            clBtns[c].addEventListener('click', function (e) {
+                e.stopPropagation();
+                const item = e.currentTarget.closest('.ml-store-item');
+                if (!item) return;
+                const sourceId = item.getAttribute('data-source');
+                const modId = item.getAttribute('data-mod');
+                const rows = dedupePackageRows(collectStoreRows('all'));
+                let entry = null;
+                for (let k = 0; k < rows.length; k++) {
+                    if (rows[k].sourceId === sourceId && rows[k].packageName === modId) {
+                        entry = rows[k];
+                        break;
+                    }
+                }
+                if (entry) openStoreChangelog(enrichRow(entry));
+            });
+        }
     }
 
     function buildTabsHtml() {
-        var cfg = getConfig();
-        var html = '<button type="button" class="ml-store-tab' +
-            (_activeTab === 'all' ? ' is-active' : '') + '" data-tab="all">全部</button>';
-        for (var i = 0; i < cfg.sources.length; i++) {
-            var s = cfg.sources[i];
+        const cfg = getConfig();
+        let html = '<button type="button" class="ml-store-tab' +
+            (_activeTab === 'all' ? ' is-active' : '') + '" data-tab="all">' + escHtml(storeT('tabAll')) + '</button>';
+        for (let i = 0; i < cfg.sources.length; i++) {
+            const s = cfg.sources[i];
             if (!s.enabled) continue;
             html += '<button type="button" class="ml-store-tab' +
                 (_activeTab === s.id ? ' is-active' : '') +
@@ -1777,15 +2205,15 @@
     }
 
     function applyMaxDownloadMbInput(root) {
-        var el = root.querySelector('.ml-store-max-mb');
+        const el = root.querySelector('.ml-store-max-mb');
         if (!el) return;
-        var mb = parseInt(el.value, 10);
+        let mb = parseInt(el.value, 10);
         if (!isFinite(mb) || mb < 1) {
-            alertStore('请输入 1～2048 之间的整数（MB）');
+            alertStore(storeT('alertMaxMbRange'));
             return false;
         }
         if (mb > 2048) mb = 2048;
-        var cfg = getConfig();
+        const cfg = getConfig();
         cfg.maxDownloadBytes = mb * 1024 * 1024;
         saveConfig(cfg);
         el.value = String(mb);
@@ -1793,68 +2221,67 @@
     }
 
     function buildSourcesHtml() {
-        var cfg = getConfig();
-        var maxMb = Math.round(cfg.maxDownloadBytes / (1024 * 1024));
-        var html = '<div class="ml-store-sources">';
+        const cfg = getConfig();
+        const maxMb = Math.round(cfg.maxDownloadBytes / (1024 * 1024));
+        let html = '<div class="ml-store-sources">';
         html += '<div class="ml-store-settings-block">';
-        html += '<div class="ml-store-settings-title">下载设置</div>';
-        html += '<label class="ml-store-max-label">单包体积上限（MB）';
+        html += '<div class="ml-store-settings-title">' + escHtml(storeT('settingsTitle')) + '</div>';
+        html += '<label class="ml-store-max-label">' + escHtml(storeT('settingsMaxMbLabel'));
         html += '<input type="number" class="ml-store-max-mb" min="1" max="2048" step="1" value="' + maxMb + '">';
         html += '</label>';
-        html += '<div class="ml-store-settings-hint">默认 100MB。超过此大小的 Mod 将中止下载（可调低做拦截测试）。</div>';
-        html += '<button type="button" class="ml-btn ml-btn-secondary ml-store-save-max-btn">保存上限</button>';
+        html += '<div class="ml-store-settings-hint">' + escHtml(storeT('settingsMaxMbHint')) + '</div>';
+        html += '<button type="button" class="ml-btn ml-btn-secondary ml-store-save-max-btn">' + escHtml(storeT('btnSaveMax')) + '</button>';
         html += '</div>';
         if (!cfg.sources.length) {
-            html += '<div class="ml-store-empty" style="padding:12px 0;">暂无订阅来源。</div>';
+            html += '<div class="ml-store-empty" style="padding:12px 0;">' + escHtml(storeT('emptyNoSubscriptions')) + '</div>';
         }
-        for (var i = 0; i < cfg.sources.length; i++) {
-            var s = cfg.sources[i];
+        for (let i = 0; i < cfg.sources.length; i++) {
+            const s = cfg.sources[i];
             html += '<div class="ml-store-src-row" data-id="' + escHtml(s.id) + '">';
             html += '<span class="ml-store-src-name">' + escHtml(s.name) + '</span>';
             html += '<span class="ml-store-src-url">' + escHtml(s.catalogUrl) + '</span>';
             html += '<label style="font-size:12px;display:flex;align-items:center;gap:4px;">' +
                 '<input type="checkbox" class="ml-store-src-enable"' +
-                (s.enabled ? ' checked' : '') + '>启用</label>';
-            html += '<button type="button" class="ml-btn ml-btn-danger ml-store-src-del">删除</button>';
+                (s.enabled ? ' checked' : '') + '>' + escHtml(storeT('btnEnabled')) + '</label>';
+            html += '<button type="button" class="ml-btn ml-btn-danger ml-store-src-del">' + escHtml(storeT('btnDelete')) + '</button>';
             html += '</div>';
         }
         html += '<div class="ml-store-form">';
-        html += '<label>显示名<input type="text" class="ml-store-add-name" placeholder="例如：作者 Foo"></label>';
-        html += '<label>Catalog URL（https）<input type="text" class="ml-store-add-url" placeholder="https://example.com/mods/catalog.json"></label>';
+        html += '<label>' + escHtml(storeT('formDisplayName')) + '<input type="text" class="ml-store-add-name" placeholder="' + escHtml(storeT('formDisplayNamePh')) + '"></label>';
+        html += '<label>' + escHtml(storeT('formCatalogUrl')) + '<input type="text" class="ml-store-add-url" placeholder="' + escHtml(storeT('formCatalogUrlPh')) + '"></label>';
         html += '<div class="ml-store-form-actions">';
-        html += '<button type="button" class="ml-btn ml-btn-primary ml-store-add-btn">添加来源</button>';
-        html += '<button type="button" class="ml-btn ml-btn-secondary ml-store-back-btn">返回商店</button>';
+        html += '<button type="button" class="ml-btn ml-btn-primary ml-store-add-btn">' + escHtml(storeT('btnAddSource')) + '</button>';
         html += '</div></div></div>';
         return html;
     }
 
     function bindSourcesEvents(root) {
-        var saveMaxBtn = root.querySelector('.ml-store-save-max-btn');
+        const saveMaxBtn = root.querySelector('.ml-store-save-max-btn');
         if (saveMaxBtn) {
             saveMaxBtn.addEventListener('click', function () {
                 if (applyMaxDownloadMbInput(root)) {
-                    alertStore('已保存下载体积上限');
+                    alertStore(storeT('alertMaxMbSaved'));
                 }
             });
         }
-        var maxMbEl = root.querySelector('.ml-store-max-mb');
+        const maxMbEl = root.querySelector('.ml-store-max-mb');
         if (maxMbEl) {
             maxMbEl.addEventListener('keydown', function (e) {
                 if (e.key === 'Enter') {
                     e.preventDefault();
                     if (applyMaxDownloadMbInput(root)) {
-                        alertStore('已保存下载体积上限');
+                        alertStore(storeT('alertMaxMbSaved'));
                     }
                 }
             });
         }
-        var enables = root.querySelectorAll('.ml-store-src-enable');
-        for (var i = 0; i < enables.length; i++) {
+        const enables = root.querySelectorAll('.ml-store-src-enable');
+        for (let i = 0; i < enables.length; i++) {
             enables[i].addEventListener('change', function (e) {
-                var row = e.currentTarget.closest('.ml-store-src-row');
-                var id = row && row.getAttribute('data-id');
-                var cfg = getConfig();
-                for (var j = 0; j < cfg.sources.length; j++) {
+                const row = e.currentTarget.closest('.ml-store-src-row');
+                const id = row && row.getAttribute('data-id');
+                const cfg = getConfig();
+                for (let j = 0; j < cfg.sources.length; j++) {
                     if (cfg.sources[j].id === id) {
                         cfg.sources[j].enabled = !!e.currentTarget.checked;
                         break;
@@ -1863,12 +2290,12 @@
                 saveConfig(cfg);
             });
         }
-        var dels = root.querySelectorAll('.ml-store-src-del');
-        for (var d = 0; d < dels.length; d++) {
+        const dels = root.querySelectorAll('.ml-store-src-del');
+        for (let d = 0; d < dels.length; d++) {
             dels[d].addEventListener('click', function (e) {
-                var row = e.currentTarget.closest('.ml-store-src-row');
-                var id = row && row.getAttribute('data-id');
-                var cfg = getConfig();
+                const row = e.currentTarget.closest('.ml-store-src-row');
+                const id = row && row.getAttribute('data-id');
+                const cfg = getConfig();
                 cfg.sources = cfg.sources.filter(function (s) { return s.id !== id; });
                 saveConfig(cfg);
                 delete _catalogBySource[id];
@@ -1876,26 +2303,26 @@
                 renderPanel(_panelRoot);
             });
         }
-        var addBtn = root.querySelector('.ml-store-add-btn');
+        const addBtn = root.querySelector('.ml-store-add-btn');
         if (addBtn) {
             addBtn.addEventListener('click', function () {
-                var nameEl = root.querySelector('.ml-store-add-name');
-                var urlEl = root.querySelector('.ml-store-add-url');
-                var name = nameEl ? nameEl.value.trim() : '';
-                var catalogUrl = urlEl ? urlEl.value.trim() : '';
+                const nameEl = root.querySelector('.ml-store-add-name');
+                const urlEl = root.querySelector('.ml-store-add-url');
+                let name = nameEl ? nameEl.value.trim() : '';
+                const catalogUrl = urlEl ? urlEl.value.trim() : '';
                 if (!catalogUrl) {
-                    alertStore('请填写 Catalog URL');
+                    alertStore(storeT('alertCatalogRequired'));
                     return;
                 }
                 try {
                     parseHttpsUrl(catalogUrl);
                 } catch (err) {
-                    alertStore(err.message || '仅允许 https Catalog URL');
+                    alertStore(err.message || storeT('alertCatalogHttps'));
                     return;
                 }
-                if (!name) name = '未命名来源';
-                var cfg = getConfig();
-                var id = makeSourceId(name, catalogUrl);
+                if (!name) name = storeT('unnamedSource');
+                const cfg = getConfig();
+                const id = makeSourceId(name, catalogUrl);
                 cfg.sources.push({
                     id: id,
                     name: name,
@@ -1909,19 +2336,12 @@
                 doRefresh();
             });
         }
-        var backBtn = root.querySelector('.ml-store-back-btn');
-        if (backBtn) {
-            backBtn.addEventListener('click', function () {
-                _viewMode = 'list';
-                renderPanel(_panelRoot);
-            });
-        }
     }
 
     function alertStore(msg) {
         if (typeof ML.showConfirmDialog === 'function') {
-            ML.showConfirmDialog('提示', String(msg), [{
-                text: '知道了',
+            ML.showConfirmDialog(storeT('dialogNotice'), String(msg), [{
+                text: storeT('btnOk'),
                 class: 'ml-btn-primary',
                 action: function () {
                     if (typeof ML.hideConfirmDialog === 'function') ML.hideConfirmDialog();
@@ -1933,10 +2353,10 @@
     }
 
     function doRefresh() {
-        var btn = _panelRoot && _panelRoot.querySelector('.ml-store-refresh-btn');
+        const btn = _panelRoot && _panelRoot.querySelector('.ml-store-refresh-btn');
         if (btn) {
             btn.disabled = true;
-            btn.textContent = '刷新中…';
+            btn.textContent = storeT('btnRefreshing');
         }
         refreshAllCatalogs().then(function () {
             if (!_statusFilterPinnedByUser) applyDefaultStatusFilter();
@@ -1955,20 +2375,21 @@
         ensureStyles();
         _panelRoot = container;
         container.classList.add('ml-store-panel-root');
+        registerStoreEntry();
         getConfig();
 
         if (_viewMode === 'sources') {
             container.innerHTML =
                 '<div class="ml-store">' +
                 '<div class="ml-store-toolbar">' +
-                '<button type="button" class="ml-btn ml-btn-secondary ml-store-back-btn">← 返回</button>' +
-                '<span style="color:var(--ml-text-secondary,#9a9ab0);font-size:12px;">订阅管理</span>' +
+                '<button type="button" class="ml-btn ml-btn-secondary ml-store-back-btn">' + escHtml(storeT('btnBack')) + '</button>' +
+                '<span style="color:var(--ml-text-secondary,#9a9ab0);font-size:12px;">' + escHtml(storeT('btnSubscribeManage')) + '</span>' +
                 '</div>' +
                 '<div class="ml-store-sources-scroll ml-list-scroll">' +
                 buildSourcesHtml() +
                 '</div></div>';
             bindSourcesEvents(container);
-            var back = container.querySelector('.ml-store-toolbar .ml-store-back-btn');
+            const back = container.querySelector('.ml-store-toolbar .ml-store-back-btn');
             if (back) {
                 back.addEventListener('click', function () {
                     _viewMode = 'list';
@@ -1981,53 +2402,55 @@
         container.innerHTML =
             '<div class="ml-store">' +
             '<div class="ml-store-toolbar">' +
-            '<button type="button" class="ml-btn ml-btn-secondary ml-store-sources-btn">订阅管理</button>' +
-            '<button type="button" class="ml-btn ml-btn-primary ml-store-refresh-btn">刷新</button>' +
+            '<button type="button" class="ml-btn ml-btn-secondary ml-store-sources-btn">' + escHtml(storeT('btnSubscribeManage')) + '</button>' +
+            '<button type="button" class="ml-btn ml-btn-primary ml-store-refresh-btn">' + escHtml(storeT('btnRefresh')) + '</button>' +
             '<button type="button" class="ml-btn ml-btn-primary ml-store-update-all"' +
             (countAutoUpdatable() > 0 ? '' : ' disabled') +
-            (countMultiSourceUpdatable() > 0 ? ' title="多源 Mod 需逐条选择来源，不会纳入一键更新"' : '') +
-            '>更新已安装（' + countAutoUpdatable() + '）</button>' +
+            (countMultiSourceUpdatable() > 0 ? ' title="' + escHtml(storeT('hintMultiSourceTitle')) + '"' : '') +
+            '>' + escHtml(storeT('btnUpdateAll', { n: countAutoUpdatable() })) + '</button>' +
             '</div>' +
-            '<div class="ml-store-hint">仅管理本地 _localmods；创意工坊 Mod 不在此更新。装完后请在主界面点「刷新列表」。</div>' +
+            '<div class="ml-store-hint">' + escHtml(storeT('hintToolbar')) + '</div>' +
             '<div class="ml-store-tabs">' + buildTabsHtml() + '</div>' +
             '<div class="ml-store-tabs ml-store-status-tabs">' + buildStatusTabsHtml() + '</div>' +
             '<div class="ml-store-list ml-list-scroll">' + buildListHtml() + '</div>' +
             '</div>';
 
-        var srcBtn = container.querySelector('.ml-store-sources-btn');
+        const srcBtn = container.querySelector('.ml-store-sources-btn');
         if (srcBtn) {
             srcBtn.addEventListener('click', function () {
                 _viewMode = 'sources';
                 renderPanel(container);
             });
         }
-        var refreshBtn = container.querySelector('.ml-store-refresh-btn');
+        const refreshBtn = container.querySelector('.ml-store-refresh-btn');
         if (refreshBtn) {
             refreshBtn.addEventListener('click', function () { doRefresh(); });
         }
-        var updateAllBtn = container.querySelector('.ml-store-update-all');
+        const updateAllBtn = container.querySelector('.ml-store-update-all');
         if (updateAllBtn) {
             updateAllBtn.addEventListener('click', function () {
                 saveListScroll();
-                var result = enqueueAllUpdates();
+                const result = enqueueAllUpdates();
                 if (!result.queued) {
                     if (result.skippedMulti > 0) {
-                        alertStore('存在多源可更新 Mod，请逐条选择要使用的来源');
+                        alertStore(storeT('alertMultiSourcePick'));
                     } else {
-                        alertStore('当前没有可一键更新的已安装 Mod');
+                        alertStore(storeT('alertNoAutoUpdate'));
                     }
                     restoreListScroll();
                     return;
                 }
                 if (result.skippedMulti > 0) {
-                    alertStore('已加入 ' + result.queued + ' 项；另有 ' + result.skippedMulti +
-                        ' 个多源 Mod 请手动选择来源');
+                    alertStore(storeT('alertQueuedSkipped', {
+                        queued: result.queued,
+                        skipped: result.skippedMulti
+                    }));
                 }
                 refreshListView();
             });
         }
-        var tabs = container.querySelectorAll('.ml-store-tab:not(.ml-store-status-tab)');
-        for (var t = 0; t < tabs.length; t++) {
+        const tabs = container.querySelectorAll('.ml-store-tab:not(.ml-store-status-tab)');
+        for (let t = 0; t < tabs.length; t++) {
             tabs[t].addEventListener('click', function (e) {
                 _activeTab = e.currentTarget.getAttribute('data-tab') || 'all';
                 _listScrollTop = 0;
@@ -2045,11 +2468,10 @@
     // 注册
     // ================================================================
 
-    function register() {
-        loadConfig();
+    function registerStoreEntry() {
         ML.registerLogEntry({
             id: 'modStore',
-            label: 'Mod 商店',
+            label: storeT('entryLabel'),
             getUpdateCount: function () {
                 try {
                     return countBadgeNotices();
@@ -2063,17 +2485,22 @@
                 _statusFilterPinnedByUser = false;
                 applyDefaultStatusFilter();
                 renderPanel(container);
-                var cfg = getConfig();
-                var enabled = cfg.sources.filter(function (s) { return s.enabled; });
+                const cfg = getConfig();
+                const enabled = cfg.sources.filter(function (s) { return s.enabled; });
                 if (enabled.length) {
-                    var needFetch = enabled.some(function (s) { return !_catalogBySource[s.id]; });
+                    const needFetch = enabled.some(function (s) { return !_catalogBySource[s.id]; });
                     if (needFetch) doRefresh();
                 }
             }
         });
-        console.info('[modStore] 已挂载 Mod 商店入口');
-        var cfg = getConfig();
-        var enabled = cfg.sources.filter(function (s) { return s.enabled; });
+    }
+
+    function register() {
+        loadConfig();
+        registerStoreEntry();
+        console.info('[modStore] Mod store entry registered');
+        const cfg = getConfig();
+        const enabled = cfg.sources.filter(function (s) { return s.enabled; });
         if (enabled.length) {
             refreshAllCatalogs().catch(function () { /* 后台预拉 catalog，供齿轮角标统计 */ });
         }
