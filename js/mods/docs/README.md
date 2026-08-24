@@ -1,6 +1,12 @@
 # RMMZ ModLoader
 
-游戏内模组管理器 **V4.3.0**
+[![License: MIT](https://img.shields.io/github/license/jokerBBC/rpg-maker-mz-mod-loader)](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/blob/main/LICENSE)
+[![GitHub release](https://img.shields.io/github/v/release/jokerBBC/rpg-maker-mz-mod-loader)](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/releases/latest)
+[![GitHub downloads](https://img.shields.io/github/downloads/jokerBBC/rpg-maker-mz-mod-loader/total)](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/releases)
+
+> **[English README](README-en.md)**
+
+游戏内模组管理器 **V4.3.1**
 
 一款功能强大的 RPG Maker MZ 模组管理器，支持在游戏内管理 **本地 Mod** 与 **Steam 创意工坊 Mod** 的开启/关闭、参数编辑、排序与依赖检测。**现已支持多语言界面**（简体中文 / 繁體中文 / English）。
 
@@ -281,4 +287,4 @@ MIT License — 详见 [LICENSE](LICENSE)
 
 ***
 
-**版本**: V4.3.0 | **更新日期**: 2026-08-24
+**版本**: V4.3.1 | **更新日期**: 2026-08-24

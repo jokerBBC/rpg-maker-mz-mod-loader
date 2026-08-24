@@ -1,5 +1,13 @@
 # ModLoader 更新日志
 
+## V4.3.1 (2026-08-24)
+
+### 管理器在线更新
+
+- **修复**：`libs/modLoaderUpdater.js` `validateCatalog()` 中多余 `continue`/`}` 导致脚本语法错误、设置入口不显示
+- **新增**：「在线更新时不更新 Mod 商店作者工具」选项（`excludeAuthorTools`，**默认勾选**）— 仅跳过 `tools/modstore/` 下载，**不删除**本地 `tools/` 其它文件
+- **发版**：根目录 `README.md` / `README-en.md` 改由 sync 从 `docs/README*.md` 自动生成（含徽章与链接改写）
+
 ## V4.3.0 (2026-08-24)
 
 ### 管理器在线更新（`libs/modLoaderUpdater.js`）

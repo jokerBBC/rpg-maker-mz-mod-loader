@@ -96,7 +96,7 @@
 
     // ---- 1.1 常量、版本与日志 ----
     const ModName = "ModLoader";
-    const VERSION = "V4.3.0";
+    const VERSION = "V4.3.1";
     const DEBUG_LEVEL = 0;
 
     const log = (level, ...args) => {

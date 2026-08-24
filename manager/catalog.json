@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "id": "modloader-manager",
-  "version": "V4.3.0",
-  "publishedAt": "2026-08-24T12:13:23Z",
+  "version": "V4.3.1",
+  "publishedAt": "2026-08-24T13:27:05Z",
   "changelogPath": "docs/modloader_CHANGELOG.md",
   "files": [
     {
       "path": "ModLoader.js",
-      "sha256": "a66dbc0cbfd24e3c640501056f479279c7d77f4d46c9d79e5b8eb8ddebba0a12",
+      "sha256": "514c406a6970e372ec361fd135b78f4d4c49ac971d0e4a7e5ded1c4c100b7797",
       "size": 295787
     },
     {
@@ -37,18 +37,18 @@
     },
     {
       "path": "docs/ModLoader_测试文档.md",
-      "sha256": "aa1e8ec65885df2bd7fc4eaf61a98e7e1f444a47d86e32378529fa54386b9fc4",
-      "size": 10953
+      "sha256": "a59a8448a531550d3d1b24721e439b99b7b8aba3ff895fbd74d05624ce174a96",
+      "size": 11211
     },
     {
       "path": "docs/README-en.md",
-      "sha256": "0540f365d3b132b66939e0587cc27f134e57ae17da390af1248579f0ea6070bc",
-      "size": 13023
+      "sha256": "8c6a3bf05d4a519a650754f002e20d8ba2fcae98f608844f271fd2433aca31c2",
+      "size": 13516
     },
     {
       "path": "docs/README.md",
-      "sha256": "3e02bddf93e86e0587fb46ce06b18c9b4d642e84ff7490de52046ff0a4577325",
-      "size": 12371
+      "sha256": "03c1e82ad2b9c95604ca6e8aace240bb1c9b32cb0bac72be72321a9c56039634",
+      "size": 12898
     },
     {
       "path": "docs/RMMZ_ModLoader_开发规范.md",
@@ -92,8 +92,8 @@
     },
     {
       "path": "docs/modloader_CHANGELOG.md",
-      "sha256": "7da0ea4bf60b2e64b5f10e7f86ca67eeba726e3e9cfecc7e085ab170c6c6d3cb",
-      "size": 35691
+      "sha256": "34011db314463b6fa6833b852ad831d456866e9fbb90a87b78a26f9d86f3480e",
+      "size": 36212
     },
     {
       "path": "docs/mod商店拓展plan.md",
@@ -102,8 +102,8 @@
     },
     {
       "path": "docs/使用手册.md",
-      "sha256": "d87188799938030a8c7487730a85351be985e8d5b6ae27ee1463f0b49f42d7e9",
-      "size": 21940
+      "sha256": "1ef7495a62a6fbfb7cae1293232bb6013e9a7618e28f7921aef4e72f5067dc90",
+      "size": 22211
     },
     {
       "path": "docs/前置Mod更新日志等/ModDataLoader_CHANGELOG.md",
@@ -137,8 +137,8 @@
     },
     {
       "path": "libs/modLoaderUpdater.js",
-      "sha256": "e3872601f73ae24526c061c0ede11e68cbc20bfee72ec45dcbde786042a4d2a3",
-      "size": 47150
+      "sha256": "8f940044e33316b6c089e9ffa01f0c43fe936dd5fa793a2f6c7c70b484691481",
+      "size": 50090
     },
     {
       "path": "libs/modStore.js",

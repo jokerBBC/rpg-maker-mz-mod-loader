@@ -68,6 +68,7 @@
             btnChecking: '检查中…',
             btnUpdating: '更新中…',
             disableUpdates: '禁用管理器更新',
+            excludeAuthorTools: '在线更新时不更新 Mod 商店作者工具（打包 GUI、catalog 发布等 · tools/modstore/）',
             logTitle: '升级过程',
             logEmpty: '点击「检查更新」开始。',
             logDisabled: '已禁用管理器更新。',
@@ -76,6 +77,7 @@
             logCatalog: 'catalog {remote}，本地 {local}',
             logAlreadyLatest: '已是最新版本，无需更新。',
             logSkip: '跳过未改：{path}',
+            logSkipAuthorTool: '跳过 Mod 商店作者工具：{path}',
             logDownload: '下载 {path} …',
             logDownloadOk: '下载 {path} … OK',
             logBackup: '备份将改文件…',
@@ -114,6 +116,7 @@
             btnChecking: '檢查中…',
             btnUpdating: '更新中…',
             disableUpdates: '停用管理器更新',
+            excludeAuthorTools: '線上更新時不更新 Mod 商店作者工具（打包 GUI、catalog 發布等 · tools/modstore/）',
             logTitle: '升級過程',
             logEmpty: '點擊「檢查更新」開始。',
             logDisabled: '已停用管理器更新。',
@@ -122,6 +125,7 @@
             logCatalog: 'catalog {remote}，本機 {local}',
             logAlreadyLatest: '已是最新版本，無需更新。',
             logSkip: '跳過未改：{path}',
+            logSkipAuthorTool: '跳過 Mod 商店作者工具：{path}',
             logDownload: '下載 {path} …',
             logDownloadOk: '下載 {path} … OK',
             logBackup: '備份將改檔案…',
@@ -160,6 +164,7 @@
             btnChecking: 'Checking…',
             btnUpdating: 'Updating…',
             disableUpdates: 'Disable manager updates',
+            excludeAuthorTools: 'Skip Mod store author tools in online updates (pack GUI, catalog publish — tools/modstore/)',
             logTitle: 'Update log',
             logEmpty: 'Click “Check for updates” to start.',
             logDisabled: 'Manager updates are disabled.',
@@ -168,6 +173,7 @@
             logCatalog: 'catalog {remote}, local {local}',
             logAlreadyLatest: 'Already up to date.',
             logSkip: 'Skip unchanged: {path}',
+            logSkipAuthorTool: 'Skip Mod store author tool: {path}',
             logDownload: 'Download {path} …',
             logDownloadOk: 'Download {path} … OK',
             logBackup: 'Backing up files to replace…',
@@ -461,6 +467,7 @@
     function defaultConfig() {
         return {
             updatesDisabled: false,
+            excludeAuthorTools: true,
             lastCheckedAt: null,
             lastRemoteVersion: null,
             lastError: null
@@ -476,6 +483,9 @@
                 const raw = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
                 if (raw && typeof raw === 'object') {
                     cfg.updatesDisabled = !!raw.updatesDisabled;
+                    cfg.excludeAuthorTools = raw.excludeAuthorTools === undefined
+                        ? true
+                        : !!raw.excludeAuthorTools;
                     cfg.lastCheckedAt = raw.lastCheckedAt || null;
                     cfg.lastRemoteVersion = raw.lastRemoteVersion || null;
                     cfg.lastError = raw.lastError || null;
@@ -687,6 +697,33 @@
         refreshChrome();
     }
 
+    /** Mod 商店作者侧工具（打包 GUI / catalog 发布）；不含 tools/ 下其它目录 */
+    function isModStorePublishToolPath(relPath) {
+        const p = normalizeRelPath(relPath);
+        return p.indexOf('tools/modstore/') === 0;
+    }
+
+    /** 玩家勾选剔除 Mod 商店作者工具时，过滤 catalog 应用范围（仅跳过下载，不删本地文件） */
+    function catalogForApply(catalog) {
+        if (!catalog) return { files: [], remove: [] };
+        const cfg = getConfig();
+        if (!cfg.excludeAuthorTools) {
+            return { files: catalog.files.slice(), remove: (catalog.remove || []).slice() };
+        }
+        const files = [];
+        for (let i = 0; i < catalog.files.length; i++) {
+            const f = catalog.files[i];
+            if (!isModStorePublishToolPath(f.path)) files.push(f);
+        }
+        const remove = [];
+        const remList = catalog.remove || [];
+        for (let j = 0; j < remList.length; j++) {
+            const p = remList[j];
+            if (!isModStorePublishToolPath(p)) remove.push(p);
+        }
+        return { files: files, remove: remove };
+    }
+
     function notifyBadges() {
         try {
             if (typeof ML.refreshConflictLog === 'function') ML.refreshConflictLog();
@@ -886,7 +923,12 @@
                     cleanupSession(false);
                     return null;
                 }
-                const catalog = check.catalog;
+                const applied = catalogForApply(check.catalog);
+                const catalog = {
+                    files: applied.files,
+                    remove: applied.remove,
+                    version: check.catalog.version
+                };
                 const tag = check.tag;
                 const mirror = check.mirror;
                 const toReplace = [];
@@ -997,7 +1039,8 @@
             '.ml-updater-toolbar{display:flex;gap:8px;align-items:center;padding:0 16px 8px;flex-wrap:wrap;flex-shrink:0;}',
             '.ml-updater-toolbar .ml-btn{font-size:12px;padding:6px 12px;}',
             '.ml-updater-toolbar .ml-btn:disabled{opacity:.5;cursor:not-allowed;}',
-            '.ml-updater-disable{padding:0 16px 10px;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ml-text-secondary,#9a9ab0);flex-shrink:0;}',
+            '.ml-updater-disable{padding:0 16px 10px;display:flex;flex-direction:column;align-items:flex-start;gap:8px;font-size:12px;color:var(--ml-text-secondary,#9a9ab0);flex-shrink:0;}',
+            '.ml-updater-disable label{display:flex;align-items:center;gap:8px;cursor:pointer;}',
             '.ml-updater-disable input{margin:0;}',
             '.ml-updater-log-title{padding:0 16px 6px;font-size:12px;color:var(--ml-text-muted,#666680);flex-shrink:0;}',
             '.ml-updater-log{flex:1;min-height:0;margin:0 12px;padding:10px 12px;overflow:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;line-height:1.55;white-space:pre-wrap;word-break:break-word;border:1px solid var(--ml-border,rgba(255,255,255,.08));border-radius:8px;background:var(--ml-bg-secondary,rgba(28,28,48,.95));color:var(--ml-text-secondary,#9a9ab0);}'
@@ -1041,6 +1084,8 @@
 
         const cb = _panelRoot.querySelector('.ml-updater-disable-input');
         if (cb) cb.checked = disabled;
+        const toolsCb = _panelRoot.querySelector('.ml-updater-exclude-tools-input');
+        if (toolsCb) toolsCb.checked = !!getConfig().excludeAuthorTools;
     }
 
     function copyLog() {
@@ -1085,10 +1130,12 @@
             '<button type="button" class="ml-btn ml-btn-primary ml-updater-update" style="display:none">' + escHtml(t('btnUpdate')) + '</button>' +
             '<button type="button" class="ml-btn ml-btn-secondary ml-updater-copy">' + escHtml(t('btnCopyLog')) + '</button>' +
             '</div>' +
-            '<label class="ml-updater-disable">' +
-            '<input type="checkbox" class="ml-updater-disable-input" />' +
-            '<span>' + escHtml(t('disableUpdates')) + '</span>' +
-            '</label>' +
+            '<div class="ml-updater-disable">' +
+            '<label><input type="checkbox" class="ml-updater-disable-input" />' +
+            '<span>' + escHtml(t('disableUpdates')) + '</span></label>' +
+            '<label><input type="checkbox" class="ml-updater-exclude-tools-input" />' +
+            '<span>' + escHtml(t('excludeAuthorTools')) + '</span></label>' +
+            '</div>' +
             '<div class="ml-updater-log-title">' + escHtml(t('logTitle')) + '</div>' +
             '<pre class="ml-updater-log ml-list-scroll"></pre>' +
             '</div>';
@@ -1125,6 +1172,15 @@
                     appendLog(t('logDisabled'));
                 }
                 notifyBadges();
+                refreshChrome();
+            });
+        }
+        const toolsCb = container.querySelector('.ml-updater-exclude-tools-input');
+        if (toolsCb) {
+            toolsCb.addEventListener('change', function () {
+                const cfg = getConfig();
+                cfg.excludeAuthorTools = !!toolsCb.checked;
+                saveConfig();
                 refreshChrome();
             });
         }

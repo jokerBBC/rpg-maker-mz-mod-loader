@@ -1,3 +1,5 @@
+<!-- 本文件由 tools/manager-release/sync.js 从 js/mods/docs/ 自动生成，请勿手改 -->
+
 # RMMZ ModLoader
 
 [![License: MIT](https://img.shields.io/github/license/jokerBBC/rpg-maker-mz-mod-loader)](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/blob/main/LICENSE)
@@ -6,20 +8,18 @@
 
 > **[English README](README-en.md)**
 
-游戏内模组管理器 **V4.3.0**
+游戏内模组管理器 **V4.3.1**
 
 一款功能强大的 RPG Maker MZ 模组管理器，支持在游戏内管理 **本地 Mod** 与 **Steam 创意工坊 Mod** 的开启/关闭、参数编辑、排序与依赖检测。**现已支持多语言界面**（简体中文 / 繁體中文 / English）。
 
-> **V4.3.0 管理器在线更新**：`libs/modLoaderUpdater.js` — 设置 → **管理器更新** 内手动检查/更新 ModLoader 白名单文件（catalog + raw）；与 Mod 商店分离；sha256 相同跳过下载；备份失败自动回滚；GitHub / Gitee 双镜像。详见 [使用手册 · 管理器更新](js/mods/docs/使用手册.md#28-管理器更新)。
-
-> **V4.1.3 前置 Mod**：新增 **ModDataLoader**（数据库 merge / replace / add、manifest 声明式注入）与 **ModResourceLoader**（资源替换 / 新增、modId 别名），采用 **ModLoader → 前置 Mod → 功能 Mod** 三层架构；游戏专属兼容（加密、YEP 等）通过可插拔 **GameAdapter** 适配。**部分测试已完成** — 详见完整文档中的前置 Mod 章节。
+> **V4.1.3 前置 Mod**：新增 **ModDataLoader**（数据库 merge / replace / add、manifest 声明式注入）与 **ModResourceLoader**（资源替换 / 新增、modId 别名），采用 **ModLoader → 前置 Mod → 功能 Mod** 三层架构；游戏专属兼容（加密、YEP 等）通过可插拔 **GameAdapter** 适配，便于不同游戏做插件微调。**部分测试已完成**，详见下方 [开发资源 · 前置 Mod](#前置-modv413-部分测试完成)。
 
 > **运行环境**：Mod 配置保存在 `mod_config.json`  
-> **不再写入**： `plugins.js`，游戏更新官方插件后 Mod 开关与参数不会丢失。  
-> **创意工坊**：需 Steam 正版安装路径才能解析工坊目录（毕竟盗版都没法订阅），本地 Mod 正常使用。  
-> **libs 扩展**：`js/mods/libs/` 可放管理器扩展（如 `modStore.js`、`modLoaderUpdater.js`）；调用 `ModLoader` API 才生效。Mod 商店：有 `modStore.js` 即开启，删除即关闭。管理器在线更新：有 `modLoaderUpdater.js` 即开启，删除即关闭。盗版检测：游戏作者**自行**从源码拷贝 `piracyGate.js` 即开启（**默认发行包不含**），删除即关闭。  
+> **不再写入**： `plugins.js`，游戏更新官方插件后 Mod 开关与参数不会丢失  
+> **创意工坊**：需 Steam 正版安装路径才能解析工坊目录  
+> **libs 扩展**：`js/mods/libs/` 可放管理器扩展（如 `piracyGate.js`、`modStore.js`、`modLoaderUpdater.js`）；调用 `ModLoader` API 才生效。盗版检测：有 `piracyGate.js` 即开启，删除即关闭。Mod 商店：有 `modStore.js` 即开启，删除即关闭。管理器在线更新：有 `modLoaderUpdater.js` 即开启，删除即关闭。  
 
----
+***
 
 ## ✨ 实际运用案例
 
@@ -28,27 +28,24 @@
 
 ## ✨ 功能特性
 
-
-| 功能                | 描述                                              |
-| ----------------- | ----------------------------------------------- |
-| 🎮 **游戏内管理**      | 无需额外程序，直接在游戏中管理 Mod 开关、参数与排序                    |
+| 功能 | 描述 |
+| --- | --- |
+| 🎮 **游戏内管理** | 无需额外程序，直接在游戏中管理 Mod 开关、参数与排序 |
 | 🛒 **Steam 创意工坊** | 扫描 `workshop/content/<AppID>/`（AppID 可配置）；筛选、刷新列表；本地与工坊统一包结构 |
-| 🏪 **Mod 商店拓展** | `libs/modStore.js`：多源 HTTPS catalog 订阅、下载/更新整包到 `_localmods`、断点续传（>50MB）；**UI 多语言**；列表「更新日志」按钮；可与工坊并存 |
-| 🔄 **管理器在线更新** | `libs/modLoaderUpdater.js`：设置内手动检查/更新 ModLoader 本体（catalog + raw）；与 Mod 商店分离；禁用开关；绿色角标加算 |
-| 📦 **统一包结构**      | 本地 `_localmods/<包名>/` 与工坊订阅包根目录布局一致（V4.1）；包根 `CHANGELOG.md` 为 Mod 更新日志唯一位置（V4.2） |
-| 📋 **Mod 更新日志**   | 管理器详情版本旁「更新日志」；头部「(日志)」为管理器自身日志；商店 / 详情 / 管理器共用 Markdown 弹窗 |
-| ⚙️ **参数编辑**       | 数值、开关、文本、单选、颜色、长文本、数据库引用、struct、table           |
-| 🔀 **排序与依赖**      | 拖拽/序号排序；`@base` / `@orderAfter` 依赖检测；缺失 `@base` 时自动跳过加载（依赖守卫） |
-| ⚠️ **冲突日志面板**     | 设置齿轮菜单底部入口 + 管理器内空壳面板（内容由前置 Mod `render`）；有冲突时齿轮旁红叹号 |
-| 📦 **前置 Mod**       | ModDataLoader（数据）+ ModResourceLoader（资源）；三层架构，GameAdapter 适配不同游戏（部分测试完成） |
-| 📥 **拖放安装**       | 拖放 `.js` 或整个 `mods` 文件夹（仅本地 Mod）                |
-| 🖼️ **预览图**       | 包根 `preview.png`；详情缩略 + 点击弹窗大图                  |
-| 🛡️ **配置兼容**      | V4.1.1 读取 V3.x `../mods/` 旧键；保存一次自动升级为新键         |
-| 🌐 **多语言**        | 简体中文 / 繁體中文 / English                           |
-| 🎨 **双主题**        | 暗黑 / 暖色                                         |
+| 🏪 **Mod 商店拓展** | `libs/modStore.js`：多源 HTTPS catalog 订阅、下载/更新整包到 `_localmods`、断点续传（>50MB）；**UI 多语言**（简中 / 繁中 / English）；列表「更新日志」按钮 |
+| 🔄 **管理器在线更新** | `libs/modLoaderUpdater.js`：设置内手动检查/更新 ModLoader 本体（catalog + raw 单文件）；与 Mod 商店分离；禁用开关；绿色角标加算 |
+| 📦 **统一包结构** | 本地 `_localmods/<包名>/` 与工坊订阅包根目录布局一致（V4.1）；包根 `CHANGELOG.md` 为 Mod 更新日志唯一位置（V4.2） |
+| 📋 **Mod 更新日志** | 管理器详情版本旁「更新日志」；头部「(日志)」为管理器自身日志；商店 / 详情 / 管理器共用 Markdown 弹窗 |
+| ⚙️ **参数编辑** | 数值、开关、文本、单选、颜色、长文本、数据库引用、struct、table |
+| 🔀 **排序与依赖** | 拖拽/序号排序；`@base` / `@orderAfter` 依赖检测；缺失 `@base` 时自动跳过加载（依赖守卫） |
+| ⚠️ **冲突日志面板** | 设置齿轮菜单底部入口 + 管理器内空壳面板（内容由前置 Mod `render`）；有冲突时齿轮旁红叹号 |
+| 📥 **拖放安装** | 拖放 `.js` 或整个 `mods` 文件夹（仅本地 Mod） |
+| 🖼️ **预览图** | 包根 `preview.png`；详情缩略 + 点击弹窗大图 |
+| 🛡️ **配置兼容** | V4.1.1 读取 V3.x `../mods/` 旧键；保存一次自动升级为新键 |
+| 🌐 **多语言** | 简体中文 / 繁體中文 / English |
+| 🎨 **双主题** | 暗黑 / 暖色 |
 
-
----
+***
 
 ## ✨ UI 截图（暗黑/暖色双主题）
 
@@ -76,44 +73,220 @@
 
 </div>
 
+<div align="center">
 
+参数编辑界面-多层套娃
 
----
+![软件主界面](js/mods/docs/img/参数界面-多级套娃.png)
 
-## 📖 完整文档
+</div>
 
-完整说明、安装步骤、项目结构、参数类型与开发资源见 **`js/mods/docs/`**（与游戏内目录一致，链接在下方文档页内可正常跳转）：
+<div align="center">
 
+参数编辑界面-表格
 
-| 文档                                                         | 说明                    |
-| ---------------------------------------------------------- | --------------------- |
-| **[README 完整版](js/mods/docs/README.md)**                   | 完整中文说明（含前置 Mod 章节） |
-| **[README 完整版 (English)](js/mods/docs/README-en.md)**        | Complete English guide |
-| **[使用手册](js/mods/docs/使用手册.md)**                           | 游戏制作者 / 玩家 / Mod 作者指南 |
-| **[调用规范](js/mods/docs/前置Mod更新日志等/调用规范.md)**              | 前置 Mod 调用规范（Mod 作者） |
-| [数据和资源前置Mod-V2-需求规格书](js/mods/docs/前置Mod更新日志等/数据和资源前置Mod-V2-需求规格书.md) | 前置 Mod 架构与 API 规格 |
-| [前置Mod测试清单](js/mods/docs/前置Mod更新日志等/前置Mod测试清单.md) | 前置 Mod 测试清单（部分已完成） |
-| [RMMZ_ModLoader_开发规范](js/mods/docs/RMMZ_ModLoader_开发规范.md) | ModLoader 开发规范        |
-| [mod商店拓展 plan](js/mods/docs/mod商店拓展plan.md) | Mod 商店协议与拓展设计（进阶阅读） |
-| [modloader_CHANGELOG](js/mods/docs/modloader_CHANGELOG.md) | ModLoader 更新日志                  |
+![软件主界面](js/mods/docs/img/参数界面-表格.png)
 
+</div>
 
----
+<div align="center">
 
-## 📥 快速安装
+安装界面
 
-在 `index.html` 中于 `main.js` **之前**注入：
+![软件主界面](js/mods/docs/img/安装.png)
+
+</div>
+
+<div align="center">
+
+删除模式和排序模式
+
+![软件主界面](js/mods/docs/img/排序与删除.png)
+
+</div>
+
+***
+
+## 使用手册
+
+[使用手册.md](js/mods/docs/使用手册.md)
+
+***
+
+## 📥 安装方式
+
+### 模式 1：注入模式（推荐）
+
+修改 `index.html`，在 `main.js` 之前注入 ModLoader：
 
 ```html
+<body style="background-color: black">
+<script type="text/javascript" src="js/libs/pixi.js"></script>
 <script type="text/javascript" src="js/mods/ModLoader.js"></script>
+<script type="text/javascript" src="js/main.js"></script>
+</body>
 ```
 
-修改 Mod 开关、参数或排序后需 **F5 刷新**；创意工坊 Mod 请在 **Steam 客户端** 订阅/取消订阅。
+### 模式 2：插件模式
 
----
+在 RMMZ 插件管理器中将 `ModLoader.js` 添加到插件列表。
+
+> ⚠️ 修改 Mod 开关、参数或排序后，需要 **F5 刷新** 才能生效。  
+> ⚠️ 创意工坊 Mod 请在 **Steam 客户端** 订阅/取消订阅。
+
+***
+
+## 📁 项目结构（V4.3）
+
+```
+js/mods/
+├── ModLoader.js
+├── mod_config.json
+├── config/
+│   ├── modloader.css
+│   ├── modloader_config.json
+│   ├── mod_store.json              # Mod 商店订阅（有 modStore.js 时）
+│   ├── modloader_updater.json      # 管理器更新偏好（有 modLoaderUpdater.js 时）
+│   └── language/                   # 管理器 UI 多语言（zh_CN / zh_TW / en）
+├── _localmods/                     # 本地 Mod 包
+│   ├── ModDataLoader/              # 数据前置（merge/replace/add）
+│   ├── ModResourceLoader/          # 资源前置（替换/新增）
+│   └── <包名>/
+│       ├── <脚本>.js
+│       ├── CHANGELOG.md            # 可选；Mod 更新日志（V4.2 包根唯一名）
+│       ├── preview.png             # 可选
+│       └── modloader.json          # 可选（多脚本必填 version）
+├── _workshop/<fileId>/             # 工坊 junction（自动生成）
+├── docs/
+│   ├── README.md                   # 本说明
+│   ├── README-en.md                # English guide
+│   ├── 使用手册.md
+│   ├── ModLoader_模块结构.md       # 维护地图（改哪 / 怎么测）
+│   ├── RMMZ_ModLoader_开发规范.md
+│   ├── ModLoader_测试文档.md         # 功能测试清单（发版抽测）
+│   ├── modloader_CHANGELOG.md      # 管理器自身更新日志
+│   ├── mod商店拓展plan.md
+│   ├── 管理器在线更新plan.md
+│   └── 前置Mod更新日志等/          # 前置 Mod 文档（非功能 Mod 包日志）
+├── libs/                           # 依赖库 + 管理器扩展（调用 API 才生效）
+│   ├── marked.min.js               # Markdown 渲染（changelog 弹窗等）
+│   ├── modStore.js                 # 可选：Mod 商店（删即关；内嵌 STORE_I18N_PACKS）
+│   ├── modLoaderUpdater.js         # 可选：管理器在线更新（删即关；内嵌 I18N_PACKS）
+│   └── piracyGate.js               # 可选：盗版检测闸门（删即关）
+└── tools/
+    ├── modstore/                   # 作者 Mod 商店打包与 catalog 发布
+    └── manager-release/            # 管理器发版 sync（channel / catalog）
+```
+
+Steam 工坊订阅包（与 `_localmods` 同布局，脚本在包根）：
+
+```
+<Steam库>/steamapps/workshop/content/<AppID>/<publishedFileId>/
+  modloader.json
+  preview.png
+  YourMod.js
+```
+
+***
+
+## 📖 开发资源
+
+### 前置 Mod（V4.1.3 · 部分测试完成）
+
+ModLoader 仅管理 `.js` 插件的开关、排序与参数；**数据库与游戏资源的替换 / 新增**由独立前置 Mod 承担。功能 Mod 通过 `@base ModDataLoader` / `@base ModResourceLoader` 声明依赖；换游戏时主要增删 **GameAdapter** 兼容层，核心 API 保持通用。
+
+| 前置 Mod | 能力概要 |
+| --- | --- |
+| **ModDataLoader** | 字段级 merge、整条 replace、新增条目、地图 event 级浅合并；`modloader.json` 的 `data.records` / `data.patches` 零代码注入；stableKey 智能 ID 迁移；冲突报告对接 ModLoader 日志面板 |
+| **ModResourceLoader** | `modloader.json` 的 `resources` 声明式替换；`loadBitmap(modId, path)` 加载 Mod 自带图片；modId 别名（本地 / 工坊包名变化时仍可用）；可选加密绕过 |
+
+示例包：`_localmods/TestMDL-V2`（数据）、`_localmods/TestMRL-V2`（资源）。
+
+| 资源 | 说明 |
+| --- | --- |
+| [使用手册.md](js/mods/docs/使用手册.md) | 游戏制作者 / 玩家 / Mod 作者完整指南 |
+| [ModLoader_模块结构.md](js/mods/docs/ModLoader_模块结构.md) | 维护地图：改动归属、测试粒度、管理器边界 |
+| [RMMZ_ModLoader_开发规范.md](js/mods/docs/RMMZ_ModLoader_开发规范.md) | 代码约定与发版流程 |
+| [ModLoader_测试文档.md](js/mods/docs/ModLoader_测试文档.md) | ModLoader 功能测试清单（§O 商店、§P 更新日志等） |
+| [调用规范.md](js/mods/docs/前置Mod更新日志等/调用规范.md) | 前置 Mod 调用规范（数据 + 资源，Mod 作者必读） |
+| [数据和资源前置Mod-V2-需求规格书.md](js/mods/docs/前置Mod更新日志等/数据和资源前置Mod-V2-需求规格书.md) | 前置 Mod V2 架构、API 与 MVP 规格 |
+| [前置Mod测试清单.md](js/mods/docs/前置Mod更新日志等/前置Mod测试清单.md) | 前置 Mod 功能测试清单（部分项已通过） |
+| [modloader_CHANGELOG.md](js/mods/docs/modloader_CHANGELOG.md) | ModLoader 完整更新日志 |
+| [mod商店拓展plan.md](js/mods/docs/mod商店拓展plan.md) | Mod 商店拓展设计与测试摘要 |
+| [tools/modstore/gui/README.md](js/mods/docs/js/mods/tools/modstore/gui/README.md) | 作者打包 GUI 与 catalog 发布 |
+| [ModDataLoader_CHANGELOG.md](js/mods/docs/前置Mod更新日志等/ModDataLoader_CHANGELOG.md) | ModDataLoader 更新日志 |
+| [ModResourceLoader_CHANGELOG.md](js/mods/docs/前置Mod更新日志等/ModResourceLoader_CHANGELOG.md) | ModResourceLoader 更新日志 |
+
+***
+
+## 📝 支持的参数类型
+
+| 类型 | 说明 | 示例 |
+| --- | --- | --- |
+| `number` | 数值（支持滑动条） | `@min 0 @max 100 @step 1` |
+| `boolean` | 开关 | `@default true` |
+| `string` | 文本 | `@default Hello` |
+| `select` | 单选下拉 | `@option A @option B` |
+| `color` | 颜色 | `@default #ff0000` |
+| `note` / `multiline_string` | 长文本 | 多行编辑 |
+| `actor` | 数据库引用 · 角色 | `@default 1` |
+| `class` | 数据库引用 · 职业 | `@default 1` |
+| `skill` | 数据库引用 · 技能 | `@default 1` |
+| `item` | 数据库引用 · 物品 | `@default 1` |
+| `weapon` | 数据库引用 · 武器 | `@default 1` |
+| `armor` | 数据库引用 · 防具 | `@default 1` |
+| `enemy` | 数据库引用 · 敌人 | `@default 1` |
+| `troop` | 数据库引用 · 敌群 | `@default 1` |
+| `state` | 数据库引用 · 状态 | `@default 1` |
+| `animation` | 数据库引用 · 动画 | `@default 1` |
+| `common_event` | 数据库引用 · 公共事件 | `@default 1` |
+| `switch` | 数据库引用 · 开关 | `@default 1` |
+| `variable` | 数据库引用 · 变量 | `@default 1` |
+| `struct` | 结构体 | `@schema SchemaName` |
+| `table` | 表格列表 | `@schema SchemaName` |
+
+### 常用元数据标签
+
+| 标签 | 说明 |
+| --- | --- |
+| `@text` | 参数界面显示名 |
+| `@base` | 前置依赖 |
+| `@orderAfter` | 应排在某插件之后 |
+| `@orderBefore` | 应排在某插件之前 |
+| `@define-schema` / `@schema` | struct/table 模板 |
+
+详细规范与示例 Mod 见 [使用手册 · Mod 作者](js/mods/docs/使用手册.md#三mod-作者)。
+
+### 功能详解（struct / @text）
+
+#### 一、`@text` 参数别名
+
+```javascript
+@param damageMultiplier
+@text 伤害倍率
+@type number
+@default 2
+```
+
+#### 二、Schema 模板 + struct/table
+
+```javascript
+@define-schema MonsterDropSchema
+[{"name":"enemyId","text":"目标怪物","type":"enemy","default":"1"}, ...]
+
+@param dropList
+@type table
+@schema MonsterDropSchema
+```
+
+读取时需 `JSON.parse()`，可参考 `TestSchemaMod.js`、`mydrop.js`。
+
+***
 
 ## 📜 开源协议
 
 MIT License — 详见 [LICENSE](LICENSE)
 
-**版本**: V4.3.0 | **更新日期**: 2026-08-24
+***
+
+**版本**: V4.3.1 | **更新日期**: 2026-08-24

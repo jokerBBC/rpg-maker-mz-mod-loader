@@ -1,8 +1,12 @@
 # RMMZ ModLoader
 
+[![License: MIT](https://img.shields.io/github/license/jokerBBC/rpg-maker-mz-mod-loader)](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/blob/main/LICENSE)
+[![GitHub release](https://img.shields.io/github/v/release/jokerBBC/rpg-maker-mz-mod-loader)](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/releases/latest)
+[![GitHub downloads](https://img.shields.io/github/downloads/jokerBBC/rpg-maker-mz-mod-loader/total)](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/releases)
+
 > **[中文版 README](README.md)**
 
-In-game mod manager **V4.3.0**
+In-game mod manager **V4.3.1**
 
 A powerful RPG Maker MZ mod manager that lets you enable/disable, edit parameters, reorder, and check dependencies for **local mods** and **Steam Workshop mods** — all from inside the game. **Multilingual UI** is supported (Simplified Chinese / Traditional Chinese / English).
 
@@ -285,4 +289,4 @@ MIT License — see [LICENSE](LICENSE)
 
 ***
 
-**Version**: V4.3.0 | **Updated**: 2026-08-24
+**Version**: V4.3.1 | **Updated**: 2026-08-24
