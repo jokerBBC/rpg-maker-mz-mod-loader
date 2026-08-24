@@ -1,5 +1,44 @@
 # ModLoader 更新日志
 
+## V4.3.6 (2026-08-25)
+
+### 管理器在线更新（`libs/modLoaderUpdater.js`）
+
+- **改善**：「检查更新」列出需更新 / 与 catalog 一致文件数及路径清单（LF 归一 hash 比对）
+- **改善**：版本号相同但文件 hash 不一致时仍可触发更新（修复同版本热修场景）
+- **改善**：「复制升级过程日志」— 减少与 更新日志 的语义混淆
+- **新增**：有可更新内容时显示「更新日志」— 弹窗展示远端 `(本地, 远端]` 区间 CHANGELOG（非仅当前 tag 一段）
+- **修复**：Gitee / GitHub 镜像在 **hash 校验失败** 时也会切换下一源（此前仅网络失败切换）
+- **发版**：`tools/manager-release/markCatalogTest.js` — 批量插入测试标记，便于全量在线更新测试
+
+## V4.3.5 (2026-08-25)
+
+### 管理器在线更新
+
+- **改善**：sha256 校验失败时输出期望 / 实际 hash、size、下载 URL；并给出 LF 归一 hash 对比提示（排查 CRLF catalog 问题）
+
+## V4.3.4 (2026-08-25)
+
+### 发版 sync / catalog（`tools/manager-release/sync.js`）
+
+- **修复**：Windows 下 catalog `sha256` / `size` 按 **Git LF 归一化** 计算，与 raw 下载字节一致（修复 CRLF 磁盘导致在线更新 hash 全失败）
+- **改善**：`release.js verify` 使用同一 LF 规则校验 catalog 与磁盘
+
+## V4.3.3 (2026-08-24)
+
+### 发版工具（`tools/manager-release/`）
+
+- **新增**：`release.js` 工作流 — sync、差异报告、`verify`、pack、Release 说明（`publish` / `all`）
+- **新增**：`readmeRoot.js` — 从 `docs/README*.md` 自动生成发行仓根 README（徽章 / 链接改写）
+- **改善**：`manager-release/README` 补充 verify、CRLF 注意、完整发版步骤
+
+## V4.3.2 (2026-08-24)
+
+### 发版路径规则（`tools/manager-release/pathRules.js` + updater 内嵌副本）
+
+- **重构**：发行排除分为 **SYNC_EXCLUDE**（不进 Git / catalog）与 **CATALOG_ONLY_EXCLUDE**（进 Git、不进在线 catalog）
+- **修复**：`libs/piracyGate.js`、`docs/ModLoader_模块结构.md` 等不再误入在线更新 catalog；updater 校验规则与 sync 对齐
+
 ## V4.3.1 (2026-08-24)
 
 ### 管理器在线更新

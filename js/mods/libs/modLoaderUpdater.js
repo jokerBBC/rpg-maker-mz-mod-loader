@@ -64,7 +64,8 @@
             remoteCheckFailed: '检查失败',
             btnCheck: '检查更新',
             btnUpdate: '更新',
-            btnCopyLog: '复制日志',
+            btnCopyLog: '复制升级过程日志',
+            btnChangelog: '更新日志',
             btnChecking: '检查中…',
             btnUpdating: '更新中…',
             disableUpdates: '禁用管理器更新',
@@ -75,11 +76,21 @@
             logMirror: '使用镜像：{name}',
             logChannel: 'channel 指向 tag：{tag}',
             logCatalog: 'catalog {remote}，本地 {local}',
+            logDiffSummary: '文件差异：需更新 {need} · 与 catalog 一致 {match}',
+            logDiffNeedTitle: '需更新文件：',
+            logDiffAllMatch: 'catalog 所列文件与本地一致',
+            logDiffRemove: '更新后将清理 {count} 个遗弃路径：',
+            logMirrorTryFail: '{mirror} 拉取失败：{error}，改试 {next}',
+            logMirrorShaRetry: '{mirror} hash 未通过，改试 {next}',
+            logMirrorFallbackOk: '已改用 {mirror}：{path}',
             logAlreadyLatest: '已是最新版本，无需更新。',
             logSkip: '跳过未改：{path}',
             logSkipAuthorTool: '跳过 Mod 商店作者工具：{path}',
             logDownload: '下载 {path} …',
             logDownloadOk: '下载 {path} … OK',
+            logSha256Mismatch: 'sha256 不匹配：{path}（{mirror}）期望 {expectedSha} / {expectedSize} B · 下载 {actualSha} / {actualSize} B · LF归一 {lfSha} / {lfSize} B',
+            logSha256Url: '  URL：{url}',
+            logSha256LfHint: '  提示：LF 归一 hash 与 catalog 一致 → catalog 可能按 CRLF 磁盘生成，需重新 sync 并打 tag',
             logBackup: '备份将改文件…',
             logCommit: '写入新文件…',
             logRemove: '清理遗弃文件：{path}',
@@ -112,7 +123,8 @@
             remoteCheckFailed: '檢查失敗',
             btnCheck: '檢查更新',
             btnUpdate: '更新',
-            btnCopyLog: '複製日誌',
+            btnCopyLog: '複製升級過程日誌',
+            btnChangelog: '更新日誌',
             btnChecking: '檢查中…',
             btnUpdating: '更新中…',
             disableUpdates: '停用管理器更新',
@@ -123,11 +135,21 @@
             logMirror: '使用鏡像：{name}',
             logChannel: 'channel 指向 tag：{tag}',
             logCatalog: 'catalog {remote}，本機 {local}',
+            logDiffSummary: '檔案差異：需更新 {need} · 與 catalog 一致 {match}',
+            logDiffNeedTitle: '需更新檔案：',
+            logDiffAllMatch: 'catalog 所列檔案與本機一致',
+            logDiffRemove: '更新後將清理 {count} 個遺棄路徑：',
+            logMirrorTryFail: '{mirror} 拉取失敗：{error}，改試 {next}',
+            logMirrorShaRetry: '{mirror} hash 未通過，改試 {next}',
+            logMirrorFallbackOk: '已改用 {mirror}：{path}',
             logAlreadyLatest: '已是最新版本，無需更新。',
             logSkip: '跳過未改：{path}',
             logSkipAuthorTool: '跳過 Mod 商店作者工具：{path}',
             logDownload: '下載 {path} …',
             logDownloadOk: '下載 {path} … OK',
+            logSha256Mismatch: 'sha256 不符：{path}（{mirror}）期望 {expectedSha} / {expectedSize} B · 下載 {actualSha} / {actualSize} B · LF歸一 {lfSha} / {lfSize} B',
+            logSha256Url: '  URL：{url}',
+            logSha256LfHint: '  提示：LF 歸一 hash 與 catalog 一致 → catalog 可能按 CRLF 磁碟生成，需重新 sync 並打 tag',
             logBackup: '備份將改檔案…',
             logCommit: '寫入新檔案…',
             logRemove: '清理遺棄檔案：{path}',
@@ -160,7 +182,8 @@
             remoteCheckFailed: 'Check failed',
             btnCheck: 'Check for updates',
             btnUpdate: 'Update',
-            btnCopyLog: 'Copy log',
+            btnCopyLog: 'Copy update log',
+            btnChangelog: 'Changelog',
             btnChecking: 'Checking…',
             btnUpdating: 'Updating…',
             disableUpdates: 'Disable manager updates',
@@ -171,11 +194,21 @@
             logMirror: 'Mirror: {name}',
             logChannel: 'channel points to tag: {tag}',
             logCatalog: 'catalog {remote}, local {local}',
+            logDiffSummary: 'File diff: to update {need} · match catalog {match}',
+            logDiffNeedTitle: 'Files to update:',
+            logDiffAllMatch: 'All catalog files match local',
+            logDiffRemove: 'Will remove {count} obsolete path(s):',
+            logMirrorTryFail: '{mirror} failed: {error}, trying {next}',
+            logMirrorShaRetry: '{mirror} hash mismatch, trying {next}',
+            logMirrorFallbackOk: 'Using {mirror}: {path}',
             logAlreadyLatest: 'Already up to date.',
             logSkip: 'Skip unchanged: {path}',
             logSkipAuthorTool: 'Skip Mod store author tool: {path}',
             logDownload: 'Download {path} …',
             logDownloadOk: 'Download {path} … OK',
+            logSha256Mismatch: 'SHA256 mismatch: {path} ({mirror}) expected {expectedSha} / {expectedSize} B · got {actualSha} / {actualSize} B · LF-norm {lfSha} / {lfSize} B',
+            logSha256Url: '  URL: {url}',
+            logSha256LfHint: '  Hint: LF-normalized hash matches catalog — catalog may use CRLF disk digests; re-sync and re-tag',
             logBackup: 'Backing up files to replace…',
             logCommit: 'Writing new files…',
             logRemove: 'Remove obsolete: {path}',
@@ -423,6 +456,149 @@
         return hash.digest('hex');
     }
 
+    const CATALOG_BINARY_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico']);
+
+    /** 与发版 sync catalog 一致：文本按 LF 归一化后算 sha256/size */
+    function catalogDigestBuffer(buf, relPath) {
+        const rel = normalizeRelPath(relPath || '');
+        const ext = pathMod.extname(rel).toLowerCase();
+        const normalized = CATALOG_BINARY_EXT.has(ext)
+            ? buf
+            : Buffer.from(buf.toString('utf8').replace(/\r\n/g, '\n'), 'utf8');
+        return {
+            sha256: crypto.createHash('sha256').update(normalized).digest('hex'),
+            size: normalized.length
+        };
+    }
+
+    function getLocalFileDigest(relPath) {
+        const abs = absModsPath(relPath);
+        if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) return null;
+        try {
+            return catalogDigestBuffer(fs.readFileSync(abs), relPath);
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function computeCatalogFileDiff(catalog) {
+        const applied = catalogForApply(catalog);
+        const need = [];
+        const match = [];
+        for (let i = 0; i < applied.files.length; i++) {
+            const f = applied.files[i];
+            const local = getLocalFileDigest(f.path);
+            if (!local || local.sha256 !== f.sha256 || local.size !== f.size) {
+                need.push(f.path);
+            } else {
+                match.push(f.path);
+            }
+        }
+        return { need: need, match: match, remove: applied.remove.slice() };
+    }
+
+    function logCatalogFileDiff(diff) {
+        appendLog(t('logDiffSummary', {
+            need: diff.need.length,
+            match: diff.match.length
+        }));
+        if (diff.need.length) {
+            appendLog(t('logDiffNeedTitle'));
+            diff.need.forEach(function (p) { appendLog('  - ' + p); });
+        } else {
+            appendLog(t('logDiffAllMatch'));
+        }
+        if (diff.remove.length) {
+            appendLog(t('logDiffRemove', { count: diff.remove.length }));
+            diff.remove.forEach(function (p) { appendLog('  - ' + p); });
+        }
+    }
+
+    /**
+     * 截取 CHANGELOG 中 (localVersion, remoteVersion] 的所有 ## 版本段落（含标题）。
+     * 文档通常新→旧排列；同版本或无法解析时回退为仅 remote 一段。
+     */
+    function extractChangelogRange(changelogText, localVersion, remoteVersion) {
+        const text = String(changelogText || '');
+        if (!text.trim()) return null;
+
+        const headingRe = /^##\s+(V?\d+(?:\.\d+)*)(?:\s*\([^)]+\))?\s*$/gm;
+        const headings = [];
+        let m;
+        while ((m = headingRe.exec(text)) !== null) {
+            headings.push({
+                version: m[1],
+                start: m.index,
+                header: m[0]
+            });
+        }
+        if (!headings.length) return null;
+
+        for (let i = 0; i < headings.length; i++) {
+            const end = i + 1 < headings.length ? headings[i + 1].start : text.length;
+            headings[i].block = text.slice(headings[i].start, end).trim();
+        }
+
+        const local = String(localVersion || '').trim();
+        const remote = String(remoteVersion || '').trim();
+        let selected = [];
+
+        if (remote) {
+            for (let j = 0; j < headings.length; j++) {
+                const ver = headings[j].version;
+                const cmpRemote = compareVersions(ver, remote);
+                // ver <= remote
+                if (cmpRemote === 1) continue;
+                if (local) {
+                    const cmpLocal = compareVersions(local, ver);
+                    // 只要 local < ver（不含本地当前版段落）
+                    if (cmpLocal !== -1) continue;
+                }
+                selected.push(headings[j].block);
+            }
+        }
+
+        // 同版本文件差异 / 区间为空：至少展示远端版本段落
+        if (!selected.length && remote) {
+            for (let k = 0; k < headings.length; k++) {
+                if (compareVersions(headings[k].version, remote) === 0) {
+                    selected.push(headings[k].block);
+                    break;
+                }
+            }
+        }
+
+        return selected.length ? selected.join('\n\n') : null;
+    }
+
+    function buildMirrorOrder(preferredMirror) {
+        const order = [];
+        if (preferredMirror) order.push(preferredMirror);
+        const defaults = mirrorOrder();
+        for (let i = 0; i < defaults.length; i++) {
+            if (!preferredMirror || defaults[i].id !== preferredMirror.id) {
+                order.push(defaults[i]);
+            }
+        }
+        return order;
+    }
+
+    function logSha256Mismatch(file, res, actualSha) {
+        const lf = catalogDigestBuffer(res.buffer, file.path);
+        appendLog(t('logSha256Mismatch', {
+            path: file.path,
+            mirror: res.mirror.label,
+            expectedSha: file.sha256,
+            expectedSize: String(file.size),
+            actualSha: actualSha,
+            actualSize: String(res.buffer.length),
+            lfSha: lf.sha256,
+            lfSize: String(lf.size)
+        }));
+        if (res.url) appendLog(t('logSha256Url', { url: res.url }));
+        if (lf.sha256 === file.sha256) appendLog(t('logSha256LfHint', { path: file.path }));
+    }
+
     function normalizeVersion(raw) {
         if (raw == null) return null;
         let s = String(raw).trim();
@@ -616,18 +792,13 @@
     }
 
     /**
-     * 按镜像顺序尝试；成功后回传所用镜像，后续可优先同镜像。
+     * 按镜像顺序尝试；网络失败或 hash 未通过时可切换下一镜像。
+     * @param {Function|null} logFn appendLog 等
      */
-    function fetchBufferWithMirrors(repoRelPath, ref, preferredMirror) {
-        const order = [];
-        if (preferredMirror) order.push(preferredMirror);
-        const defaults = mirrorOrder();
-        for (let i = 0; i < defaults.length; i++) {
-            if (!preferredMirror || defaults[i].id !== preferredMirror.id) {
-                order.push(defaults[i]);
-            }
-        }
+    function fetchBufferWithMirrors(repoRelPath, ref, preferredMirror, logFn) {
+        const order = buildMirrorOrder(preferredMirror);
         let lastErr = null;
+
         function tryAt(idx) {
             if (idx >= order.length) {
                 return Promise.reject(lastErr || new Error(t('errHttp', { code: '?' })));
@@ -635,17 +806,72 @@
             const m = order[idx];
             const url = buildRawUrl(m, ref, repoRelPath);
             return requestBuffer(url).then(function (buf) {
+                if (logFn && idx > 0) {
+                    logFn(t('logMirrorFallbackOk', { mirror: m.label, path: repoRelPath }));
+                }
                 return { buffer: buf, mirror: m, url: url };
             }, function (err) {
                 lastErr = err;
+                if (logFn && idx + 1 < order.length) {
+                    logFn(t('logMirrorTryFail', {
+                        mirror: m.label,
+                        error: err && err.message ? err.message : String(err),
+                        next: order[idx + 1].label
+                    }));
+                }
                 return tryAt(idx + 1);
             });
         }
         return tryAt(0);
     }
 
-    function fetchJsonWithMirrors(repoRelPath, ref, preferredMirror) {
-        return fetchBufferWithMirrors(repoRelPath, ref, preferredMirror).then(function (res) {
+    /** 下载并校验 sha256；hash 失败时尝试下一镜像（与网络失败同样切换）。 */
+    function fetchCatalogFileWithMirrors(repoRelPath, ref, preferredMirror, file, logFn) {
+        const order = buildMirrorOrder(preferredMirror);
+        let lastShaErr = null;
+
+        function tryAt(idx) {
+            if (idx >= order.length) {
+                return Promise.reject(lastShaErr || new Error(t('errSha256', { path: file.path })));
+            }
+            const m = order[idx];
+            const url = buildRawUrl(m, ref, repoRelPath);
+            return requestBuffer(url).then(function (buf) {
+                const sha = crypto.createHash('sha256').update(buf).digest('hex');
+                if (sha !== file.sha256) {
+                    const res = { buffer: buf, mirror: m, url: url };
+                    if (logFn) logSha256Mismatch(file, res, sha);
+                    if (idx + 1 < order.length && logFn) {
+                        logFn(t('logMirrorShaRetry', {
+                            mirror: m.label,
+                            next: order[idx + 1].label
+                        }));
+                    }
+                    if (idx + 1 < order.length) return tryAt(idx + 1);
+                    lastShaErr = new Error(t('errSha256', { path: file.path }));
+                    throw lastShaErr;
+                }
+                if (logFn && idx > 0) {
+                    logFn(t('logMirrorFallbackOk', { mirror: m.label, path: repoRelPath }));
+                }
+                return { buffer: buf, mirror: m, url: url };
+            }, function (err) {
+                if (logFn && idx + 1 < order.length) {
+                    logFn(t('logMirrorTryFail', {
+                        mirror: m.label,
+                        error: err && err.message ? err.message : String(err),
+                        next: order[idx + 1].label
+                    }));
+                }
+                if (idx + 1 < order.length) return tryAt(idx + 1);
+                throw err;
+            });
+        }
+        return tryAt(0);
+    }
+
+    function fetchJsonWithMirrors(repoRelPath, ref, preferredMirror, logFn) {
+        return fetchBufferWithMirrors(repoRelPath, ref, preferredMirror, logFn).then(function (res) {
             let data;
             try {
                 data = JSON.parse(res.buffer.toString('utf8'));
@@ -669,7 +895,8 @@
         hasUpdate: false,
         checkError: null,
         catalog: null,
-        mirror: null
+        mirror: null,
+        fileDiff: null
     };
 
     function appendLog(msg) {
@@ -752,13 +979,17 @@
     function applyRemoteMetaFromCatalog(validated, tag, mirror) {
         const local = localVersion();
         const cmp = compareVersions(local, validated.version);
+        const diff = computeCatalogFileDiff(validated);
+        const versionBehind = cmp === -1;
+        const filesDiffer = diff.need.length > 0;
         _remoteMeta = {
             version: validated.version,
             tag: tag,
-            hasUpdate: cmp === -1,
+            hasUpdate: versionBehind || (cmp === 0 && filesDiffer),
             checkError: null,
             catalog: validated,
-            mirror: mirror
+            mirror: mirror,
+            fileDiff: diff
         };
         const cfg = getConfig();
         cfg.lastCheckedAt = new Date().toISOString();
@@ -775,14 +1006,15 @@
     function fetchRemoteCatalog(options) {
         options = options || {};
         const doLog = !!options.log;
-        return fetchJsonWithMirrors('manager/channel.json', 'main', null)
+        const logFn = doLog ? appendLog : null;
+        return fetchJsonWithMirrors('manager/channel.json', 'main', null, logFn)
             .then(function (ch) {
                 const tag = parseChannel(ch.data);
                 if (doLog) {
                     appendLog(t('logMirror', { name: ch.mirror.label }));
                     appendLog(t('logChannel', { tag: tag }));
                 }
-                return fetchJsonWithMirrors('manager/catalog.json', tag, ch.mirror)
+                return fetchJsonWithMirrors('manager/catalog.json', tag, ch.mirror, logFn)
                     .then(function (catRes) {
                         return { tag: tag, channelMirror: ch.mirror, catalogRes: catRes };
                     }, function (err) {
@@ -807,6 +1039,7 @@
                             appendLog(t('logMinVersion', { min: validated.minVersion }));
                         }
                     }
+                    logCatalogFileDiff(_remoteMeta.fileDiff || diff);
                     if (!_remoteMeta.hasUpdate) {
                         appendLog(t('logAlreadyLatest'));
                     }
@@ -930,7 +1163,7 @@
                     version: check.catalog.version
                 };
                 const tag = check.tag;
-                const mirror = check.mirror;
+                let mirror = check.mirror;
                 const toReplace = [];
 
                 ensureDir(downloadDir);
@@ -939,26 +1172,20 @@
                 let chain = Promise.resolve();
                 catalog.files.forEach(function (file) {
                     chain = chain.then(function () {
-                        const localAbs = absModsPath(file.path);
-                        if (fs.existsSync(localAbs) && fs.statSync(localAbs).isFile()) {
-                            try {
-                                const localSha = hashFileSync(localAbs);
-                                if (localSha === file.sha256) {
-                                    appendLog(t('logSkip', { path: file.path }));
-                                    return;
-                                }
-                            } catch (e) { /* re-download */ }
+                        const local = getLocalFileDigest(file.path);
+                        if (local && local.sha256 === file.sha256) {
+                            appendLog(t('logSkip', { path: file.path }));
+                            return;
                         }
                         appendLog(t('logDownload', { path: file.path }));
                         const destTmp = pathMod.join(downloadDir, ...file.path.split('/'));
                         const repoRel = 'js/mods/' + file.path;
-                        return fetchBufferWithMirrors(repoRel, tag, mirror).then(function (res) {
-                            const sha = crypto.createHash('sha256').update(res.buffer).digest('hex');
-                            if (sha !== file.sha256) {
-                                throw new Error(t('errSha256', { path: file.path }));
-                            }
+                        return fetchCatalogFileWithMirrors(repoRel, tag, mirror, file, appendLog).then(function (res) {
                             ensureDir(pathMod.dirname(destTmp));
                             fs.writeFileSync(destTmp, res.buffer);
+                            if (res.mirror && res.mirror.id !== mirror.id) {
+                                mirror = res.mirror;
+                            }
                             toReplace.push({ path: file.path, tmp: destTmp });
                             appendLog(t('logDownloadOk', { path: file.path }));
                         });
@@ -1034,7 +1261,8 @@
         style.id = 'ml-updater-styles';
         style.textContent = [
             '.ml-updater{display:flex;flex-direction:column;height:100%;min-height:0;padding:0 0 8px;box-sizing:border-box;font-size:13px;color:var(--ml-text-primary,#e8e8ec);}',
-            '.ml-updater-meta{display:flex;gap:12px;flex-wrap:wrap;padding:4px 16px 8px;color:var(--ml-text-secondary,#9a9ab0);font-size:12px;}',
+            '.ml-updater-meta{display:flex;gap:12px;flex-wrap:wrap;align-items:center;padding:4px 16px 8px;color:var(--ml-text-secondary,#9a9ab0);font-size:12px;}',
+            '.ml-updater-meta .ml-changelog-link{font-size:12px;}',
             '.ml-updater-meta strong{color:var(--ml-text-primary,#e8e8ec);font-weight:600;}',
             '.ml-updater-toolbar{display:flex;gap:8px;align-items:center;padding:0 16px 8px;flex-wrap:wrap;flex-shrink:0;}',
             '.ml-updater-toolbar .ml-btn{font-size:12px;padding:6px 12px;}',
@@ -1082,10 +1310,47 @@
         }
         if (copyBtn) copyBtn.disabled = false;
 
+        const changelogLink = _panelRoot.querySelector('.ml-updater-changelog');
+        if (changelogLink) {
+            changelogLink.style.display = (!disabled && hasUpdateAvailable()) ? '' : 'none';
+        }
+
         const cb = _panelRoot.querySelector('.ml-updater-disable-input');
         if (cb) cb.checked = disabled;
         const toolsCb = _panelRoot.querySelector('.ml-updater-exclude-tools-input');
         if (toolsCb) toolsCb.checked = !!getConfig().excludeAuthorTools;
+    }
+
+    function showRemoteChangelog() {
+        if (!hasUpdateAvailable() || !_remoteMeta.catalog || !_remoteMeta.tag) return;
+        const catalog = _remoteMeta.catalog;
+        const changelogRel = catalog.changelogPath || 'docs/modloader_CHANGELOG.md';
+        const repoRel = 'js/mods/' + changelogRel;
+        if (_busy) return;
+        setBusy(true);
+        fetchBufferWithMirrors(repoRel, _remoteMeta.tag, _remoteMeta.mirror, appendLog)
+            .then(function (res) {
+                const md = res.buffer.toString('utf8');
+                const local = localVersion() || '';
+                const remote = catalog.version || '';
+                const section = extractChangelogRange(md, local, remote);
+                const body = section || md;
+                let title;
+                if (local && remote && compareVersions(local, remote) === -1) {
+                    title = 'ModLoader ' + local + ' → ' + remote + ' ' + t('btnChangelog');
+                } else {
+                    title = 'ModLoader ' + (remote || '?') + ' ' + t('btnChangelog');
+                }
+                if (typeof ML.showChangelogModal === 'function') {
+                    ML.showChangelogModal(title, body);
+                }
+            })
+            .catch(function (err) {
+                appendLog(t('logFail', { error: err && err.message ? err.message : String(err) }));
+            })
+            .then(function () {
+                setBusy(false);
+            });
     }
 
     function copyLog() {
@@ -1124,6 +1389,8 @@
             '<div class="ml-updater-meta">' +
             '<span class="ml-updater-local"></span>' +
             '<span class="ml-updater-remote"></span>' +
+            '<a class="ml-changelog-link ml-updater-changelog" style="display:none" role="button" tabindex="0">' +
+            escHtml(t('btnChangelog')) + '</a>' +
             '</div>' +
             '<div class="ml-updater-toolbar">' +
             '<button type="button" class="ml-btn ml-btn-primary ml-updater-check">' + escHtml(t('btnCheck')) + '</button>' +
@@ -1158,6 +1425,13 @@
         const copyBtn = container.querySelector('.ml-updater-copy');
         if (copyBtn) {
             copyBtn.addEventListener('click', function () { copyLog(); });
+        }
+        const changelogLink = container.querySelector('.ml-updater-changelog');
+        if (changelogLink) {
+            changelogLink.addEventListener('click', function (e) {
+                e.preventDefault();
+                showRemoteChangelog();
+            });
         }
         const cb = container.querySelector('.ml-updater-disable-input');
         if (cb) {

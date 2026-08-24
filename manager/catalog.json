@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "id": "modloader-manager",
-  "version": "V4.3.1",
-  "publishedAt": "2026-08-24T17:08:21Z",
+  "version": "V4.3.6",
+  "publishedAt": "2026-08-24T18:53:25Z",
   "changelogPath": "docs/modloader_CHANGELOG.md",
   "files": [
     {
       "path": "ModLoader.js",
-      "sha256": "b69038ed966bfd0e98a9117397271c4522f5af01e4f014a812d13d80399527de",
+      "sha256": "ff6bdd40d361bdb923672e8d45de1cda90cdc884e1c35e22d7a9f7035b1240f8",
       "size": 295787
     },
     {
@@ -42,12 +42,12 @@
     },
     {
       "path": "docs/README-en.md",
-      "sha256": "c399c659a509a1fc871be9db7eb4394cbf58a87d7fac2c95d7b8bbf1d0a2202a",
+      "sha256": "42d7107cbf6cb87deb78f7e5e3a0b11a68b372336d74684cf9d34d11ba390ae8",
       "size": 13224
     },
     {
       "path": "docs/README.md",
-      "sha256": "03c1e82ad2b9c95604ca6e8aace240bb1c9b32cb0bac72be72321a9c56039634",
+      "sha256": "619580c15a7c4fc7ad3cf96c1bb046f55d60504fd99048ea8ab53d7731215cd3",
       "size": 12898
     },
     {
@@ -92,8 +92,8 @@
     },
     {
       "path": "docs/modloader_CHANGELOG.md",
-      "sha256": "34011db314463b6fa6833b852ad831d456866e9fbb90a87b78a26f9d86f3480e",
-      "size": 36212
+      "sha256": "f0944fa93d9c15abaf43d1727b43a6775e580ea6eb821f60df487842eb94d848",
+      "size": 38350
     },
     {
       "path": "docs/mod商店拓展plan.md",
@@ -102,8 +102,8 @@
     },
     {
       "path": "docs/使用手册.md",
-      "sha256": "1ef7495a62a6fbfb7cae1293232bb6013e9a7618e28f7921aef4e72f5067dc90",
-      "size": 22211
+      "sha256": "15d4d9288e807f0acf704f6779abf52b158aad14eb090f9306fa247f4e2fc9b1",
+      "size": 22371
     },
     {
       "path": "docs/前置Mod更新日志等/ModDataLoader_CHANGELOG.md",
@@ -137,8 +137,8 @@
     },
     {
       "path": "libs/modLoaderUpdater.js",
-      "sha256": "8f940044e33316b6c089e9ffa01f0c43fe936dd5fa793a2f6c7c70b484691481",
-      "size": 50090
+      "sha256": "a3432dd7ef2607b15d4b36fd4a40e9d852009d4d3c4989fc829fcfc29c4af2e6",
+      "size": 62681
     },
     {
       "path": "libs/modStore.js",
