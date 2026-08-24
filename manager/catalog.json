@@ -2,13 +2,13 @@
   "schema": 1,
   "id": "modloader-manager",
   "version": "V4.3.1",
-  "publishedAt": "2026-08-24T15:13:18Z",
+  "publishedAt": "2026-08-24T17:08:21Z",
   "changelogPath": "docs/modloader_CHANGELOG.md",
   "files": [
     {
       "path": "ModLoader.js",
-      "sha256": "73776685480b301636df0ac07191bfa388eea09783faf467fb5e42575bbd916c",
-      "size": 302767
+      "sha256": "b69038ed966bfd0e98a9117397271c4522f5af01e4f014a812d13d80399527de",
+      "size": 295787
     },
     {
       "path": "config/language/en.json",
@@ -37,13 +37,13 @@
     },
     {
       "path": "docs/ModLoader_测试文档.md",
-      "sha256": "a59a8448a531550d3d1b24721e439b99b7b8aba3ff895fbd74d05624ce174a96",
-      "size": 11211
+      "sha256": "aa1e8ec65885df2bd7fc4eaf61a98e7e1f444a47d86e32378529fa54386b9fc4",
+      "size": 10953
     },
     {
       "path": "docs/README-en.md",
-      "sha256": "8c6a3bf05d4a519a650754f002e20d8ba2fcae98f608844f271fd2433aca31c2",
-      "size": 13516
+      "sha256": "c399c659a509a1fc871be9db7eb4394cbf58a87d7fac2c95d7b8bbf1d0a2202a",
+      "size": 13224
     },
     {
       "path": "docs/README.md",
