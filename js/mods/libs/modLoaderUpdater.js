@@ -361,8 +361,6 @@
                     errors.push('illegal remove path: ' + String(catalog.remove[j]));
                     continue;
                 }
-                    continue;
-                }
                 if (fileSet[p]) {
                     errors.push('remove∩files: ' + p);
                     continue;
