@@ -17,7 +17,7 @@
 > **运行环境**：Mod 配置保存在 `mod_config.json`  
 > **不再写入**： `plugins.js`，游戏更新官方插件后 Mod 开关与参数不会丢失。  
 > **创意工坊**：需 Steam 正版安装路径才能解析工坊目录（毕竟盗版都没法订阅），本地 Mod 正常使用。  
-> **libs 扩展**：`js/mods/libs/` 可放管理器扩展（如 `piracyGate.js`、`modStore.js`、`modLoaderUpdater.js`）；调用 `ModLoader` API 才生效。盗版检测：有 `piracyGate.js` 即开启，删除即关闭。Mod 商店：有 `modStore.js` 即开启，删除即关闭。管理器在线更新：有 `modLoaderUpdater.js` 即开启，删除即关闭。  
+> **libs 扩展**：`js/mods/libs/` 可放管理器扩展（如 `modStore.js`、`modLoaderUpdater.js`）；调用 `ModLoader` API 才生效。Mod 商店：有 `modStore.js` 即开启，删除即关闭。管理器在线更新：有 `modLoaderUpdater.js` 即开启，删除即关闭。盗版检测：游戏作者**自行**从源码拷贝 `piracyGate.js` 即开启（**默认发行包不含**），删除即关闭。  
 
 ---
 
@@ -91,7 +91,6 @@
 | **[README 完整版 (English)](js/mods/docs/README-en.md)**        | Complete English guide |
 | **[使用手册](js/mods/docs/使用手册.md)**                           | 游戏制作者 / 玩家 / Mod 作者指南 |
 | **[调用规范](js/mods/docs/前置Mod更新日志等/调用规范.md)**              | 前置 Mod 调用规范（Mod 作者） |
-| [ModLoader_模块结构](js/mods/docs/ModLoader_模块结构.md) | 维护地图：改动归属、测试粒度、管理器边界 |
 | [数据和资源前置Mod-V2-需求规格书](js/mods/docs/前置Mod更新日志等/数据和资源前置Mod-V2-需求规格书.md) | 前置 Mod 架构与 API 规格 |
 | [前置Mod测试清单](js/mods/docs/前置Mod更新日志等/前置Mod测试清单.md) | 前置 Mod 测试清单（部分已完成） |
 | [RMMZ_ModLoader_开发规范](js/mods/docs/RMMZ_ModLoader_开发规范.md) | ModLoader 开发规范        |

@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "modloader-manager",
   "version": "V4.3.0",
-  "publishedAt": "2026-08-24T11:32:29Z",
+  "publishedAt": "2026-08-24T12:13:23Z",
   "changelogPath": "docs/modloader_CHANGELOG.md",
   "files": [
     {
@@ -34,11 +34,6 @@
       "path": "docs/LICENSE",
       "sha256": "44f08d7e5cfb55216073e5e7f3d324a5ed357534d7affb96af05bec0a5018b91",
       "size": 1066
-    },
-    {
-      "path": "docs/ModLoader_模块结构.md",
-      "sha256": "04f46c639fcb844f42502c20d37043d53ce6cddcbe9d6411c4d7a3b4835fd9cf",
-      "size": 9419
     },
     {
       "path": "docs/ModLoader_测试文档.md",
@@ -142,18 +137,13 @@
     },
     {
       "path": "libs/modLoaderUpdater.js",
-      "sha256": "58c6d2584909ca449d57658f4d0e59f38defc5831943ddd7fca076c5f444737e",
-      "size": 47019
+      "sha256": "e3872601f73ae24526c061c0ede11e68cbc20bfee72ec45dcbde786042a4d2a3",
+      "size": 47150
     },
     {
       "path": "libs/modStore.js",
       "sha256": "a15a6dca2af14335d3286a261055f1f64d93366277bcd0b1c12954ae13741c67",
       "size": 107918
-    },
-    {
-      "path": "libs/piracyGate.js",
-      "sha256": "cfcf8cd5c590bac644bac205d6265062e12ced225b0380aa12eaaa2dde98094b",
-      "size": 4904
     },
     {
       "path": "tools/modstore/gui/README.md",
@@ -216,10 +206,5 @@
       "size": 603
     }
   ],
-  "remove": [
-    "tools/manager-release/README.md",
-    "tools/manager-release/pathRules.js",
-    "tools/manager-release/sync.js",
-    "tools/modstore-catalog.template.json"
-  ]
+  "remove": []
 }

@@ -17,7 +17,7 @@ A powerful RPG Maker MZ mod manager for **local mods** and **Steam Workshop mods
 > **Runtime environment**: Mod configuration is saved in `mod_config.json`  
 > and is **no longer written** to `plugins.js`, so mod toggles and parameters survive official plugin updates.  
 > **Steam Workshop** requires a legitimate Steam install path to resolve Workshop directories (pirated installs cannot subscribe); local mods work normally.  
-> **libs extensions**: scripts under `js/mods/libs/` take effect only when they call ModLoader APIs. Piracy detection: ship `piracyGate.js` to enable; delete to disable. Mod store: ship `modStore.js` to enable; delete to disable. Manager self-update: ship `modLoaderUpdater.js` to enable; delete to disable.  
+> **libs extensions**: scripts under `js/mods/libs/` take effect only when they call ModLoader APIs. Mod store: ship `modStore.js` to enable; delete to disable. Manager self-update: ship `modLoaderUpdater.js` to enable; delete to disable. Piracy detection: game authors **copy** `piracyGate.js` from source to enable (**not** in the default release); delete to disable.  
 
 ***
 
@@ -88,7 +88,6 @@ Complete guides live under **`js/mods/docs/`** (same layout as in-game; relative
 | [**Full README (English)**](js/mods/docs/README-en.md) | Complete English guide |
 | [User manual (Chinese)](js/mods/docs/使用手册.md) | Guide for authors, players, mod authors |
 | [Prerequisite mod usage spec](js/mods/docs/前置Mod更新日志等/调用规范.md) | Data + resource API for mod authors |
-| [ModLoader module map](js/mods/docs/ModLoader_模块结构.md) | Maintainer map: where changes go, how to test, manager boundaries |
 | [Prerequisite mod V2 spec](js/mods/docs/前置Mod更新日志等/数据和资源前置Mod-V2-需求规格书.md) | Architecture and API spec |
 | [Prerequisite mod test checklist](js/mods/docs/前置Mod更新日志等/前置Mod测试清单.md) | Test checklist (partially complete) |
 | [ModLoader dev spec](js/mods/docs/RMMZ_ModLoader_开发规范.md) | Internal development spec |

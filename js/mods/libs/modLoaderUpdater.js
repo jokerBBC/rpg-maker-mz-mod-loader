@@ -269,7 +269,7 @@
         return false;
     }
 
-    // 与 pathRules.js PUBLISH_EXCLUDE 同语义
+    // 与 pathRules.js catalog 排除同语义（SYNC_EXCLUDE + CATALOG_ONLY_EXCLUDE）
     function isPublishExcludedPath(relPath) {
         const p = normalizeRelPath(relPath);
         if (!p) return false;
@@ -279,7 +279,9 @@
             'tools/modstore/batchPublishGitee.js': true,
             'tools/modstore/modStorePublish.js': true,
             'tools/modstore/syncModManifests.js': true,
-            'docs/管理器在线更新plan.md': true
+            'docs/管理器在线更新plan.md': true,
+            'docs/ModLoader_模块结构.md': true,
+            'libs/piracyGate.js': true
         };
         if (exact[p]) return true;
         const prefixes = [
