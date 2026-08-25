@@ -1,0 +1,34 @@
+name: Feature Request (English)
+description: New features, UX improvements, or documentation suggestions
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ideas are welcome. You don't need a full design—just explain what problem you want solved.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or motivation
+      description: What is inconvenient today? What capability is missing?
+      placeholder: |
+        e.g. When bulk-enabling mods I wish…
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Desired feature or improvement
+      description: How you would like it to work (brief is fine)
+      placeholder: |
+        e.g. Add a button that…
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives (optional)
+      description: Other tools or workarounds you've tried
+      placeholder: |
+        e.g. Currently I edit mod_config.json manually…

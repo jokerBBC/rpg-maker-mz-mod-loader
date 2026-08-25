@@ -1,0 +1,45 @@
+name: Bug Report (English)
+description: Bugs, crashes, failed updates, or other Mod Loader issues
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please fill in as much as you can so we can reproduce and fix the issue.
+        For update problems, use **Copy update log** in the manager and paste it below.
+
+  - type: input
+    id: version
+    attributes:
+      label: Mod Loader version
+      description: Shown in the manager UI or `VERSION` in `ModLoader.js` (e.g. V4.3.6)
+      placeholder: V4.3.6
+    validations:
+      required: true
+
+  - type: input
+    id: game
+    attributes:
+      label: Game using the Mod Manager
+      description: Game title, Steam store page, or project name
+      placeholder: e.g. My RPG Maker MZ project
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: From launching the game to when the problem appears
+      placeholder: |
+        1. Launch the game and open Mod Manager
+        2. …
+        3. Error or unexpected behavior
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Game or manager logs
+      description: Console output, update log, error message text; screenshots welcome
+      placeholder: |
+        Paste log text, or write "see screenshot" and attach images

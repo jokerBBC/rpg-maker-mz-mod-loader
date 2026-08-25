@@ -1,5 +1,5 @@
-name: Bug 报告
-description: 管理器或 Mod 相关的问题、崩溃、更新失败等
+name: Bug 报告（中文）
+description: 管理器或 Mod 的问题、崩溃、更新失败等 · Chinese form
 title: "[Bug]: "
 labels:
   - bug
