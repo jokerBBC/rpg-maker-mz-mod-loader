@@ -1,0 +1,45 @@
+name: Bug 报告
+description: 管理器或 Mod 相关的问题、崩溃、更新失败等
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。请尽量填写下列信息，便于复现与修复。
+        升级相关问题时，可先点管理器里的「复制升级过程日志」再粘贴到下方。
+
+  - type: input
+    id: version
+    attributes:
+      label: 管理器版本号
+      description: 管理器界面或 `ModLoader.js` 内 `VERSION`（例如 V4.3.6）
+      placeholder: V4.3.6
+    validations:
+      required: true
+
+  - type: input
+    id: game
+    attributes:
+      label: Mod 管理器使用的游戏
+      description: 游戏名称、Steam 商店页或项目简称
+      placeholder: 例如：挂机升级打怪兽 / 我的 RMMZ 工程
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 从打开游戏到出现问题，尽量写清操作顺序
+      placeholder: |
+        1. 启动游戏，打开 Mod 管理器
+        2. …
+        3. 出现错误或异常表现
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 游戏或管理器日志
+      description: 控制台输出、升级日志、错误弹窗原文；可附截图说明
+      placeholder: |
+        粘贴日志文字，或写「见截图」并上传图片
