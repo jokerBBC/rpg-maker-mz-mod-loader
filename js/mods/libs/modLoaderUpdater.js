@@ -97,6 +97,7 @@
             logRemoveSkip: '清理跳过（已不存在）：{path}',
             logDone: '完成。请按 F5 刷新游戏。',
             logFail: '失败：{error}',
+            logFailSummary: '更新失败，已终止。请从 GitHub / Gitee Release 下载整包覆盖安装，或点击「复制升级过程日志」向作者反馈。',
             logRollback: '已从备份还原。',
             logMinVersion: '本地版本过旧（建议 ≥ {min}），若更新异常请整包重装。',
             logTagMissing: '无法拉取 tag「{tag}」下的 catalog。请确认作者已打同名 tag（勿静默用 main）。',
@@ -156,6 +157,7 @@
             logRemoveSkip: '清理跳過（已不存在）：{path}',
             logDone: '完成。請按 F5 重新整理遊戲。',
             logFail: '失敗：{error}',
+            logFailSummary: '更新失敗，已終止。請從 GitHub / Gitee Release 下載整包覆蓋安裝，或點擊「複製升級過程日誌」向作者回報。',
             logRollback: '已從備份還原。',
             logMinVersion: '本機版本過舊（建議 ≥ {min}），若更新異常請整包重裝。',
             logTagMissing: '無法拉取 tag「{tag}」下的 catalog。請確認作者已打同名 tag（勿靜默用 main）。',
@@ -215,6 +217,7 @@
             logRemoveSkip: 'Remove skipped (missing): {path}',
             logDone: 'Done. Press F5 to reload the game.',
             logFail: 'Failed: {error}',
+            logFailSummary: 'Update failed and has been aborted. Download the full release from GitHub / Gitee, or click “Copy update log” to report to the author.',
             logRollback: 'Restored from backup.',
             logMinVersion: 'Local version is old (recommended ≥ {min}). Reinstall the full package if update fails.',
             logTagMissing: 'Cannot fetch catalog for tag “{tag}”. Author must create a matching tag (do not fall back to main).',
@@ -1245,6 +1248,7 @@
                 const msg = err && err.message ? err.message : String(err);
                 appendLog(t('logFail', { error: msg }));
                 if (backedUp.length) rollback();
+                appendLog(t('logFailSummary'));
                 cleanupSession(true);
                 setBusy(false);
                 refreshChrome();

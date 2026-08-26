@@ -8,7 +8,7 @@
 
 > **[English README](README-en.md)**
 
-游戏内模组管理器 **V4.3.6**
+游戏内模组管理器 **V4.3.7**
 
 一款功能强大的 RPG Maker MZ 模组管理器，支持在游戏内管理 **本地 Mod** 与 **Steam 创意工坊 Mod** 的开启/关闭、参数编辑、排序与依赖检测。**现已支持多语言界面**（简体中文 / 繁體中文 / English）。
 
@@ -165,9 +165,9 @@ js/mods/
 │   ├── RMMZ_ModLoader_开发规范.md
 │   ├── ModLoader_测试文档.md         # 功能测试清单（发版抽测）
 │   ├── modloader_CHANGELOG.md      # 管理器自身更新日志
-│   ├── mod商店拓展plan.md
+│   ├── mod商店拓展.md
 │   ├── 管理器在线更新plan.md
-│   └── 前置Mod更新日志等/          # 前置 Mod 文档（非功能 Mod 包日志）
+│   └── 前置Mod相关文档/          # 前置 Mod 开发文档（调用规范、规格书、测试清单）
 ├── libs/                           # 依赖库 + 管理器扩展（调用 API 才生效）
 │   ├── marked.min.js               # Markdown 渲染（changelog 弹窗等）
 │   ├── modStore.js                 # 可选：Mod 商店（删即关；内嵌 STORE_I18N_PACKS）
@@ -202,20 +202,20 @@ ModLoader 仅管理 `.js` 插件的开关、排序与参数；**数据库与游�
 
 示例包：`_localmods/TestMDL-V2`（数据）、`_localmods/TestMRL-V2`（资源）。
 
+**更新日志**：ModDataLoader、ModResourceLoader 与各功能 Mod 相同，维护于包根 `CHANGELOG.md`（如 `_localmods/ModDataLoader/CHANGELOG.md`），便于管理器详情展示与 Mod 商店在线更新。
+
 | 资源 | 说明 |
 | --- | --- |
 | [使用手册.md](js/mods/docs/使用手册.md) | 游戏制作者 / 玩家 / Mod 作者完整指南 |
 | [ModLoader_模块结构.md](js/mods/docs/ModLoader_模块结构.md) | 维护地图：改动归属、测试粒度、管理器边界 |
 | [RMMZ_ModLoader_开发规范.md](js/mods/docs/RMMZ_ModLoader_开发规范.md) | 代码约定与发版流程 |
 | [ModLoader_测试文档.md](js/mods/docs/ModLoader_测试文档.md) | ModLoader 功能测试清单（§O 商店、§P 更新日志等） |
-| [调用规范.md](js/mods/docs/前置Mod更新日志等/调用规范.md) | 前置 Mod 调用规范（数据 + 资源，Mod 作者必读） |
-| [数据和资源前置Mod-V2-需求规格书.md](js/mods/docs/前置Mod更新日志等/数据和资源前置Mod-V2-需求规格书.md) | 前置 Mod V2 架构、API 与 MVP 规格 |
-| [前置Mod测试清单.md](js/mods/docs/前置Mod更新日志等/前置Mod测试清单.md) | 前置 Mod 功能测试清单（部分项已通过） |
+| [调用规范.md](js/mods/docs/前置Mod相关文档/调用规范.md) | 前置 Mod 调用规范（数据 + 资源，Mod 作者必读） |
+| [数据和资源前置Mod-V2-需求规格书.md](js/mods/docs/前置Mod相关文档/数据和资源前置Mod-V2-需求规格书.md) | 前置 Mod V2 架构、API 与 MVP 规格 |
+| [前置Mod测试清单.md](js/mods/docs/前置Mod相关文档/前置Mod测试清单.md) | 前置 Mod 功能测试清单（部分项已通过） |
 | [modloader_CHANGELOG.md](js/mods/docs/modloader_CHANGELOG.md) | ModLoader 完整更新日志 |
-| [mod商店拓展plan.md](js/mods/docs/mod商店拓展plan.md) | Mod 商店拓展设计与测试摘要 |
+| [mod商店拓展.md](js/mods/docs/mod商店拓展.md) | Mod 商店设计与测试 |
 | [tools/modstore/gui/README.md](js/mods/docs/js/mods/tools/modstore/gui/README.md) | 作者打包 GUI 与 catalog 发布 |
-| [ModDataLoader_CHANGELOG.md](js/mods/docs/前置Mod更新日志等/ModDataLoader_CHANGELOG.md) | ModDataLoader 更新日志 |
-| [ModResourceLoader_CHANGELOG.md](js/mods/docs/前置Mod更新日志等/ModResourceLoader_CHANGELOG.md) | ModResourceLoader 更新日志 |
 
 ***
 
@@ -289,4 +289,4 @@ MIT License — 详见 [LICENSE](LICENSE)
 
 ***
 
-**版本**: V4.3.6 | **更新日期**: 2026-08-24
+**版本**: V4.3.7 | **更新日期**: 2026-08-26

@@ -105,5 +105,5 @@
 
 - **zip 文件名**：`<packageName>-<version去V前缀>.zip`（例：`ExampleMod-1.0.0.zip`）
 - **多脚本包**：须在 `modloader.json` 写 `version`（包版本）
-- **更新日志**：包根唯一文件名 `CHANGELOG.md`（随 zip）；打包时复制到仓库 `changelog/` 并写 `changelogUrl`。详见 [`docs/mod商店拓展plan.md`](../../../docs/mod商店拓展plan.md) §5.1
+- **更新日志**：包根唯一文件名 `CHANGELOG.md`（随 zip）；打包时复制到仓库 `changelog/` 并写 `changelogUrl`。详见 [`docs/mod商店拓展.md`](../../../docs/mod商店拓展.md) §5.1
 - 模板见：`../modstore-catalog.template.json`

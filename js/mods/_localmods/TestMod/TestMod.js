@@ -55,6 +55,9 @@
  * 
  * 注意：以上所有 @version、@author、@param、@type、@default 都应作为纯文本显示，不应被解析为元数据标签。
  *
+ * 【更新日志】
+ * 见本 Mod 包根目录下的 CHANGELOG.md。
+ *
  * @param 伤害倍率
  * @desc 攻击力放大系数（0.1~5.0）（伪）
  * @type number

@@ -2,7 +2,7 @@
  * @target MZ
  * @plugindesc 游戏内模组管理器（DOM化UI & 现代交互 & 拖放添加Mod & 滑动条/长文本/数据库引用）
  * @author joker创意 / GLM核心代码
- * @version V4.3.6
+ * @version V4.3.7
  *
  * @help
  * 【功能及使用方式】
@@ -96,7 +96,7 @@
 
     // ---- 1.1 常量、版本与日志 ----
     const ModName = "ModLoader";
-    const VERSION = "V4.3.6";
+    const VERSION = "V4.3.7";
     const DEBUG_LEVEL = 0;
 
     const log = (level, ...args) => {
@@ -2860,6 +2860,7 @@
     let _modData = [];         // 当前模组数据
     let _selectedIndex = -1;   // 当前选中索引
     let _needsRestart = false; // 是否需要重启提示
+    let _titleBtnWrap = null; // 标题画面按钮容器（含角标）
     let _titleBtn = null;     // 标题画面按钮
     let _hasUnsavedChanges = false; // 是否有未保存的修改
     let _confirmModal = null;  // 确认对话框
@@ -2977,9 +2978,9 @@
                 <div class="ml-header">
             <div class="ml-header-left">
                 <span class="ml-settings-gear-wrap">
-                    <span class="ml-settings-update-badge" id="ml-settings-update-badge" style="display:none;" title=""></span>
+                    <span class="ml-settings-update-badge" id="ml-settings-update-badge" style="display:none;"></span>
                     <span class="ml-settings-gear" id="ml-settings-gear" title="${t('settings')}">⚙</span>
-                    <span class="ml-settings-conflict-badge" id="ml-settings-conflict-badge" style="display:none;" title="">!</span>
+                    <span class="ml-settings-conflict-badge" id="ml-settings-conflict-badge" style="display:none;">!</span>
                 </span>
                 <h2>${t('title')}</h2>
                 <span class="ml-header-meta">
@@ -6540,30 +6541,45 @@
 
     // ---- 6.5 标题画面按钮（DOM 化）----
     function updateTitleButtonVisibility() {
-        if (!_titleBtn) return;
+        if (!_titleBtnWrap) return;
         try {
             if (typeof SceneManager !== 'undefined' && SceneManager._scene) {
                 const isTitle = SceneManager._scene.constructor.name === 'Scene_Title';
-                _titleBtn.style.display = isTitle ? 'block' : 'none';
+                _titleBtnWrap.style.display = isTitle ? 'block' : 'none';
+                if (isTitle) {
+                    _refreshConflictBadge();
+                }
             } else {
-                _titleBtn.style.display = 'none';
+                _titleBtnWrap.style.display = 'none';
             }
         } catch (e) {
-            _titleBtn.style.display = 'none';
+            _titleBtnWrap.style.display = 'none';
         }
     }
 
     function setupTitleButton() {
-        if (_titleBtn) return;
+        if (_titleBtnWrap) return;
+
+        _titleBtnWrap = document.createElement('div');
+        _titleBtnWrap.className = 'ml-title-btn-wrap';
+        _titleBtnWrap.id = 'ml-title-btn-wrap';
+        _titleBtnWrap.style.left = BUTTON_X + 'px';
+        _titleBtnWrap.style.top = BUTTON_Y + 'px';
+        _titleBtnWrap.style.display = 'none';
+
+        const titleUpdateBadge = document.createElement('span');
+        titleUpdateBadge.className = 'ml-settings-update-badge';
+        titleUpdateBadge.id = 'ml-title-update-badge';
+        titleUpdateBadge.style.display = 'none';
 
         _titleBtn = document.createElement('button');
         _titleBtn.className = 'ml-title-btn';
         _titleBtn.id = 'ml-title-btn';
         _titleBtn.textContent = t('title');
-        _titleBtn.style.left = BUTTON_X + 'px';
-        _titleBtn.style.top = BUTTON_Y + 'px';
-        _titleBtn.style.display = 'none';
-        document.body.appendChild(_titleBtn);
+
+        _titleBtnWrap.appendChild(titleUpdateBadge);
+        _titleBtnWrap.appendChild(_titleBtn);
+        document.body.appendChild(_titleBtnWrap);
 
         _titleBtn.addEventListener('click', () => {
             showModManager();
@@ -6589,6 +6605,7 @@
         }, 200);
 
         updateTitleButtonVisibility();
+        _refreshConflictBadge();
         log(3, "标题画面按钮已创建 (DOM)");
     }
 
@@ -6805,6 +6822,17 @@
         }
     }
 
+    function _applyUpdateBadgeEl(badgeEl, updateCount) {
+        if (!badgeEl) return;
+        if (updateCount > 0) {
+            badgeEl.style.display = 'flex';
+            badgeEl.textContent = updateCount > 99 ? '99+' : String(updateCount);
+        } else {
+            badgeEl.style.display = 'none';
+            badgeEl.textContent = '';
+        }
+    }
+
     function _applyLogItemBadges(entry, updateBadge, conflictBadge) {
         var conflictCount = 0;
         var updateCount = 0;
@@ -6818,24 +6846,12 @@
             if (conflictCount > 0) {
                 conflictBadge.style.display = 'flex';
                 conflictBadge.textContent = conflictCount > 99 ? '99+' : String(conflictCount);
-                conflictBadge.title = conflictCount + ' 处冲突';
             } else {
                 conflictBadge.style.display = 'none';
                 conflictBadge.textContent = '';
-                conflictBadge.title = '';
             }
         }
-        if (updateBadge) {
-            if (updateCount > 0) {
-                updateBadge.style.display = 'flex';
-                updateBadge.textContent = updateCount > 99 ? '99+' : String(updateCount);
-                updateBadge.title = updateCount + ' 项待处理';
-            } else {
-                updateBadge.style.display = 'none';
-                updateBadge.textContent = '';
-                updateBadge.title = '';
-            }
-        }
+        _applyUpdateBadgeEl(updateBadge, updateCount);
     }
 
     function _refreshSettingsLogMenu() {
@@ -6940,22 +6956,12 @@
             if (conflictTotal > 0) {
                 conflictBadge.style.display = 'flex';
                 conflictBadge.textContent = '!';
-                conflictBadge.title = conflictTotal + ' 处冲突';
             } else {
                 conflictBadge.style.display = 'none';
-                conflictBadge.title = '';
             }
         }
-        if (updateBadge) {
-            if (updateTotal > 0) {
-                updateBadge.style.display = 'flex';
-                updateBadge.textContent = updateTotal > 99 ? '99+' : String(updateTotal);
-                updateBadge.title = updateTotal + ' 项待处理';
-            } else {
-                updateBadge.style.display = 'none';
-                updateBadge.title = '';
-            }
-        }
+        _applyUpdateBadgeEl(updateBadge, updateTotal);
+        _applyUpdateBadgeEl(document.getElementById('ml-title-update-badge'), updateTotal);
     }
 
     var _refreshConflictBadge = _refreshSettingsBadges;

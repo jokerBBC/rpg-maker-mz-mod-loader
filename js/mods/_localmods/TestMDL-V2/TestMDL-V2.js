@@ -33,6 +33,9 @@
  *   ModDataLoader.getDataRegistry()
  *   ModDataLoader.getConflictReport()
  *   ModDataLoader.getMigrationLog()
+ *
+ * 【更新日志】
+ * 见本 Mod 包根目录下的 CHANGELOG.md。
  */
 
 (() => {

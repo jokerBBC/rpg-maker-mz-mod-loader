@@ -17,6 +17,9 @@
  *
  * F12 诊断命令：
  *   ModResourceLoader.getResourceRegistry()
+ *
+ * 【更新日志】
+ * 见本 Mod 包根目录下的 CHANGELOG.md。
  */
 
 (() => {

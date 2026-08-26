@@ -1,7 +1,7 @@
 /*:
  * @plugindesc 测试Mod - 验证 struct 折叠收纳与 table 表格列表功能
  * @author 测试开发者
- * @version 1.0.0
+ * @version V1.0.0
  *
  * @define-schema PositionSchema
  * [{"name":"x","type":"number","text":"X坐标","default":"0","min":-9999,"max":9999,"step":1},{"name":"y","type":"number","text":"Y坐标","default":"0","min":-9999,"max":9999,"step":1}]
@@ -28,6 +28,9 @@
  * 保存格式：
  * - struct: JSON.stringify(内部对象)
  * - table: JSON.stringify([JSON.stringify(行1), JSON.stringify(行2), ...])
+ *
+ * 【更新日志】
+ * 见本 Mod 包根目录下的 CHANGELOG.md。
  *
  * @param playerName
  * @text 玩家名称

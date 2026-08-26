@@ -1057,9 +1057,14 @@ html[data-ml-theme="warm"] {
 }
 
 /* ---------- 标题画面按钮 ---------- */
-.ml-title-btn {
+.ml-title-btn-wrap {
     position: fixed;
     z-index: 9998;
+    display: none;
+}
+
+.ml-title-btn {
+    position: relative;
     padding: 10px 18px;
     background: var(--ml-bg-primary);
     border: 1px solid var(--ml-border-light);
@@ -1073,7 +1078,6 @@ html[data-ml-theme="warm"] {
     -webkit-backdrop-filter: blur(8px);
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
     user-select: none;
-    display: none;
 }
 
 .ml-title-btn:hover {

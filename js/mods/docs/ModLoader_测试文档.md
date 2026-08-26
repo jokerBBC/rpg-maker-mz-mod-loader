@@ -184,7 +184,7 @@
 
 ## O. Mod 商店（需 `libs/modStore.js`）
 
-> 详细用例见 [`mod商店拓展plan.md`](mod商店拓展plan.md) §11。发版前至少抽测单源全流程；本地 HTTPS 回归用 `tools/modstore/test/modStoreLocalHttps.js`（测完停服）。
+> 详细用例见 [`mod商店拓展.md`](mod商店拓展.md) §11。发版前至少抽测单源全流程；本地 HTTPS 回归用 `tools/modstore/test/modStoreLocalHttps.js`（测完停服）。
 
 | # | 操作 | 预期 | 结果 |
 | --- | --- | --- | --- |
@@ -205,7 +205,7 @@
 | # | 操作 | 预期 | 结果 |
 | --- | --- | --- | --- |
 | P1 | 点击管理器左下角 **(日志)** | 弹出 ModLoader 自身 Markdown 更新日志 | |
-| P2 | 选有 `version` + 包根 `CHANGELOG.md` 的 Mod | 详情版本旁显示 **更新日志** 链接 | |
+| P2 | 选有 `version` + 包根 `CHANGELOG.md` 的 Mod（如 ModDataLoader 或功能 Mod） | 详情版本旁显示 **更新日志** 链接 | |
 | P3 | 点击详情 **更新日志** | 弹窗标题含包名与版本；正文为包根 `CHANGELOG.md` | |
 | P4 | 选无版本或无 CHANGELOG 的 Mod | 详情**不**显示更新日志链接 | |
 | P5 | 多脚本包任选一脚本 | 均显示同一包级更新日志 | |

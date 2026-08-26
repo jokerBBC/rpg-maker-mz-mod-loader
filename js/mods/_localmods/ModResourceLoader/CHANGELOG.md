@@ -14,7 +14,7 @@
 ### 全新重写
 
 - 基于社区版 V1 反馈重写，新增 manifest 声明式替换和 modId 别名系统
-- 文档：`_localmods/ModDataLoader/调用规范.md`（第 7 节资源系统）
+- 文档：`docs/前置Mod相关文档/调用规范.md`（第 7 节资源系统）
 
 ### 资源替换（manifest 声明，零 JS 代码）
 

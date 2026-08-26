@@ -31,6 +31,9 @@
  * ModDataLoader.isReady()
  * ModDataLoader.onReady(callback)
  *
+ * 【更新日志】
+ * 见本 Mod 包根目录下的 CHANGELOG.md。
+ *
  * @param debugLevel
  * @text 调试等级
  * @type select

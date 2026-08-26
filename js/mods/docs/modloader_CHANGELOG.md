@@ -1,5 +1,14 @@
 # ModLoader 更新日志
 
+## V4.3.7 (2026-08-26)
+
+### 标题画面入口角标
+
+- **新增**：标题画面「模组管理器」入口按钮左上角显示绿色可更新角标，与设置齿轮汇总一致（Mod 商店可更新 + 未读新增 + 管理器在线更新）；复用 `ml-settings-update-badge` 样式；后台 catalog 预拉完成后自动刷新
+
+### 管理器升级拓展插件
+- **新增**：升级过程失败后流程终止时，文本提示该如何后续处理。
+
 ## V4.3.6 (2026-08-25)
 
 ### 管理器在线更新（`libs/modLoaderUpdater.js`）
@@ -74,7 +83,7 @@
 
 ### Mod 包更新日志规范
 
-- **统一**：功能 Mod 更新日志迁至包根 **`CHANGELOG.md`**（唯一合法名）；不再使用 `docs/功能Mod更新日志/[ModName]_CHANGELOG.md`
+- **统一**：所有 Mod 包（含功能 Mod 与前置 Mod，如 ModDataLoader / ModResourceLoader）更新日志迁至包根 **`CHANGELOG.md`**（唯一合法名）；不再使用 `docs/功能Mod更新日志/[ModName]_CHANGELOG.md` 或 `docs/前置Mod相关文档/*_CHANGELOG.md`
 - **插件头**：`@help` 中【更新日志】改为指向包根 `CHANGELOG.md`
 - **商店**：catalog `changelogUrl` + 商店列表按钮；已最新时优先读本地包根文件（§5.1）
 

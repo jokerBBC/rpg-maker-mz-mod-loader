@@ -8,7 +8,7 @@
 
 > **[中文版 README](README.md)**
 
-In-game mod manager **V4.3.6**
+In-game mod manager **V4.3.7**
 
 A powerful RPG Maker MZ mod manager that lets you enable/disable, edit parameters, reorder, and check dependencies for **local mods** and **Steam Workshop mods** — all from inside the game. **Multilingual UI** is supported (Simplified Chinese / Traditional Chinese / English).
 
@@ -167,9 +167,9 @@ js/mods/
 │   ├── RMMZ_ModLoader_开发规范.md
 │   ├── ModLoader_测试文档.md         # Feature test checklist (release spot checks)
 │   ├── modloader_CHANGELOG.md      # ModLoader changelog
-│   ├── mod商店拓展plan.md
+│   ├── mod商店拓展.md
 │   ├── 管理器在线更新plan.md
-│   └── 前置Mod更新日志等/          # Prerequisite mod docs (not feature-mod changelogs)
+│   └── 前置Mod相关文档/          # Prerequisite mod dev docs (usage spec, architecture, test checklist)
 ├── libs/                           # Dependencies + manager extensions (API call required)
 │   ├── marked.min.js               # Markdown rendering (changelog modals, etc.)
 │   ├── modStore.js                 # optional: Mod store (delete to disable; embedded STORE_I18N_PACKS)
@@ -204,20 +204,20 @@ ModLoader manages only `.js` plugin toggles, load order, and parameters. **Datab
 
 Sample packages: `_localmods/TestMDL-V2` (data), `_localmods/TestMRL-V2` (resources).
 
+**Changelogs**: Like feature mods, ModDataLoader and ModResourceLoader maintain package-root `CHANGELOG.md` (e.g. `_localmods/ModDataLoader/CHANGELOG.md`) for manager detail UI and Mod Store online updates.
+
 | Resource | Description |
 | --- | --- |
 | [使用手册.md](js/mods/docs/使用手册.md) | Full guide for game authors / players / mod authors |
 | [ModLoader_模块结构.md](js/mods/docs/ModLoader_模块结构.md) | Maintainer map: where changes go, how to test, manager boundaries |
 | [RMMZ_ModLoader_开发规范.md](js/mods/docs/RMMZ_ModLoader_开发规范.md) | Coding conventions and release checklist |
 | [ModLoader_测试文档.md](js/mods/docs/ModLoader_测试文档.md) | ModLoader feature test checklist (§O store, §P changelogs, etc.) |
-| [调用规范.md](js/mods/docs/前置Mod更新日志等/调用规范.md) | Prerequisite mod usage spec (data + resources; required for mod authors) |
-| [数据和资源前置Mod-V2-需求规格书.md](js/mods/docs/前置Mod更新日志等/数据和资源前置Mod-V2-需求规格书.md) | Prerequisite mod V2 architecture, API, and MVP spec |
-| [前置Mod测试清单.md](js/mods/docs/前置Mod更新日志等/前置Mod测试清单.md) | Prerequisite mod test checklist (some cases passed) |
+| [调用规范.md](js/mods/docs/前置Mod相关文档/调用规范.md) | Prerequisite mod usage spec (data + resources; required for mod authors) |
+| [数据和资源前置Mod-V2-需求规格书.md](js/mods/docs/前置Mod相关文档/数据和资源前置Mod-V2-需求规格书.md) | Prerequisite mod V2 architecture, API, and MVP spec |
+| [前置Mod测试清单.md](js/mods/docs/前置Mod相关文档/前置Mod测试清单.md) | Prerequisite mod test checklist (some cases passed) |
 | [modloader_CHANGELOG.md](js/mods/docs/modloader_CHANGELOG.md) | ModLoader full changelog |
-| [mod商店拓展plan.md](js/mods/docs/mod商店拓展plan.md) | Mod store extension design & test summary |
+| [mod商店拓展.md](js/mods/docs/mod商店拓展.md) | Mod store design & test |
 | [tools/modstore/gui/README.md](js/mods/docs/js/mods/tools/modstore/gui/README.md) | Author packaging GUI & catalog publishing |
-| [ModDataLoader_CHANGELOG.md](js/mods/docs/前置Mod更新日志等/ModDataLoader_CHANGELOG.md) | ModDataLoader changelog |
-| [ModResourceLoader_CHANGELOG.md](js/mods/docs/前置Mod更新日志等/ModResourceLoader_CHANGELOG.md) | ModResourceLoader changelog |
 
 ***
 
@@ -291,4 +291,4 @@ MIT License — see [LICENSE](LICENSE)
 
 ***
 
-**Version**: V4.3.6 | **Updated**: 2026-08-24
+**Version**: V4.3.7 | **Updated**: 2026-08-26
