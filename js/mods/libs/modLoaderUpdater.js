@@ -325,10 +325,7 @@
             'tools/modstore/batchPublishGitee.js': true,
             'tools/modstore/modStorePublish.js': true,
             'tools/modstore/syncModManifests.js': true,
-            'docs/管理器在线更新plan.md': true,
             'docs/ModLoader_模块结构.md': true,
-            'docs/ModLoader_技术债调查.md': true,
-            'docs/ModLoader_第5波拆分方案.md': true,
             'libs/piracyGate.js': true
         };
         if (exact[p]) return true;

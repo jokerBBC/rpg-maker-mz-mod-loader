@@ -14,9 +14,10 @@
 | [`使用手册.md`](使用手册.md) | 玩家 / 作者 / 制作者：路径、工坊、Mod 商店、安装与配置 |
 | [`modloader_CHANGELOG.md`](modloader_CHANGELOG.md) | 版本史（权威） |
 | [`mod商店拓展.md`](mod商店拓展.md) | Mod 商店设计与测试 |
-| [`管理器在线更新plan.md`](管理器在线更新plan.md) | 管理器在线更新（`libs/modLoaderUpdater.js`）设计与待办 |
+| [`../tools/manager-release/README.md`](../tools/manager-release/README.md) | 管理器在线更新发版（sync / catalog / verify） |
 | [`adr/CONTEXT.md`](adr/CONTEXT.md) | 名词；ADR 记架构决策 |
-| [`ModLoader_技术债调查.md`](ModLoader_技术债调查.md) / [`ModLoader_第5波拆分方案.md`](ModLoader_第5波拆分方案.md) | **仅开发仓**；`pathRules` SYNC_EXCLUDE，不进发行仓 / catalog |
+| [`adr/0002-modloader-wave5-scan-install-seams.md`](adr/0002-modloader-wave5-scan-install-seams.md) | 第 5 波：扫描 / 安装 / 工坊缝隙 |
+| [`adr/0003-ui-stays-mainfile-dom.md`](adr/0003-ui-stays-mainfile-dom.md) | UI 终态：主文件 DOM；旁路抽取暂告；Vue 仅全量重写 |
 
 本文件不维护模块清单、行号对照或内部函数黄页。
 

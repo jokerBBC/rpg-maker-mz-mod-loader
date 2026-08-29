@@ -2,7 +2,7 @@
  * @target MZ
  * @plugindesc 游戏内模组管理器（DOM化UI & 现代交互 & 拖放添加Mod & 滑动条/长文本/数据库引用）
  * @author joker创意 / GLM核心代码
- * @version V4.4.3
+ * @version V4.4.6
  *
  * @help
  * 【功能及使用方式】
@@ -96,7 +96,7 @@
 
     // ---- 1.1 常量、版本与日志 ----
     const ModName = "ModLoader";
-    const VERSION = "V4.4.3";
+    const VERSION = "V4.4.6";
     const DEBUG_LEVEL = 3;
 
     const log = (level, ...args) => {
@@ -291,9 +291,22 @@
                 return;
             }
             const raw = JSON.parse(fs.readFileSync(MODLOADER_CONFIG_PATH, 'utf-8'));
+            const defaultsEnsure = getDefaultModLoaderConfig();
+            let fileChanged = false;
             const workshopMerge = mergeWorkshopConfigSection(raw.workshop);
             if (workshopMerge.changed) {
                 raw.workshop = workshopMerge.merged;
+                fileChanged = true;
+            }
+            if (raw.ml_ui_scale === undefined) {
+                raw.ml_ui_scale = defaultsEnsure.ml_ui_scale;
+                fileChanged = true;
+            }
+            if (raw.ml_ui_font !== undefined) {
+                delete raw.ml_ui_font;
+                fileChanged = true;
+            }
+            if (fileChanged) {
                 fs.writeFileSync(MODLOADER_CONFIG_PATH, JSON.stringify(raw, null, 2), 'utf-8');
                 invalidateWorkshopConfigCache();
                 log(3, '已为 modloader_config.json 补全缺失配置段');
@@ -314,6 +327,7 @@
                 return {
                     ml_theme: parsed.ml_theme !== undefined ? parsed.ml_theme : defaults.ml_theme,
                     ml_language: parsed.ml_language !== undefined ? parsed.ml_language : defaults.ml_language,
+                    ml_ui_scale: parsed.ml_ui_scale !== undefined ? parsed.ml_ui_scale : defaults.ml_ui_scale,
                     workshop: Object.assign({}, defaults.workshop, parsed.workshop || {})
                 };
             }
@@ -330,6 +344,7 @@
             const mergedConfig = {
                 ml_theme: config.ml_theme !== undefined ? config.ml_theme : existingConfig.ml_theme,
                 ml_language: config.ml_language !== undefined ? config.ml_language : existingConfig.ml_language,
+                ml_ui_scale: config.ml_ui_scale !== undefined ? config.ml_ui_scale : existingConfig.ml_ui_scale,
                 workshop: Object.assign({}, existingConfig.workshop, config.workshop || {})
             };
             fs.writeFileSync(MODLOADER_CONFIG_PATH, JSON.stringify(mergedConfig, null, 2), 'utf-8');
@@ -342,6 +357,119 @@
     function loadWorkshopConfig() {
         const mlConfig = loadModLoaderConfig();
         return Object.assign({}, DEFAULT_WORKSHOP_CONFIG, mlConfig.workshop || {});
+    }
+
+    const VALID_UI_SCALES = ['70', '85', '100', '115', '130'];
+    const LEGACY_UI_SCALE_MAP = { '90': '85', '125': '130' };
+
+    function normalizeUiScale(value, defaultScale) {
+        const scale = value !== undefined && value !== null ? String(value) : '';
+        if (VALID_UI_SCALES.indexOf(scale) >= 0) return scale;
+        if (LEGACY_UI_SCALE_MAP[scale]) return LEGACY_UI_SCALE_MAP[scale];
+        return defaultScale || '100';
+    }
+
+    function computeUiZoom(scale) {
+        const n = parseInt(scale, 10);
+        return (n > 0 ? n : 100) / 100;
+    }
+
+    function applyUiPreferences(config) {
+        const cfg = config || loadModLoaderConfig();
+        const defaults = getDefaultModLoaderConfig();
+        const scale = normalizeUiScale(cfg.ml_ui_scale, defaults.ml_ui_scale);
+        const zoom = computeUiZoom(scale);
+        applyScaleToOverlay(zoom, scale);
+        updateScaleButtons(scale);
+        return scale;
+    }
+
+    function applyScaleToOverlay(zoom, scale) {
+        if (typeof document === 'undefined') return false;
+
+        const rootEl = document.documentElement;
+        if (rootEl) {
+            rootEl.setAttribute('data-ml-ui-scale', scale);
+            rootEl.style.setProperty('--ml-ui-zoom', String(zoom));
+        }
+
+        function ensureScaleRoot(overlayEl) {
+            if (!overlayEl) return null;
+            let target = null;
+            if (overlayEl.firstElementChild && overlayEl.firstElementChild.classList.contains('ml-scale-root')) {
+                target = overlayEl.firstElementChild;
+            } else {
+                target = overlayEl.querySelector('.ml-scale-root');
+            }
+            if (target) {
+                if (target.querySelector('.ml-container, .ml-install-card')) return target;
+                target.remove();
+                target = null;
+            }
+            const container = overlayEl.querySelector('.ml-container, .ml-install-card');
+            if (!container) return null;
+            target = document.createElement('div');
+            target.className = 'ml-scale-root';
+            if (overlayEl.classList.contains('ml-install-overlay')) {
+                target.classList.add('ml-scale-root-install');
+            } else {
+                target.id = 'ml-scale-root';
+            }
+            if (container.parentElement === overlayEl) {
+                overlayEl.insertBefore(target, container);
+            } else if (container.parentElement) {
+                container.parentElement.insertBefore(target, container);
+            } else {
+                overlayEl.appendChild(target);
+            }
+            target.appendChild(container);
+            return target;
+        }
+
+        function applyToOverlay(overlayEl) {
+            const target = ensureScaleRoot(overlayEl);
+            if (!target) return false;
+            target.style.transform = 'scale(' + zoom + ')';
+            target.style.transformOrigin = 'center center';
+            return true;
+        }
+
+        if (!_overlay) {
+            const orphan = document.getElementById('ml-overlay')
+                || document.querySelector('.ml-overlay:not(.ml-install-overlay)');
+            if (orphan) _overlay = orphan;
+        }
+
+        let applied = false;
+        if (_overlay && applyToOverlay(_overlay)) applied = true;
+        if (_installOverlay && applyToOverlay(_installOverlay)) applied = true;
+        return applied;
+    }
+
+    function setUiScale(scaleRaw) {
+        const scale = normalizeUiScale(scaleRaw, '100');
+        saveModLoaderConfig({ ml_ui_scale: scale });
+        applyUiPreferences(loadModLoaderConfig());
+    }
+
+    function updateScaleButtons(activeScale) {
+        const scale = activeScale || normalizeUiScale(loadModLoaderConfig().ml_ui_scale, '100');
+        const map = {
+            '70': t('settings.scaleMin'),
+            '85': t('settings.scaleSm'),
+            '100': t('settings.scaleMd'),
+            '115': t('settings.scaleLg'),
+            '130': t('settings.scaleMax')
+        };
+        VALID_UI_SCALES.forEach(function (v) {
+            const btn = document.getElementById('ml-scale-btn-' + v);
+            if (!btn) return;
+            btn.textContent = map[v] || v;
+            if (v === scale) btn.classList.add('active');
+            else btn.classList.remove('active');
+        });
+        const label = document.querySelector('#ml-settings-scale-item .ml-settings-label');
+        if (label) label.textContent = t('settings.uiScale');
     }
 
     const modCatalog = createModCatalog({
@@ -1466,6 +1594,7 @@
         _overlay.style.display = 'none';
 
         _overlay.innerHTML = `
+            <div class="ml-scale-root" id="ml-scale-root">
             <div class="ml-container">
                 <div class="ml-header">
             <div class="ml-header-left">
@@ -1488,6 +1617,16 @@
                         <div class="ml-settings-theme-btns">
                             <button class="ml-settings-theme-btn" id="ml-theme-btn-dark" data-theme="dark">${t('theme.dark')}</button>
                             <button class="ml-settings-theme-btn" id="ml-theme-btn-warm" data-theme="warm">${t('theme.warm')}</button>
+                        </div>
+                    </div>
+                    <div class="ml-settings-item" id="ml-settings-scale-item">
+                        <label class="ml-settings-label">${t('settings.uiScale')}</label>
+                        <div class="ml-settings-theme-btns ml-settings-scale-btns">
+                            <button type="button" class="ml-settings-theme-btn" id="ml-scale-btn-70" data-scale="70">${t('settings.scaleMin')}</button>
+                            <button type="button" class="ml-settings-theme-btn" id="ml-scale-btn-85" data-scale="85">${t('settings.scaleSm')}</button>
+                            <button type="button" class="ml-settings-theme-btn" id="ml-scale-btn-100" data-scale="100">${t('settings.scaleMd')}</button>
+                            <button type="button" class="ml-settings-theme-btn" id="ml-scale-btn-115" data-scale="115">${t('settings.scaleLg')}</button>
+                            <button type="button" class="ml-settings-theme-btn" id="ml-scale-btn-130" data-scale="130">${t('settings.scaleMax')}</button>
                         </div>
                     </div>
                     <div class="ml-settings-log-entries" id="ml-settings-log-entries"></div>
@@ -1544,6 +1683,7 @@
                     </div>
                     <div class="ml-log-panel-body" id="ml-log-panel-body"></div>
                 </div>
+            </div>
             </div>
         `;
 
@@ -1605,6 +1745,7 @@
                     settingsCard.style.display = 'block';
                     populateLanguageSelect();
                     updateThemeButtons();
+                    updateScaleButtons();
                 } else {
                     settingsCard.style.display = 'none';
                 }
@@ -1627,6 +1768,8 @@
                 setLanguage(this.value);
                 refreshAllUIText();
                 updateThemeButtons();
+                updateScaleButtons();
+                _refreshSettingsLogMenu();
                 document.getElementById('ml-settings-gear').title = t('settings');
                 if (settingsCard) settingsCard.style.display = 'none';
             });
@@ -1649,10 +1792,21 @@
                 updateThemeButtons();
             });
         }
+
+        VALID_UI_SCALES.forEach(function (v) {
+            const btn = document.getElementById('ml-scale-btn-' + v);
+            if (!btn) return;
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                setUiScale(v);
+            });
+        });
+        updateScaleButtons();
         
         // 初始化按钮状态
         updateButtonStates();
         updateWorkshopToolbarState();
+        applyUiPreferences(loadModLoaderConfig());
 
         // ESC 关闭
         _overlay.addEventListener('keydown', (e) => {
@@ -1701,6 +1855,7 @@
         }
         applyTheme(mlConfig.ml_theme || 'dark');
         const overlay = createOverlay();
+        applyUiPreferences(mlConfig);
         _modData = scanAllMods();
         _selectedIndex = -1;
         _listFilter = 'all';
@@ -2780,6 +2935,8 @@
         if (langLabel) langLabel.textContent = t('language.label');
         const themeLabel = document.querySelector('#ml-settings-theme-item .ml-settings-label');
         if (themeLabel) themeLabel.textContent = t('settings.theme');
+        const scaleLabel = document.querySelector('#ml-settings-scale-item .ml-settings-label');
+        if (scaleLabel) scaleLabel.textContent = t('settings.uiScale');
     }
 
     function refreshAllUIText() {
@@ -2863,6 +3020,8 @@
         if (_titleBtn) _titleBtn.textContent = t('title');
         
         updateThemeButtons();
+        updateScaleButtons();
+        _refreshSettingsLogMenu();
     }
     
     /**
@@ -4782,6 +4941,7 @@
         _installOverlay.style.display = 'flex';
 
         _installOverlay.innerHTML = `
+            <div class="ml-scale-root ml-scale-root-install">
             <div class="ml-install-card">
                 <div id="ml-drop-zone" class="ml-drop-zone ml-install-drop-zone">
                     <div class="ml-drop-zone-icon">📁</div>
@@ -4793,9 +4953,11 @@
                 <br>
                 <button class="ml-btn ml-btn-secondary" id="ml-btn-exit-install">${t('button.exit')}</button>
             </div>
+            </div>
         `;
 
         document.body.appendChild(_installOverlay);
+        applyUiPreferences(loadModLoaderConfig());
 
         const dropZone = document.getElementById('ml-drop-zone');
 
@@ -5168,6 +5330,7 @@
     // 须在 loadLibsExtensions 与任何同步加载的 Mod 注册之前完成赋值。
     // 当前安全顺序：6.7 只 defer 加载 → 本小节先导出 → 再扫 libs → 事件循环后再跑 Mod。
 
+
     const _logEntries = [];  // { id, label, getConflictCount, getUpdateCount, render }
     const _managerGates = [];
 
@@ -5183,6 +5346,7 @@
         const normalized = {
             id: String(entry.id),
             label: entry.label || '日志',
+            getLabel: typeof entry.getLabel === 'function' ? entry.getLabel : null,
             getConflictCount: typeof entry.getConflictCount === 'function'
                 ? entry.getConflictCount
                 : function() { return 0; },
@@ -5321,7 +5485,7 @@
 
                 const label = document.createElement('span');
                 label.className = 'ml-settings-log-item-label';
-                label.textContent = entry.label;
+                label.textContent = (entry.getLabel ? entry.getLabel() : entry.label) || '';
 
                 const badgesWrap = document.createElement('span');
                 badgesWrap.className = 'ml-settings-log-item-badges';
@@ -5356,7 +5520,8 @@
         const title = document.getElementById('ml-log-panel-title');
         const body = document.getElementById('ml-log-panel-body');
         if (!panel || !body) return;
-        if (title) title.textContent = entry.label || '';
+        if (title) title.textContent = (entry.getLabel ? entry.getLabel() : entry.label) || '';
+        body.className = 'ml-log-panel-body';
         body.innerHTML = '';
         try {
             entry.render(body);
@@ -5417,6 +5582,7 @@
     // 导出公共 API（libs / 前置 Mod 依赖此对象；必须在 loadLibsExtensions 之前赋值）
     window.ModLoader = {
         version: VERSION,
+        t: t,
         registerLogEntry: registerLogEntry,
         registerManagerGate: registerManagerGate,
         refreshConflictLog: _refreshConflictBadge,
@@ -5424,7 +5590,31 @@
         hideConfirmDialog: hideConfirmDialog,
         showChangelogModal: showChangelogModal,
         hideChangelogModal: hideChangelogModal,
-        isChangelogModalOpen: function () { return !!_changelogModal; }
+        isChangelogModalOpen: function () { return !!_changelogModal; },
+        getManagedModList: function () { return _modData; },
+        resolvePackageVersion: resolvePackageVersion,
+        getPackageDisplayName: getPackageDisplayName,
+        afterManagedPresetApplied: function (opts) {
+            reassignOrders();
+            refreshDependencyCheck();
+            renderModList();
+            updateCounts();
+            updateButtonStates();
+            if (_selectedIndex >= 0 && _modData[_selectedIndex]) {
+                renderDetail(_modData[_selectedIndex]);
+            } else {
+                _selectedIndex = -1;
+                renderDetail(null);
+            }
+            _closeLogPanel();
+            if (opts && opts.save) {
+                saveAllChanges();
+            } else {
+                _hasUnsavedChanges = true;
+                updateSaveButton();
+            }
+            log(3, opts && opts.save ? '预设已应用并保存' : '预设已应用（未保存）');
+        }
     };
 
     loadLibsExtensions();

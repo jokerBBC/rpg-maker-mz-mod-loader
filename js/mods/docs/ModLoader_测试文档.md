@@ -219,7 +219,7 @@
 
 ## Q. 管理器在线更新（需 `libs/modLoaderUpdater.js`）
 
-> 详细用例见 [`管理器在线更新plan.md`](管理器在线更新plan.md) §11。发版前至少抽测检查 + 更新全流程；远程须已 push `manager/channel.json` 并打同名 tag。
+> 发版前至少抽测检查 + 更新全流程；远程须已 push `manager/channel.json` 并打同名 tag。发版工具见 [`tools/manager-release/README.md`](../tools/manager-release/README.md)。
 
 | # | 操作 | 预期 | 结果 |
 | --- | --- | --- | --- |

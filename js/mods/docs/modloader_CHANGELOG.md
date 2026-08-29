@@ -1,5 +1,47 @@
 # ModLoader 更新日志
 
+## V4.4.6 (2026-08-29)
+
+### 配置预设 polish
+
+- **滚动条**：预设列表 / 预览区沿用管理器 `ml-list-scroll` 样式（与商店同修法）
+- **排序**：按 `savedAt` 新→旧；列表副文案为「启用 n  YYYY.MM.DD  HH:MM:SS」
+- **结构**：纯逻辑并入 `libs/modConfigPresets.js`；`modloader/modPresets.js` 保留薄 re-export 供单测
+
+### 文档清理（方案稿已落地，可从 git 历史回溯）
+
+- **删除**（能力已进代码 / ADR / 常驻文档，无需再维护长方案稿）：
+  - `docs/ModLoader_配置预设方案.md` → 见本 CHANGELOG + `libs/modConfigPresets.js` / `modloader/modPresets.js`
+  - `docs/ModLoader_第5波拆分方案.md` → 见 `adr/0002-modloader-wave5-scan-install-seams.md`
+  - `docs/ModLoader_技术债调查.md` → 已知取舍并入 `ModLoader_模块结构.md` §8
+  - `docs/管理器在线更新plan.md` → 见 `tools/manager-release/README.md`、使用手册 §2.8、测试文档 Q
+- **外链**：开发规范 / 使用手册 / 测试文档 / Skill / `pathRules` / updater 排除列表已改指上述常驻位置
+
+## V4.4.5 (2026-08-29)
+
+### 配置预设迁入 libs 扩展
+
+- **迁出**：预设面板 UI / 接线从主文件改为 `libs/modConfigPresets.js`（存在即生效，删除即关闭）
+- **一体 UI**：与 Mod 商店 / 管理器更新相同，填满 `#ml-log-panel`（`ml-presets-panel-root`），去掉壳套壳卡片与外层滚轮抖动
+- **主文件**：仅保留薄 API（`t` / `getManagedModList` / `afterManagedPresetApplied` / `resolvePackageVersion` 等）；纯逻辑仍在 `modloader/modPresets.js`
+- **扩展**：`registerLogEntry` 支持可选 `getLabel`，语言切换时菜单文案可刷新
+
+## V4.4.4 (2026-08-29)
+
+### 界面缩放（DOM）
+
+- **新增**：设置卡「界面缩放」五档（70 / 85 / 100 / 115 / 130），写入 `ml_ui_scale`；主界面与安装页经 `.ml-scale-root` 缩放
+- **配置**：`configCore` / `modloader_config.json` 默认 `ml_ui_scale: "100"`；清理遗留 `ml_ui_font`
+
+### 配置预设（DOM + 设置日志壳）
+
+- **新增**：`modloader/modPresets.js` — 预设目录读写、diff、应用到当前列表（不改 `mod_config` schema）
+- **UI**：⚙ 设置 →「配置预设」走现有 `#ml-log-panel`（`registerLogEntry`），非顶栏独立遮罩
+- **能力**：保存当前为预设、预览将开启/将关闭与版本提示、删除、应用并预览 / 应用并保存
+- **存储**：`config/mod_presets/<name>.json`（一预设一文件）
+- **文档**：`docs/ModLoader_配置预设方案.md`（发版 sync 排除）
+- **测试**：`modPresets.test.js` 纳入 `run-all`
+
 ## V4.4.3 (2026-08-27)
 
 ### ModLoader 架构（`modloader/` 第 5 波）

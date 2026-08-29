@@ -92,13 +92,31 @@ html[data-ml-theme="warm"] {
     user-select: none;
 }
 
-/* ---------- 主容器 ---------- */
-.ml-container {
-    position: relative;
+/* 管理器缩放层（transform；勿用 zoom） */
+.ml-scale-root {
     width: 88%;
     max-width: 1060px;
     height: 82%;
     max-height: 720px;
+    flex-shrink: 0;
+    transform: scale(var(--ml-ui-zoom, 1));
+    transform-origin: center center;
+}
+
+.ml-scale-root-install {
+    width: auto;
+    height: auto;
+    max-width: none;
+    max-height: none;
+}
+
+/* ---------- 主容器 ---------- */
+.ml-container {
+    position: relative;
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    max-height: none;
     display: flex;
     flex-direction: column;
     background: var(--ml-bg-primary);
@@ -1141,7 +1159,9 @@ html[data-ml-theme="warm"] {
 .ml-modal-body::-webkit-scrollbar,
 .ml-log-panel-body::-webkit-scrollbar,
 .ml-store-list::-webkit-scrollbar,
-.ml-store-sources-scroll::-webkit-scrollbar {
+.ml-store-sources-scroll::-webkit-scrollbar,
+.ml-presets-list::-webkit-scrollbar,
+.ml-presets-preview-col::-webkit-scrollbar {
     width: 6px;
 }
 
@@ -1150,7 +1170,9 @@ html[data-ml-theme="warm"] {
 .ml-modal-body::-webkit-scrollbar-track,
 .ml-log-panel-body::-webkit-scrollbar-track,
 .ml-store-list::-webkit-scrollbar-track,
-.ml-store-sources-scroll::-webkit-scrollbar-track {
+.ml-store-sources-scroll::-webkit-scrollbar-track,
+.ml-presets-list::-webkit-scrollbar-track,
+.ml-presets-preview-col::-webkit-scrollbar-track {
     background: transparent;
 }
 
@@ -1159,7 +1181,9 @@ html[data-ml-theme="warm"] {
 .ml-modal-body::-webkit-scrollbar-thumb,
 .ml-log-panel-body::-webkit-scrollbar-thumb,
 .ml-store-list::-webkit-scrollbar-thumb,
-.ml-store-sources-scroll::-webkit-scrollbar-thumb {
+.ml-store-sources-scroll::-webkit-scrollbar-thumb,
+.ml-presets-list::-webkit-scrollbar-thumb,
+.ml-presets-preview-col::-webkit-scrollbar-thumb {
     background: var(--ml-border-light);
     border-radius: 3px;
 }
@@ -1169,7 +1193,9 @@ html[data-ml-theme="warm"] {
 .ml-modal-body::-webkit-scrollbar-thumb:hover,
 .ml-log-panel-body::-webkit-scrollbar-thumb:hover,
 .ml-store-list::-webkit-scrollbar-thumb:hover,
-.ml-store-sources-scroll::-webkit-scrollbar-thumb:hover {
+.ml-store-sources-scroll::-webkit-scrollbar-thumb:hover,
+.ml-presets-list::-webkit-scrollbar-thumb:hover,
+.ml-presets-preview-col::-webkit-scrollbar-thumb:hover {
     background: var(--ml-accent);
 }
 
@@ -1794,6 +1820,14 @@ html[data-ml-theme="warm"] {
     color: var(--ml-text-primary);
 }
 
+.ml-settings-scale-btns {
+    flex-wrap: wrap;
+}
+.ml-settings-scale-btns .ml-settings-theme-btn {
+    min-width: 2.5em;
+    padding-left: 8px;
+    padding-right: 8px;
+}
 .ml-settings-theme-btn.active {
     background: rgba(var(--ml-accent-rgb), 0.2);
     border-color: var(--ml-accent);
@@ -1938,7 +1972,8 @@ html[data-ml-theme="warm"] {
 }
 
 .ml-log-panel-body.ml-store-panel-root,
-.ml-log-panel-body.ml-updater-panel-root {
+.ml-log-panel-body.ml-updater-panel-root,
+.ml-log-panel-body.ml-presets-panel-root {
     overflow: hidden;
     display: flex;
     flex-direction: column;

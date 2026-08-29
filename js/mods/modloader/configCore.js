@@ -48,6 +48,7 @@ function createConfigCore(deps) {
         return {
             ml_theme: 'dark',
             ml_language: 'zh_CN',
+            ml_ui_scale: '100',
             workshop: Object.assign({}, DEFAULT_WORKSHOP_CONFIG)
         };
     }
