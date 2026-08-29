@@ -4,6 +4,8 @@
 
 本文件为统一包结构（`_localmods` / 工坊包根布局）后的 **完整手工测试清单**。作者自用迁移脚本见 `tools/migrate-local-mods-to-localmods.js`、`tools/migrate-mod-config-keys.js`；玩家侧 `mod_config` 旧键兼容：保存一次自动升级为新键。
 
+**单元测试（发版 / 大范围改动前）**：在 `js/mods` 根目录执行 `node modloader/test/run-all.js`（Windows 可双击 `modloader/test/run-all.bat`）。单模块改动可只跑对应 `modloader/test/<模块>.test.js`。
+
 ---
 
 ## 测试前确认
@@ -119,8 +121,9 @@
 | --- | --- | --- | --- |
 | I1 | 准备含 `_localmods/` + preview 的 mods 副本 | — | |
 | I2 | 拖入整个 mods 文件夹 | 合并到 `js/mods/` 根；提示「检测到导入 mods 文件夹」 | |
+| I2b | 安装页「浏览 mods 文件夹」选同结构目录 | 与 I2 相同（V4.4.1） | |
 | I3 | 复制后扫描 | `_localmods` Mod 出现；preview 可显示 | |
-| I4 | 拖入仅 png/无 js 的文件夹 | 提示：拖放安装仅支持 `.js` 或 mods 文件夹 | |
+| I4 | 拖入仅 png/无 js 的文件夹 | 列出忽略项 +「安装仅支持 .js 或 mods 文件夹」 | |
 
 ---
 
@@ -159,6 +162,7 @@
 | L3 | 全部开启 → 保存 → F5 | 无报错启动 | |
 | L4 | 抽查 3~5 个常用 Mod 游戏内功能 | 逻辑正常 | |
 | L5 | @base / @orderAfter 跨 Mod | 依赖灯与加载顺序正确 | |
+| L6 | 脚本基名与游戏插件或其他 Mod 同名 | 列表/详情同名冲突提示；开启「无效」项时确认（V4.4.2） | |
 
 ---
 
@@ -250,6 +254,7 @@
 
 | 日期 | 说明 |
 | --- | --- |
+| 2026-08-29 | V4.4.3 对齐：I2b 浏览 mods 文件夹；L6 同名脚本冲突 |
 | 2026-08-24 | 新增 §Q 管理器在线更新抽测 |
 | 2026-08-24 | 文件名改为 `ModLoader_测试文档.md`，去掉版本号前缀；§P 独立成节 |
 | 2026-08-24 | 新增 §P Mod 更新日志抽测 |

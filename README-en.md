@@ -8,7 +8,7 @@
 
 > **[中文版 README](README.md)**
 
-In-game mod manager **V4.3.7**
+In-game mod manager **V4.4.3**
 
 A powerful RPG Maker MZ mod manager that lets you enable/disable, edit parameters, reorder, and check dependencies for **local mods** and **Steam Workshop mods** — all from inside the game. **Multilingual UI** is supported (Simplified Chinese / Traditional Chinese / English).
 
@@ -40,8 +40,9 @@ and is **no longer written** to `plugins.js`, so mod toggles and parameters surv
 | 📋 **Mod changelogs** | Detail panel link next to version; header **(Changelog)** for ModLoader itself; shared Markdown modal for store / detail / manager |
 | ⚙️ **Parameter editor** | number, boolean, string, select, color, note, database refs, struct, table |
 | 🔀 **Order & dependencies** | Drag/index reordering; `@base` / `@orderAfter` checks; skips loading when `@base` is missing (dependency guard) |
+| ⚠️ **Duplicate script basenames** | Warns when a mod collides with a game plugin or another mod; confirm before enabling an ineffective entry (V4.4.2) |
 | ⚠️ **Conflict log panel** | Settings gear menu entry + empty shell panel (content from prerequisite mod `render`); red bang beside gear when conflicts exist |
-| 📥 **Drag-and-drop install** | Drop a `.js` file or entire `mods` folder (local mods only) |
+| 📥 **Drag / browse install** | Drop or browse `.js`; drop / browse an entire `mods` folder (local mods only; unified pipeline in V4.4.1) |
 | 🖼️ **Preview images** | `preview.png` at package root; thumbnail in details + click for full-size popup |
 | 🛡️ **Config compatibility** | V4.1.1 reads legacy V3.x `../mods/` keys; saving once auto-migrates to new keys |
 | 🌐 **Multilingual** | Simplified Chinese / Traditional Chinese / English |
@@ -291,4 +292,4 @@ MIT License — see [LICENSE](LICENSE)
 
 ***
 
-**Version**: V4.3.7 | **Updated**: 2026-08-26
+**Version**: V4.4.3 | **Updated**: 2026-08-29

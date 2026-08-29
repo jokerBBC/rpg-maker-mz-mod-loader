@@ -80,6 +80,7 @@
             logDiffNeedTitle: '需更新文件：',
             logDiffAllMatch: 'catalog 所列文件与本地一致',
             logDiffRemove: '更新后将清理 {count} 个遗弃路径：',
+            logDiffRemoveGone: '以下 {count} 个遗弃路径本地已不存在（更新时跳过）：',
             logMirrorTryFail: '{mirror} 拉取失败：{error}，改试 {next}',
             logMirrorShaRetry: '{mirror} hash 未通过，改试 {next}',
             logMirrorFallbackOk: '已改用 {mirror}：{path}',
@@ -140,6 +141,7 @@
             logDiffNeedTitle: '需更新檔案：',
             logDiffAllMatch: 'catalog 所列檔案與本機一致',
             logDiffRemove: '更新後將清理 {count} 個遺棄路徑：',
+            logDiffRemoveGone: '以下 {count} 個遺棄路徑本機已不存在（更新時跳過）：',
             logMirrorTryFail: '{mirror} 拉取失敗：{error}，改試 {next}',
             logMirrorShaRetry: '{mirror} hash 未通過，改試 {next}',
             logMirrorFallbackOk: '已改用 {mirror}：{path}',
@@ -200,6 +202,7 @@
             logDiffNeedTitle: 'Files to update:',
             logDiffAllMatch: 'All catalog files match local',
             logDiffRemove: 'Will remove {count} obsolete path(s):',
+            logDiffRemoveGone: '{count} obsolete path(s) already missing (will skip on update):',
             logMirrorTryFail: '{mirror} failed: {error}, trying {next}',
             logMirrorShaRetry: '{mirror} hash mismatch, trying {next}',
             logMirrorFallbackOk: 'Using {mirror}: {path}',
@@ -304,6 +307,7 @@
         if (p.indexOf('libs/') === 0 && p.length > 5) return true;
         if (p.indexOf('docs/') === 0 && p.length > 5) return true;
         if (p.indexOf('config/language/') === 0 && p.length > 'config/language/'.length) return true;
+        if (p.indexOf('modloader/') === 0 && p.length > 'modloader/'.length) return true;
         if (p.indexOf('tools/') === 0 && p.length > 6) {
             if (/\/user-data(\/|$)/i.test(p)) return false;
             return true;
@@ -323,6 +327,8 @@
             'tools/modstore/syncModManifests.js': true,
             'docs/管理器在线更新plan.md': true,
             'docs/ModLoader_模块结构.md': true,
+            'docs/ModLoader_技术债调查.md': true,
+            'docs/ModLoader_第5波拆分方案.md': true,
             'libs/piracyGate.js': true
         };
         if (exact[p]) return true;
@@ -331,6 +337,7 @@
             'tools/.sora文件解包工具/',
             'tools/sorajm.js解密工具/',
             'tools/modstore/test/',
+            'modloader/test/',
             'docs/adr/',
             'docs/功能Mod更新日志/'
         ];
@@ -497,7 +504,20 @@
                 match.push(f.path);
             }
         }
-        return { need: need, match: match, remove: applied.remove.slice() };
+        const removePresent = [];
+        const removeMissing = [];
+        for (let r = 0; r < applied.remove.length; r++) {
+            const rem = applied.remove[r];
+            if (fs.existsSync(absModsPath(rem))) removePresent.push(rem);
+            else removeMissing.push(rem);
+        }
+        return {
+            need: need,
+            match: match,
+            remove: applied.remove.slice(),
+            removePresent: removePresent,
+            removeMissing: removeMissing
+        };
     }
 
     function logCatalogFileDiff(diff) {
@@ -511,9 +531,15 @@
         } else {
             appendLog(t('logDiffAllMatch'));
         }
-        if (diff.remove.length) {
-            appendLog(t('logDiffRemove', { count: diff.remove.length }));
-            diff.remove.forEach(function (p) { appendLog('  - ' + p); });
+        const present = diff.removePresent || [];
+        const missing = diff.removeMissing || [];
+        if (present.length) {
+            appendLog(t('logDiffRemove', { count: present.length }));
+            present.forEach(function (p) { appendLog('  - ' + p); });
+        }
+        if (missing.length) {
+            appendLog(t('logDiffRemoveGone', { count: missing.length }));
+            missing.forEach(function (p) { appendLog('  - ' + p); });
         }
     }
 

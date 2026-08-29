@@ -1,34 +1,34 @@
 {
   "schema": 1,
   "id": "modloader-manager",
-  "version": "V4.3.7",
-  "publishedAt": "2026-08-26T08:13:00Z",
+  "version": "V4.4.3",
+  "publishedAt": "2026-08-29T07:22:24Z",
   "changelogPath": "docs/modloader_CHANGELOG.md",
   "files": [
     {
       "path": "ModLoader.js",
-      "sha256": "6bb9ae0e4fd819c4cf527d9751f4b3627354752731732e45fc7a2249c1e237fd",
-      "size": 295979
+      "sha256": "09764353d8e26504bce38e8b683bbee41d42c5fe4f723c4fedfadb9111401f2b",
+      "size": 229527
     },
     {
       "path": "config/language/en.json",
-      "sha256": "abd881d3b2d31b44cb103f6ef97f0b6a8d9ef8ab40956c98a64dac4dfbadf477",
-      "size": 7141
+      "sha256": "170b109d6d50314d25baf8268178d32a55514f319f4a559099c2024cd879b1ba",
+      "size": 7945
     },
     {
       "path": "config/language/zh_CN.json",
-      "sha256": "0b90392517d302670121e610419ca3ff1dc01e8a38f6df76d79dd03933a56f95",
-      "size": 7116
+      "sha256": "37b9aff830a0176ac0b66bf7d822ec1c9fe9036bc18cdb6b58294beb62441aa5",
+      "size": 7908
     },
     {
       "path": "config/language/zh_TW.json",
-      "sha256": "1c264a39a307ec1450b903f63b29bdfbb6d3315f6968adfb97b5c4b21d67e378",
-      "size": 7124
+      "sha256": "742532c0e552d9ca954032ebc7eb9d630067b4fb5316a80930a9d06f377d8092",
+      "size": 7916
     },
     {
       "path": "config/modloader.css",
-      "sha256": "15fbe20351d1b1f89475f7da0d71a931f2de5689d1971b8715d611fb32726f9d",
-      "size": 45708
+      "sha256": "b2aeba594cb8bec38ab756f253a7b769c2eb3c6896a1e52481a7efec32985833",
+      "size": 46416
     },
     {
       "path": "docs/LICENSE",
@@ -37,23 +37,23 @@
     },
     {
       "path": "docs/ModLoader_测试文档.md",
-      "sha256": "2bc798605afba1045da824a5868d5ac2e800981a3cbd0572087c45c2d29b611a",
-      "size": 10982
+      "sha256": "843134cef6b75eb09fb908c0473326b241320220f21a4189e44075502a2d4687",
+      "size": 11542
     },
     {
       "path": "docs/README-en.md",
-      "sha256": "9cca56dedd0756f0cb7b17c74ed424f9963c295f7623cc74473eef97f0c265a8",
-      "size": 13172
+      "sha256": "e229b684d53ba46fb261826ef231ff99e1c32e5b86c56f9d218e682e5672d829",
+      "size": 13377
     },
     {
       "path": "docs/README.md",
-      "sha256": "ca8fcd9308ac135baa105ef9fc6da8b9074c1b1fdec61356d988b5c70c8ec61a",
-      "size": 12861
+      "sha256": "7b82c007b4a567b29b4707ecf95f6b961928c5fe0741855e9a1b4b3440863ee6",
+      "size": 13057
     },
     {
       "path": "docs/RMMZ_ModLoader_开发规范.md",
-      "sha256": "9d62baa323ebf1e225fa7c09cc1200b3cb2a2c9056ff218ee51c1641bd778c15",
-      "size": 4558
+      "sha256": "ba2049cb38493e0bcdab55cfb03b10e260661637ca2352d46ef339df1d72a266",
+      "size": 4656
     },
     {
       "path": "docs/img/主界面-创意工坊.png",
@@ -92,8 +92,8 @@
     },
     {
       "path": "docs/modloader_CHANGELOG.md",
-      "sha256": "3231c67437294fa6bb3ea3dcd9d7e2a14ec33e520de619e19e1e93a91c9cf828",
-      "size": 38932
+      "sha256": "1ca7806828720d589238febabe975066419dff0966a3a6bb5edc1ab018ef1098",
+      "size": 44454
     },
     {
       "path": "docs/mod商店拓展.md",
@@ -102,8 +102,8 @@
     },
     {
       "path": "docs/使用手册.md",
-      "sha256": "6570b01ad0c0871e3226cb61d437a9f0ca90f8490796b67212520db5c2a47a84",
-      "size": 22553
+      "sha256": "1ba14542f8eb142a009256543ce7bcc09c93e3c0b649219d706b54be6c90a41a",
+      "size": 23186
     },
     {
       "path": "docs/前置Mod相关文档/前置Mod测试清单.md",
@@ -127,13 +127,73 @@
     },
     {
       "path": "libs/modLoaderUpdater.js",
-      "sha256": "b37c12422a0e262b53b5ebceff829fc96f3fbc1ea7fe24ac416d0cca09463419",
-      "size": 63245
+      "sha256": "62c2ec36f9de03d8843d70e4448bce0c4f53df95b25594afba72343794e07c39",
+      "size": 64487
     },
     {
       "path": "libs/modStore.js",
       "sha256": "726503aa146d910923291d0b388ed09351d15b9c0ea063dfc8d6193d612edf41",
       "size": 107914
+    },
+    {
+      "path": "modloader/configCore.js",
+      "sha256": "f57732192b1bf52773e86ab559a8b82f57a9d087198d5cd59cc06d8e24d63846",
+      "size": 3635
+    },
+    {
+      "path": "modloader/dependencyResolver.js",
+      "sha256": "2464cc211b6e439efa66eaebdf90f189e47b6120bb2c1462093e121b7a921b08",
+      "size": 8285
+    },
+    {
+      "path": "modloader/installClassifier.js",
+      "sha256": "6ee886cf89bfbaa16fbc24838daaa830b617ce53839388c9da95fab161fb7ffb",
+      "size": 8382
+    },
+    {
+      "path": "modloader/installIo.js",
+      "sha256": "39185376bc5951a27ea74fac2e21ebc139a5484ca1cd105086c51902484b553e",
+      "size": 2066
+    },
+    {
+      "path": "modloader/modCatalog.js",
+      "sha256": "9196320c479a6d0ff1ade06ae453c0495be17cb189be106b0adda274a8109a51",
+      "size": 4555
+    },
+    {
+      "path": "modloader/modMetadata.js",
+      "sha256": "727f7346cc45314532b892dc080f75364737c1fa5a740e77a75511a650ee137a",
+      "size": 16985
+    },
+    {
+      "path": "modloader/packageDiscovery.js",
+      "sha256": "ac71863b4c8970589a5ed5b88731245028025805f09c5fc914533ccd04fd3d0c",
+      "size": 3453
+    },
+    {
+      "path": "modloader/paramTypeKit.js",
+      "sha256": "80d30e95d37347e112a455e5afabe128aee72727c9ebe8c6dab009ad19206854",
+      "size": 6026
+    },
+    {
+      "path": "modloader/paramValues.js",
+      "sha256": "dfd2f13e476a8dc7babf3a34513c674a9c0a93b6f78d077820af4a7b598c86c8",
+      "size": 4968
+    },
+    {
+      "path": "modloader/pluginNameConflict.js",
+      "sha256": "e12296351bb401908f49fe6560d7c57fc4434fb51eefe4894c69a6ffa185752c",
+      "size": 4359
+    },
+    {
+      "path": "modloader/scanPipeline.js",
+      "sha256": "2dfb06d35da5e0f575cf80b73af120cdf4ec60bc8e53e253ef9aaf396d0ee68f",
+      "size": 6337
+    },
+    {
+      "path": "modloader/workshopBridge.js",
+      "sha256": "b90c0634e6fdec2fb8d0850a7a53487361257cf95591ce5504f339c58116a17f",
+      "size": 3884
     },
     {
       "path": "tools/modstore/gui/README.md",

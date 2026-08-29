@@ -234,6 +234,50 @@ html[data-ml-theme="warm"] {
     border-left-color: var(--ml-accent);
 }
 
+/* ---------- 脚本基名冲突（同名 Mod / 游戏插件） ---------- */
+.ml-name-conflict {
+    color: #e74c3c;
+    font-size: 0.82em;
+    margin-left: 6px;
+    white-space: normal;
+}
+
+.ml-name-conflict-status {
+    font-weight: 700;
+    font-size: 0.82em;
+    margin-left: 4px;
+}
+
+.ml-name-conflict-status-off {
+    color: #888;
+}
+
+.ml-name-conflict-status-effective {
+    color: #27ae60;
+}
+
+.ml-name-conflict-status-ineffective {
+    color: #e74c3c;
+}
+
+.ml-mod-item.ml-plugin-ineffective .ml-mod-name {
+    opacity: 0.72;
+}
+
+.ml-conflict-label {
+    color: #e74c3c;
+}
+
+.ml-conflict-value {
+    color: #e74c3c;
+}
+
+.ml-conflict-reason {
+    margin-top: 4px;
+    font-size: 0.9em;
+    opacity: 0.95;
+}
+
 /* ---------- Toggle 开关 ---------- */
 .ml-toggle {
     position: relative;

@@ -1,5 +1,76 @@
 # ModLoader 更新日志
 
+## V4.4.3 (2026-08-27)
+
+### ModLoader 架构（`modloader/` 第 5 波）
+
+- **新增**：`modloader/modCatalog.js` — Mod ID/loadPath、包版本与 CHANGELOG 判定、`mod_config` order 分配
+- **新增**：`modloader/workshopBridge.js` — Steam 路径解析（自模块 2 迁出）、`_workshop` junction/逐文件桥接、`removePathSafe`
+- **新增**：`modloader/scanPipeline.js` — 本地/工坊扫描与 merge；主文件 `scanAllMods` 改为薄壳编排
+- **新增**：`modloader/installIo.js` — 安装复制 I/O（`copyFolderRecursive` / `copyFileToLocalMod`）；确认框与刷新仍留主文件
+- **加深**：`paramValues` 新增 `normalizeNumberField` / `normalizeColorField` / `normalizeTextField`；参数编辑器 blur 与运行时/配置加载共用同一管道
+- **测试**：新增 `modCatalog`、`workshopBridge`、`scanPipeline`、`installIo` 四套单测；`run-all.js` 现为 12 套 `*.test.js` + 语法检查
+- **文档**：`ModLoader_第5波拆分方案.md`、`adr/0002-modloader-wave5-scan-install-seams.md`；`ModLoader_模块结构.md` / 技术债调查同步
+- **发版排除**：`pathRules` / updater 内嵌排除增加 `docs/ModLoader_技术债调查.md`、`docs/ModLoader_第5波拆分方案.md`（仅留开发仓 git，不 sync / 不进 catalog）
+- **说明**：玩家行为与 V4.4.2 一致；`ModLoader.js` 约 5763 → 5435 行，属内部可维护性升 patch；模块 6 UI 仍留主文件（Vue / 机械拆 UI 试验不在本版）
+
+## V4.4.2 (2026-08-27)
+
+- **新增**：`modloader/test/run-all.js` — 全量跑 `*.test.js` + `ModLoader.js` 语法检查（`run-all.bat` 供 Windows 双击）
+
+- **修复**：`paramTypeKit` 改由 `createModMetadata(deps)` 注入，与 `paramValues` 工厂 DI 一致
+
+### 配置写入统一
+
+- **修复**：`mod_config` 写入统一为 `persistModListToConfig`（全量 `serializeModListToConfig(_modData)`）；移除 `appendNewModsToConfig` merge 路径
+- **修复**：参数编辑器保存改走 `saveAllChanges()`，避免丢弃其他 Mod 未保存的开关/顺序；任意写盘即迁移 legacy 键
+
+### Schema 隔离
+
+- **修复**：`@define-schema` 改为每次 `parseModInfo` 局部字典，不再跨 Mod 累积；参数挂载克隆后的 `schemaFields`；嵌套 struct 在文件内链接；`renderStructField` 不再 fallback 全局字典
+- **测试**：`modMetadata.test.js` 新增同名 schema 两 Mod 隔离用例（`modMetadata-schema-mod-b.js`）
+
+### 脚本基名同名冲突
+
+- **新增**：`modloader/pluginNameConflict.js` — 检测游戏 `plugins.js` 插件与 Mod 列表脚本基名重复；管理器内多 Mod 同名时按运行时规则标出「无效」项（已启用游戏插件优先；否则 **order 编号最小** 的 Mod 优先生效）
+- **UI**：列表 Mod 名旁红字提示「与游戏插件 / 编号 N 的 Mod 同名」；详情区「同名冲突」段落；开启无效 Mod 时确认框
+- **说明**：与 `@base` 依赖检测独立；`@base` 仍只能写脚本名，冲突由玩家自行取舍
+
+### 参数管道
+
+- **修复**：`applyModConfigToEntry` 统一走 `paramValues.normalizeSingleParamValue`（配置加载与运行时下发一致）；parity 测试见 `modMetadata.test.js`
+
+### 整 mods 文件夹安装
+
+- **清理**：移除 V3.x 平铺时代「根目录 .js 新增/更新清单」；确认框仅提示将覆盖 mods 下已有文件（整合包一次性更新）；成功后仍报告复制文件总数
+
+## V4.4.1 (2026-08-26)
+
+### 本地 Mod 安装管线
+
+- **重构**：安装输入分类下沉至 `modloader/installClassifier.js`；拖放 / 浏览 `.js` / 浏览 mods 文件夹经 `dispatchInstallItems` 统一决策（单 mods 整包 → 顶层 `.js` → 拒绝并报告忽略项）
+- **新增**：安装页「浏览 mods 文件夹」（NW.js `nwdirectory` input）
+- **统一**：无效输入、非 mods 文件夹、混合拖放时忽略非 `.js` / 文件夹的提示文案（拖放与浏览一致）
+- **修复**：拖入 mods 文件夹时 `dataTransfer.items` 仅识别目录项、未附带路径导致「无法定位 mods 文件夹」
+- **清理**：移除废弃 `install.*` 翻译键（`noFiles`、`noValidFiles`、`dragCorrect`、`browseFolderFallback` 等）
+- **改善**：`.js` 与 mods 整包导入成功后共用 `showInstallDoneDialog`，留在安装页继续操作
+
+## V4.4.0 (2026-08-26)
+
+### ModLoader 架构（`modloader/` 子模块）
+
+- **重构**：第 1～3 波规则下沉完成——`paramTypeKit`、`modMetadata`、`dependencyResolver`、`paramValues`、`packageDiscovery`、`configCore`；`ModLoader.js` 保留编排、界面、配置 I/O 外壳与 `window.ModLoader` API
+- **新增**：`modloader/test/` Node 自动测与 fixture（`modloader/test/` 不进 sync / 在线 catalog）
+- **配置**：`configCore` 负责 `mod_config` 新/旧键解析、meta 键过滤、workshop 段默认合并、保存时全量序列化（旧键 `../mods/<脚本>` 读取兼容，保存仅写 `local:` / `ws:`）
+- **包发现**：`packageDiscovery` 负责 `modloader.json` entries 安全校验与包根脚本扫描
+- **说明**：玩家安装方式不变（整合包整包拷贝 `js`）；功能行为与 V4.3.x 一致，属内部可维护性升 minor
+
+## V4.3.8 (2026-08-26)
+
+### 管理器在线更新（`libs/modLoaderUpdater.js`）
+
+- **改善**：「检查更新」阶段区分 `remove[]` 遗弃路径——本地仍存在者列入「更新后将清理」；本地已不存在者单独提示「更新时跳过」（与提交阶段「清理跳过（已不存在）」一致）
+
 ## V4.3.7 (2026-08-26)
 
 ### 标题画面入口角标

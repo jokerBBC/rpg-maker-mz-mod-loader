@@ -2,7 +2,7 @@
  * @target MZ
  * @plugindesc 游戏内模组管理器（DOM化UI & 现代交互 & 拖放添加Mod & 滑动条/长文本/数据库引用）
  * @author joker创意 / GLM核心代码
- * @version V4.3.7
+ * @version V4.4.3
  *
  * @help
  * 【功能及使用方式】
@@ -96,8 +96,8 @@
 
     // ---- 1.1 常量、版本与日志 ----
     const ModName = "ModLoader";
-    const VERSION = "V4.3.7";
-    const DEBUG_LEVEL = 0;
+    const VERSION = "V4.4.3";
+    const DEBUG_LEVEL = 3;
 
     const log = (level, ...args) => {
         if (DEBUG_LEVEL < level) return;
@@ -115,6 +115,45 @@
     const fs = require('fs');
     const pathMod = require('path');
     const MODS_DIR = pathMod.join(process.cwd(), 'js', 'mods');
+    // NW.js 下 ModLoader 经 <script> 注入时，相对 require 以 cwd（游戏根）为基准，须用绝对路径
+    const paramTypeKit = require(pathMod.join(MODS_DIR, 'modloader', 'paramTypeKit'));
+    const createModMetadata = require(pathMod.join(MODS_DIR, 'modloader', 'modMetadata'));
+    const createDependencyResolver = require(pathMod.join(MODS_DIR, 'modloader', 'dependencyResolver'));
+    const createParamValues = require(pathMod.join(MODS_DIR, 'modloader', 'paramValues'));
+    const createPackageDiscovery = require(pathMod.join(MODS_DIR, 'modloader', 'packageDiscovery'));
+    const createConfigCore = require(pathMod.join(MODS_DIR, 'modloader', 'configCore'));
+    const createInstallClassifier = require(pathMod.join(MODS_DIR, 'modloader', 'installClassifier'));
+    const pluginNameConflict = require(pathMod.join(MODS_DIR, 'modloader', 'pluginNameConflict'));
+    const createModCatalog = require(pathMod.join(MODS_DIR, 'modloader', 'modCatalog'));
+    const createWorkshopBridge = require(pathMod.join(MODS_DIR, 'modloader', 'workshopBridge'));
+    const createScanPipeline = require(pathMod.join(MODS_DIR, 'modloader', 'scanPipeline'));
+    const createInstallIo = require(pathMod.join(MODS_DIR, 'modloader', 'installIo'));
+
+    const packageDiscovery = createPackageDiscovery({ fs, pathMod, log });
+    const {
+        readWorkshopManifest,
+        discoverPackageScripts
+    } = packageDiscovery;
+
+    const configCore = createConfigCore({ log });
+    const installClassifier = createInstallClassifier({ pathMod });
+    const {
+        normalizeDragItems,
+        normalizeBrowseJsFiles,
+        normalizeBrowseModsFolder,
+        analyzeInstallItems,
+        resolveModsFolderSrcDir
+    } = installClassifier;
+
+    const {
+        DEFAULT_WORKSHOP_CONFIG,
+        resolveModConfigEntry,
+        isModConfigMetaKey,
+        getDefaultModLoaderConfig,
+        mergeWorkshopConfigSection,
+        serializeModListToConfig
+    } = configCore;
+
     const LOCALMODS_DIR = pathMod.join(MODS_DIR, '_localmods');
     const WORKSHOP_BRIDGE_DIR = pathMod.join(MODS_DIR, '_workshop');
     const LIBS_DIR = pathMod.join(MODS_DIR, 'libs');
@@ -125,25 +164,17 @@
     const CONFIG_PATH = pathMod.join(MODS_DIR, 'mod_config.json');
     const PLUGINS_PATH = pathMod.join(process.cwd(), 'js', 'plugins.js');
     const MODLOADER_CONFIG_PATH = pathMod.join(MODS_DIR, 'config', 'modloader_config.json');
-    // 工坊默认项：loadWorkshopConfig 内存合并用；ensureModLoaderConfigFile 写入 modloader_config.json 时用
-    const DEFAULT_WORKSHOP_CONFIG = {
-        enabled: true,
-        // 发行游戏的 Steam AppID（须与 steam_appid.txt、Steamworks 工坊后台一致）；4379740 仅为本仓库联调示例，游戏作者请改为自己的 AppID
-        steamAppId: '4379740',
-        // Steam 库根目录：留空则从游戏安装路径向上自动查找 steamapps；多库盘符或非默认库时填库根，如 "D:/SteamLibrary" 或 "E:/Games/Steam"
-        steamLibraryPath: ''
-    };
     const LANGUAGE_DIR = pathMod.join(MODS_DIR, 'config', 'language');
     let _currentLanguage = 'zh_CN';
     let _languageConfigs = {};
 
     // ================================================================
-    // 模块 2 · 配置与文件操作（纯逻辑，无UI依赖）
+    // 模块 2 · 配置与文件操作（I/O 外壳 + i18n；规则核心 → modloader/configCore.js）
     // ----------------------------------------------------------------
     // 含：2.1 mod_config 读写 · 2.2 语言包系统 · 2.3 modloader_config 与工坊配置
     // ================================================================
 
-    // ---- 2.1 mod_config.json 读写（loadConfig / saveConfig / resolveModConfigEntry） ----
+    // ---- 2.1 mod_config.json 读写（loadConfig 只读；写入见 persistModListToConfig） ----
     function ensureDir(dir) {
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     }
@@ -169,42 +200,18 @@
         }
     }
 
-    /**
-     * V3.x 本地 Mod 配置键：../mods/<脚本基名>
-     * V4.1+ 本地 Mod 配置键：local:<包名>:<脚本基名>
-     * 读取时兼容旧键；保存时仅写入新键（saveAllChanges / persistModListToConfig）
-     */
-    function resolveModConfigEntry(config, modId, scriptBaseName) {
-        if (!config) return undefined;
-        if (Object.prototype.hasOwnProperty.call(config, modId)) {
-            return config[modId];
-        }
-        if (scriptBaseName) {
-            const legacyKey = '../mods/' + scriptBaseName;
-            if (Object.prototype.hasOwnProperty.call(config, legacyKey)) {
-                log(3, 'mod_config 兼容旧键:', legacyKey, '→', modId);
-                return config[legacyKey];
-            }
-        }
-        return undefined;
-    }
-
-    function isModConfigMetaKey(key) {
-        return key === 'plugins';
-    }
-
     // ---- 2.2 语言包系统（i18n：loadLanguageConfigs / t / setLanguage） ----
     function loadLanguageConfigs() {
         _languageConfigs = {};
         try {
             if (fs.existsSync(LANGUAGE_DIR)) {
-                var files = fs.readdirSync(LANGUAGE_DIR);
+                const files = fs.readdirSync(LANGUAGE_DIR);
                 files.forEach(function(f) {
                     if (f.endsWith('.json')) {
                         try {
-                            var raw = fs.readFileSync(pathMod.join(LANGUAGE_DIR, f), 'utf-8');
-                            var data = JSON.parse(raw);
-                            var langCode = data._langCode || f.replace('.json', '');
+                            const raw = fs.readFileSync(pathMod.join(LANGUAGE_DIR, f), 'utf-8');
+                            const data = JSON.parse(raw);
+                            const langCode = data._langCode || f.replace('.json', '');
                             _languageConfigs[langCode] = data;
                             log(3, '语言包加载成功: ' + langCode);
                         } catch (e2) {
@@ -219,11 +226,11 @@
     }
 
     function getAvailableLanguages() {
-        var langs = Object.keys(_languageConfigs);
-        var order = ['zh_CN', 'zh_TW', 'en'];
+        const langs = Object.keys(_languageConfigs);
+        const order = ['zh_CN', 'zh_TW', 'en'];
         langs.sort(function(a, b) {
-            var ia = order.indexOf(a);
-            var ib = order.indexOf(b);
+            let ia = order.indexOf(a);
+            let ib = order.indexOf(b);
             if (ia === -1) ia = 999;
             if (ib === -1) ib = 999;
             if (ia !== ib) return ia - ib;
@@ -236,7 +243,7 @@
         if (_languageConfigs[langCode] && _languageConfigs[langCode]._langName) {
             return _languageConfigs[langCode]._langName;
         }
-        var map = { 'zh_CN': '简体中文', 'zh_TW': '繁體中文', 'en': 'English' };
+        const map = { 'zh_CN': '简体中文', 'zh_TW': '繁體中文', 'en': 'English' };
         return map[langCode] || langCode;
     }
 
@@ -262,28 +269,6 @@
 
     function invalidateWorkshopConfigCache() {
         _workshopConfigCache = null;
-    }
-
-    function getDefaultModLoaderConfig() {
-        return {
-            ml_theme: 'dark',
-            ml_language: 'zh_CN',
-            workshop: Object.assign({}, DEFAULT_WORKSHOP_CONFIG)
-        };
-    }
-
-    function mergeWorkshopConfigSection(existingWorkshop) {
-        const merged = Object.assign({}, DEFAULT_WORKSHOP_CONFIG, existingWorkshop || {});
-        const defaults = getDefaultModLoaderConfig().workshop;
-        let changed = false;
-        for (const key of Object.keys(defaults)) {
-            if (existingWorkshop && existingWorkshop[key] !== undefined) continue;
-            if (merged[key] !== defaults[key]) {
-                merged[key] = defaults[key];
-                changed = true;
-            }
-        }
-        return { merged, changed: changed || !existingWorkshop };
     }
 
     /**
@@ -323,9 +308,9 @@
         invalidateWorkshopConfigCache();
         try {
             if (fs.existsSync(MODLOADER_CONFIG_PATH)) {
-                var raw = fs.readFileSync(MODLOADER_CONFIG_PATH, 'utf-8');
-                var parsed = JSON.parse(raw);
-                var defaults = getDefaultModLoaderConfig();
+                const raw = fs.readFileSync(MODLOADER_CONFIG_PATH, 'utf-8');
+                const parsed = JSON.parse(raw);
+                const defaults = getDefaultModLoaderConfig();
                 return {
                     ml_theme: parsed.ml_theme !== undefined ? parsed.ml_theme : defaults.ml_theme,
                     ml_language: parsed.ml_language !== undefined ? parsed.ml_language : defaults.ml_language,
@@ -341,8 +326,8 @@
     function saveModLoaderConfig(config) {
         try {
             ensureModLoaderConfigFile();
-            var existingConfig = loadModLoaderConfig();
-            var mergedConfig = {
+            const existingConfig = loadModLoaderConfig();
+            const mergedConfig = {
                 ml_theme: config.ml_theme !== undefined ? config.ml_theme : existingConfig.ml_theme,
                 ml_language: config.ml_language !== undefined ? config.ml_language : existingConfig.ml_language,
                 workshop: Object.assign({}, existingConfig.workshop, config.workshop || {})
@@ -359,411 +344,182 @@
         return Object.assign({}, DEFAULT_WORKSHOP_CONFIG, mlConfig.workshop || {});
     }
 
+    const modCatalog = createModCatalog({
+        fs,
+        pathMod,
+        log,
+        readWorkshopManifest,
+        discoverPackageScripts,
+        resolveModConfigEntry,
+        isModConfigMetaKey,
+        localmodsDir: LOCALMODS_DIR
+    });
+
+    const workshopBridge = createWorkshopBridge({
+        fs,
+        pathMod,
+        log,
+        loadWorkshopConfig,
+        DEFAULT_WORKSHOP_CONFIG,
+        ensureDir
+    });
+
+    const {
+        resolveSteamPaths,
+        removePathSafe,
+        buildWorkshopBridgeLoadPath,
+        syncWorkshopBridge
+    } = workshopBridge;
+
+    const {
+        buildLocalModId,
+        buildLocalLoadPath,
+        getLocalModInstallPath,
+        getModPackageRoot,
+        getPackageDisplayName,
+        resolvePackageVersion,
+        getPackageChangelogPath,
+        packageHasChangelog,
+        canShowModChangelog,
+        getConfigMaxOrder,
+        allocDefaultOrderForMod
+    } = modCatalog;
+
     ensureModLoaderConfigFile();
 
-    function resolveSteamPaths() {
-        const wsCfg = loadWorkshopConfig();
-        const steamAppId = String(wsCfg.steamAppId || DEFAULT_WORKSHOP_CONFIG.steamAppId);
-        let steamRoot = null;
-
-        if (wsCfg.steamLibraryPath) {
-            // 非空：显式指定 Steam 库根（含 steamapps 的上一级或 steamapps 目录本身），用于多库/自定义安装路径
-            const libPath = String(wsCfg.steamLibraryPath);
-            steamRoot = fs.existsSync(pathMod.join(libPath, 'steamapps'))
-                ? pathMod.join(libPath, 'steamapps')
-                : libPath;
-        } else {
-            // 空字符串：从 process.cwd()（游戏根目录）向上逐级查找 steamapps
-            let dir = process.cwd();
-            const root = pathMod.parse(dir).root;
-            while (dir && dir !== root) {
-                const candidate = pathMod.join(dir, 'steamapps');
-                if (fs.existsSync(candidate)) {
-                    steamRoot = candidate;
-                    break;
-                }
-                dir = pathMod.dirname(dir);
-            }
-        }
-
-        const workshopDir = steamRoot
-            ? pathMod.join(steamRoot, 'workshop', 'content', steamAppId)
-            : null;
-        return { steamRoot, workshopDir, steamAppId };
-    }
-
     // ================================================================
-    // 模块 3 · 文件导入（拖放：文件夹 / .js 文件）
+    // 模块 3 · 本地 Mod 安装管线（拖放 / 浏览 → 复制 → 写配置）
     // ----------------------------------------------------------------
-    // 含：3.1 拖放收集 · 3.2 落地复制 · 3.3 写回配置并刷新 UI
-    // 依赖：模块 1（路径/日志）、模块 2（saveConfig）、模块 5（scanAllMods 等）、
-    //       模块 6（对话框 / 列表渲染）。当前与 UI 耦合，不宜单独拆文件。
+    // 含：3.1 收集与分发 · 3.2 落地复制 · 3.3 写回配置并刷新 UI
+    // 安装页 UI（遮罩 / 浏览按钮）在模块 6；拖放与浏览均汇入 dispatchInstallItems。
+    // 分类规则 → modloader/installClassifier.js · 复制 I/O → modloader/installIo.js
     // ================================================================
 
-    // ---- 3.1 拖放收集（collectFiles / handleDropEvent） ----
-    /**
-     * 收集拖放内容中的所有文件（递归文件夹）
-     */
-    function collectFiles(items, eDataTransferFiles) {
-        log(3, "=== collectFiles 开始 ===");
-        log(3, "传入的 items 数量:", items ? items.length : 'undefined');
-        log(3, "传入的 eDataTransferFiles:", eDataTransferFiles ? eDataTransferFiles.length : 'undefined');
-        
-        const files = [];
-        
-        // 优先尝试 items
-        if (items && items.length > 0) {
-            log(3, "使用 items 方式收集...");
-            for (let i = 0; i < items.length; i++) {
-                const item = items[i];
-                log(3, `  Item[${i}]: kind=${item.kind}, type=${item.type}`);
-                
-                // 尝试获取 entry（NW.js 可能用 getAsEntry 也可能是 webkitGetAsEntry
-                let entry;
-                if (item.getAsEntry) entry = item.getAsEntry();
-                else if (item.webkitGetAsEntry) entry = item.webkitGetAsEntry();
-                
-                log(3, `    entry: ${entry ? '存在' : '不存在'}`);
-                if (entry) {
-                    log(3, `    entry.isDirectory: ${entry.isDirectory}, entry.name: ${entry.name}`);
-                }
-                
-                // 多种方式判断是否是目录
-                let isDirectory = false;
-                let directoryName = null;
-                
-                if (entry && entry.isDirectory) {
-                    isDirectory = true;
-                    directoryName = entry.name;
-                } else if (item.kind === 'directory') {
-                    isDirectory = true;
-                    directoryName = item.name;
-                }
-                
-                if (isDirectory) {
-                    log(3, `    📂 检测到是目录！名称: ${directoryName}`);
-                    
-                    // 检查是否是 mods 文件夹（不区分大小写）
-                    if (directoryName && directoryName.toLowerCase() === 'mods') {
-                        log(3, "    ✅ 是 mods 文件夹！加入列表！");
-                        files.push({
-                            type: 'mods-folder',
-                            name: directoryName,
-                            entry: entry || item
-                        });
-                    } else {
-                        log(3, `    ❌ 不是 mods 文件夹，跳过...`);
-                    }
-                } else if (item.kind === 'file') {
-                    const file = item.getAsFile();
-                    if (file) {
-                        log(3, `    📄 检测到是文件: ${file.name}`);
-                        files.push({
-                            type: 'file',
-                            file: file,
-                            name: file.name
-                        });
-                    }
-                }
-            }
+    const installIo = createInstallIo({ fs, pathMod, log, ensureDir });
+    const { copyFolderRecursive, copyFileToLocalMod } = installIo;
+
+    function installLog(...args) {
+        log(3, '[install]', ...args);
+    }
+
+    /** 统一忽略项文案（拖放 / 浏览共用） */
+    function formatInstallIgnoredSection(ignored) {
+        if (!ignored) return '';
+        let text = '';
+        if (ignored.files && ignored.files.length > 0) {
+            text += '❌ ' + t('info.format.已排除非js文件') + '：' + ignored.files.join('、') + '\n\n';
         }
-        
-        // 如果 items 没收集到，尝试 files（NW.js 常见情况）
-        if (files.length === 0 && eDataTransferFiles && eDataTransferFiles.length > 0) {
-            log(3, "items 没收集到，尝试使用 dataTransfer.files 方式...");
-            
-            // 检查是否是从 mods 文件夹拖来的（通过完整路径识别）
-            let allFromModsFolder = true;
-            for (let i = 0; i < eDataTransferFiles.length; i++) {
-                const file = eDataTransferFiles[i];
-                if (file.path) {
-                    log(3, `  File[${i}]: name=${file.name}, path=${file.path}`);
-                    if (!file.path.includes(pathMod.sep + 'mods' + pathMod.sep)) {
-                        allFromModsFolder = false;
-                    }
-                } else {
-                    allFromModsFolder = false;
-                }
-            }
-            
-            if (eDataTransferFiles.length > 0 && allFromModsFolder) {
-                log(3, "✅ 通过路径识别：这些文件都在 mods 文件夹里！");
-                // 直接标记为 mods 文件夹拖放
-                files.push({
-                    type: 'mods-folder',
-                    name: 'mods',
-                    files: Array.from(eDataTransferFiles) // 直接保存所有文件
-                });
+        if (ignored.folders && ignored.folders.length > 0) {
+            text += '❌ ' + t('info.format.已排除文件夹') + '：' + ignored.folders.join('、') + '\n\n';
+        }
+        return text;
+    }
+
+    function showInstallRejectDialog(reason, ignored, folderName) {
+        let body = '';
+        if (reason === 'not-mods-folder') {
+            body = t('install.notModsFolder').replace('{name}', folderName || '?');
+        } else if (reason === 'no-js') {
+            body = formatInstallIgnoredSection(ignored) + t('install.noJsAfterIgnore');
+        } else {
+            body = t('install.dragJsOrFolder');
+        }
+        showConfirmDialog(
+            t('dialog.title'),
+            body,
+            [{ text: t('dialog.ok'), class: 'ml-btn-primary', action: hideConfirmDialog }]
+        );
+    }
+
+    /** 拖放 / 浏览统一入口 → installClassifier.analyzeInstallItems */
+    function dispatchInstallItems(installItems) {
+        installLog('dispatchInstallItems →', installItems.length, '项');
+        const decision = analyzeInstallItems(installItems);
+
+        if (decision.action === 'mods-folder') {
+            const folder = decision.folder;
+            if (folder.srcDir) {
+                beginModsFolderInstall(folder.srcDir);
             } else {
-                // 正常处理单个文件
-                for (let i = 0; i < eDataTransferFiles.length; i++) {
-                    const file = eDataTransferFiles[i];
-                    log(3, `  File[${i}]: name=${file.name}`);
-                    if (file.name.endsWith('.js')) {
-                        files.push({
-                            type: 'file',
-                            file: file,
-                            name: file.name
-                        });
-                        log(3, "    是 .js 文件！加入列表。");
-                    }
-                }
+                const srcModsDir = resolveModsFolderSrcDir(folder);
+                beginModsFolderInstall(srcModsDir);
             }
+            return;
         }
-        
-        log(3, "collectFiles 完成，共收集:", files.length, "个文件/文件夹");
-        return files;
+
+        if (decision.action === 'js-files') {
+            handleJsFilesDrop(decision.jsItems, decision.ignored);
+            return;
+        }
+
+        showInstallRejectDialog(decision.reason, decision.ignored, decision.folderName);
     }
 
-    /**
-     * 处理拖放事件
-     */
-    function handleDropEvent(e) {
-        log(3, "=== handleDropEvent 开始 ===");
-        
-        e.preventDefault();
-        e.stopPropagation();
-
-        log(3, "检查 dataTransfer...");
-        log(3, "dataTransfer.files:", e.dataTransfer.files);
-        log(3, "dataTransfer.items:", e.dataTransfer.items);
-
-        const items = e.dataTransfer.items;
-        if (!items) {
-            log(1, "items 不存在！使用 dataTransfer 只有 files，没有 items！");
-            showConfirmDialog(
-                t('dialog.title'),
-                t('install.browserNoFolder'),
-                [{ text: t('dialog.ok'), class: "ml-btn-primary", action: hideConfirmDialog }]
-            );
-            return;
-        }
-
-        log(3, "开始 collectFiles...");
-        const collectedFiles = collectFiles(Array.from(items), e.dataTransfer.files);
-        log(3, "collectFiles 返回结果:", collectedFiles);
-
-        if (collectedFiles.length === 0) {
-            log(2, "没有有效的文件/文件夹！");
-            showConfirmDialog(
-                t('dialog.title'),
-                t('install.dragJsFile'),
-                [{ text: t('dialog.ok'), class: "ml-btn-primary", action: hideConfirmDialog }]
-            );
-            return;
-        }
-
-        // 检查是否有 mods 文件夹
-        log(3, "检查是否有 mods 文件夹...");
-        const modsFolder = collectedFiles.find(f => f.type === 'mods-folder');
-        if (modsFolder) {
-            log(3, "发现 mods 文件夹，调用 handleModsFolderDrop");
-            // 如果 entry 方式识别到的，但没有 files 属性，就强制用 dataTransfer.files
-            if (!modsFolder.files && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                log(3, "entry 方式识别到，但没有 files 属性，改用 dataTransfer.files...");
-                modsFolder.files = Array.from(e.dataTransfer.files);
-            }
-            handleModsFolderDrop(modsFolder);
-            return;
-        }
-
-        // 检查是否有单个 .js 文件
-        log(3, "检查是否有单个 .js 文件...");
-        const jsFiles = collectedFiles.filter(f => f.type === 'file' && f.name.endsWith('.js'));
-        log(3, "找到的 .js 文件数:", jsFiles.length);
-        jsFiles.forEach((f, i) => log(3, `  [${i}] ${f.name}`));
-        if (jsFiles.length > 0) {
-            log(3, "调用 handleJsFilesDrop");
-            handleJsFilesDrop(jsFiles);
-            return;
-        }
-
-        if (jsFiles.length === 0) {
-            showConfirmDialog(
-                t('dialog.title'),
-                t('install.dragJsFile'),
-                [{ text: t('dialog.ok'), class: "ml-btn-primary", action: hideConfirmDialog }]
-            );
-        }
+    /** 拖放入口 */
+    function dispatchCollectedInstall(items, dataTransferFiles) {
+        dispatchInstallItems(normalizeDragItems(items, dataTransferFiles));
     }
 
-    // ---- 3.2 落地复制（copyFolderRecursive / handleModsFolderDrop / handleJsFilesDrop） ----
-    /**
-     * 递归复制文件夹
-     */
-    function copyFolderRecursive(srcDir, destDir) {
-        if (!fs.existsSync(destDir)) {
-            fs.mkdirSync(destDir, { recursive: true });
-        }
-        
-        const entries = fs.readdirSync(srcDir, { withFileTypes: true });
-        let copiedCount = 0;
-        
-        for (const entry of entries) {
-            const srcPath = pathMod.join(srcDir, entry.name);
-            const destPath = pathMod.join(destDir, entry.name);
-            
-            if (entry.isDirectory()) {
-                copiedCount += copyFolderRecursive(srcPath, destPath);
-            } else {
-                fs.copyFileSync(srcPath, destPath);
-                log(3, "复制文件:", destPath);
-                copiedCount++;
-            }
-        }
-        
-        return copiedCount;
+    /** 浏览 .js 入口 */
+    function dispatchBrowseJsFiles(fileList) {
+        dispatchInstallItems(normalizeBrowseJsFiles(fileList));
     }
 
-    /**
-     * 处理 mods 文件夹拖放
-     */
-    function handleModsFolderDrop(folder) {
-        log(3, "=== handleModsFolderDrop 开始 ===");
-        log(3, "folder 对象属性:", Object.keys(folder));
-        
-        // 先找到源mods目录
-        let srcModsDir = null;
-        if (folder.files && folder.files.length > 0) {
-            for (const file of folder.files) {
-                if (file.path) {
-                    log(3, "检查文件路径:", file.path);
-                    const sep = pathMod.sep;
-                    const pathLower = file.path.toLowerCase();
-                    
-                    let idx = pathLower.lastIndexOf(sep + 'mods' + sep);
-                    if (idx !== -1) {
-                        srcModsDir = file.path.substring(0, idx + 5 + 1);
-                        log(3, "找到源mods目录:", srcModsDir);
-                        break;
-                    }
-                    
-                    if (pathLower.endsWith(sep + 'mods')) {
-                        srcModsDir = file.path;
-                        log(3, "找到源mods目录:", srcModsDir);
-                        break;
-                    }
-                    
-                    let parentDir = pathMod.dirname(file.path);
-                    for (let i = 0; i < 5; i++) {
-                        if (pathMod.basename(parentDir).toLowerCase() === 'mods') {
-                            srcModsDir = parentDir;
-                            log(3, "找到源mods目录:", srcModsDir);
-                            break;
-                        }
-                        const nextParent = pathMod.dirname(parentDir);
-                        if (nextParent === parentDir) break;
-                        parentDir = nextParent;
-                    }
-                    if (srcModsDir) break;
-                }
-            }
-        }
-        
+    /** 浏览 mods 文件夹入口（已选目录路径） */
+    function dispatchBrowseModsFolder(srcDir) {
+        dispatchInstallItems(normalizeBrowseModsFolder(srcDir));
+    }
+
+    function finalizeInstallAndRefresh() {
+        _modData = scanAllMods();
+        persistModListToConfig();
+        refreshDependencyCheck();
+        renderModList();
+        updateCounts();
+    }
+
+    // ---- 3.2 落地复制（copyFolderRecursive / mods 整包 / 单 .js → modloader/installIo.js） ----
+    function showInstallDoneDialog(message) {
+        showConfirmDialog(
+            t('install.success'),
+            message,
+            [{ text: t('dialog.ok'), class: 'ml-btn-primary', action: hideConfirmDialog }]
+        );
+    }
+
+    function beginModsFolderInstall(srcModsDir) {
         if (!srcModsDir || !fs.existsSync(srcModsDir)) {
             showConfirmDialog(
                 t('dialog.title'),
-                t('install.dragCorrect'),
-                [{ text: t('dialog.ok'), class: "ml-btn-primary", action: hideConfirmDialog }]
+                t('install.modsFolderNotFound'),
+                [{ text: t('dialog.ok'), class: 'ml-btn-primary', action: hideConfirmDialog }]
             );
             return;
         }
-        
-        // 分析源目录里的js文件
-        const newFiles = [];
-        const updateFiles = [];
-        try {
-            const entries = fs.readdirSync(srcModsDir);
-            for (const entry of entries) {
-                if (entry.toLowerCase().endsWith('.js')) {
-                    const destPath = pathMod.join(MODS_DIR, entry);
-                    if (fs.existsSync(destPath)) {
-                        updateFiles.push(entry);
-                    } else {
-                        newFiles.push(entry);
-                    }
-                }
-            }
-        } catch (e) {
-            log(1, "分析mods文件夹失败", e);
-        }
-        
-        // 构建清单
-        let listText = t('info.format.detectedModsFolderImport') + '\n\n';
-        if (newFiles.length > 0) {
-            listText += '✨ ' + t('info.format.新增mod') + '（' + newFiles.length + '个）:\n';
-            listText += newFiles.map(f => '  - ' + f).join('\n');
-            listText += '\n\n';
-        }
-        if (updateFiles.length > 0) {
-            listText += '🔄 ' + t('info.format.更新mod') + '（' + updateFiles.length + '个）:\n';
-            listText += updateFiles.map(f => '  - ' + f).join('\n');
-            listText += '\n\n';
-        }
-        listText += t('info.format.会覆盖整个mods文件夹');
-        
-        const hasUpdates = updateFiles.length > 0;
-        
+
+        const listText = t('info.format.detectedModsFolderImport') + '\n\n' + t('install.modsFolderOverwrite');
+
         showConfirmDialog(
             t('install.importList'),
             listText,
             [
-                { text: t('button.cancel'), class: "ml-btn-secondary", action: hideConfirmDialog },
+                { text: t('button.cancel'), class: 'ml-btn-secondary', action: hideConfirmDialog },
                 {
-                    text: hasUpdates ? t('button.importOverwrite') : t('button.import'),
-                    class: "ml-btn-primary",
+                    text: t('button.importOverwrite'),
+                    class: 'ml-btn-primary',
                     action: async () => {
                         hideConfirmDialog();
                         try {
-                            log(3, "开始复制文件夹:", srcModsDir, "->", MODS_DIR);
+                            installLog('复制 mods 文件夹', srcModsDir, '->', MODS_DIR);
                             const count = copyFolderRecursive(srcModsDir, MODS_DIR);
-                            log(3, `✅ 成功复制 ${count} 个文件/文件夹！`);
-                            
-                            // 刷新并排序新mod
-                            _modData = scanAllMods();
-                            const config = loadConfig();
-                            let currentMaxOrder = 0;
-                            
-                            for (const modId in config) {
-                                if (isModConfigMetaKey(modId)) continue;
-                                if (config[modId] && typeof config[modId] === 'object' && config[modId].order !== undefined) {
-                                    if (config[modId].order > currentMaxOrder) {
-                                        currentMaxOrder = config[modId].order;
-                                    }
-                                }
-                            }
-                            
-                            for (const mod of _modData) {
-                                const modId = mod.id;
-                                const scriptBaseName = mod.fileName ? pathMod.parse(mod.fileName).name : null;
-                                const existing = resolveModConfigEntry(config, modId, scriptBaseName);
-                                if (existing === undefined) {
-                                    currentMaxOrder++;
-                                    config[modId] = { status: false, order: currentMaxOrder, params: {} };
-                                } else if (typeof existing === 'boolean') {
-                                    currentMaxOrder++;
-                                    config[modId] = { status: existing, order: currentMaxOrder, params: {} };
-                                }
-                            }
-                            
-                            saveConfig(config);
-                            _modData = scanAllMods();
-                            // 安装后刷新依赖检测
-                            refreshDependencyCheck();
-                            renderModList();
-                            updateCounts();
-                            
-                            showConfirmDialog(
-                                t('dialog.success'),
-                                t('install.copySuccess').replace('{count}', count),
-                                [{ text: t('dialog.ok'), class: "ml-btn-primary", action: hideConfirmDialog }]
-                            );
+                            finalizeInstallAndRefresh();
+                            showInstallDoneDialog(t('install.copySuccess').replace('{count}', count));
                         } catch (e) {
-                            log(1, "处理 mods 文件夹失败", e);
+                            log(1, '处理 mods 文件夹失败', e);
                             showConfirmDialog(
                                 t('dialog.error'),
                                 t('install.copyFailed'),
-                                [{ text: t('dialog.ok'), class: "ml-btn-primary", action: hideConfirmDialog }]
+                                [{ text: t('dialog.ok'), class: 'ml-btn-primary', action: hideConfirmDialog }]
                             );
                         }
                     }
@@ -772,43 +528,24 @@
         );
     }
 
-    /**
-     * 处理单个 .js 文件拖放
-     */
-    function handleJsFilesDrop(files) {
-        log(3, "=== handleJsFilesDrop 开始 ===");
-        log(3, "总文件数:", files.length);
-
-        // 第一步：分析所有文件
+    function handleJsFilesDrop(jsItems, ignored) {
         const jsFiles = [];
-        const nonJsFiles = [];
         const newFiles = [];
         const updateFiles = [];
 
-        for (const fileItem of files) {
+        for (const fileItem of jsItems) {
             const file = fileItem.file;
-            if (file.name.toLowerCase().endsWith('.js')) {
-                jsFiles.push(file);
-                const destPath = getLocalModInstallPath(file.name);
-                if (fs.existsSync(destPath)) {
-                    updateFiles.push(file);
-                } else {
-                    newFiles.push(file);
-                }
+            if (!file || !file.name) continue;
+            jsFiles.push(file);
+            const destPath = getLocalModInstallPath(file.name);
+            if (fs.existsSync(destPath)) {
+                updateFiles.push(file);
             } else {
-                nonJsFiles.push(file.name);
+                newFiles.push(file);
             }
         }
 
-        log(3, "分析结果: js文件=", jsFiles.length, "非js文件=", nonJsFiles.length);
-        log(3, "新增文件:", newFiles.map(f => f.name));
-        log(3, "更新文件:", updateFiles.map(f => f.name));
-
-        // 构建清单文本
-        let listText = '';
-        if (nonJsFiles.length > 0) {
-            listText += '❌ ' + t('info.format.已排除非js文件') + '：' + nonJsFiles.join('、') + '\n\n';
-        }
+        let listText = formatInstallIgnoredSection(ignored);
         if (newFiles.length > 0) {
             listText += '✨ ' + t('info.format.新增mod') + '：\n' + newFiles.map(f => '  - ' + f.name).join('\n') + '\n';
         }
@@ -816,753 +553,154 @@
             listText += '🔄 ' + t('info.format.更新mod') + '：\n' + updateFiles.map(f => '  - ' + f.name).join('\n') + '\n';
         }
 
-        // 确定按钮逻辑
         const hasUpdates = updateFiles.length > 0;
-        const hasJsFiles = jsFiles.length > 0;
-        const onlyNonJs = !hasJsFiles && nonJsFiles.length > 0;
 
-        if (onlyNonJs) {
-            // 只有非js文件：只有取消按钮
-            showConfirmDialog(
-                t('install.importList'),
-                listText || t('install.noValidFiles'),
-                [
-                    { text: t('button.cancel'), class: "ml-btn-primary", action: hideConfirmDialog }
-                ]
-            );
+        if (jsFiles.length === 0) {
+            showInstallRejectDialog('no-js', ignored);
             return;
         }
-
-        if (!hasJsFiles) {
-            // 没有任何文件
-            showConfirmDialog(
-                t('dialog.title'),
-                t('install.noFiles'),
-                [
-                    { text: t('dialog.ok'), class: "ml-btn-primary", action: hideConfirmDialog }
-                ]
-            );
-            return;
-        }
-
-        // 构建按钮
-        const buttons = [];
-        buttons.push({
-            text: t('button.cancel'),
-            class: "ml-btn-secondary",
-            action: hideConfirmDialog
-        });
-        buttons.push({
-            text: hasUpdates ? t('button.importOverwrite') : t('button.import'),
-            class: "ml-btn-primary",
-            action: async () => {
-                hideConfirmDialog();
-                await importFiles(jsFiles);
-            }
-        });
 
         showConfirmDialog(
             t('install.importList'),
             listText,
-            buttons
+            [
+                { text: t('button.cancel'), class: 'ml-btn-secondary', action: hideConfirmDialog },
+                {
+                    text: hasUpdates ? t('button.importOverwrite') : t('button.import'),
+                    class: 'ml-btn-primary',
+                    action: async () => {
+                        hideConfirmDialog();
+                        await importFiles(jsFiles);
+                    }
+                }
+            ]
         );
     }
 
     // ---- 3.3 写回配置并刷新 UI（importFiles） ----
     async function importFiles(files) {
-        log(3, "=== importFiles ===");
         let successCount = 0;
 
         for (const file of files) {
             const destPath = getLocalModInstallPath(file.name);
             try {
-                ensureDir(pathMod.dirname(destPath));
-                await copyFileFromDataTransfer(file, destPath);
+                await copyFileToLocalMod(file, destPath);
                 successCount++;
-                log(3, "成功导入:", file.name);
+                installLog('已导入', file.name);
             } catch (err) {
-                log(1, "导入失败:", file.name, err);
+                log(1, '导入失败:', file.name, err);
             }
         }
 
-        // 刷新mod数据
-        _modData = scanAllMods();
-        
-        // 将新mod排到最后并保存
-        const config = loadConfig();
-        let currentMaxOrder = 0;
-        
-        // 先找出已存在mod的最大order
-        for (const modId in config) {
-            if (isModConfigMetaKey(modId)) continue;
-            if (config[modId] && typeof config[modId] === 'object' && config[modId].order !== undefined) {
-                if (config[modId].order > currentMaxOrder) {
-                    currentMaxOrder = config[modId].order;
-                }
-            }
-        }
-        
-        // 给新mod分配order
-        for (const mod of _modData) {
-            const modId = mod.id;
-            const scriptBaseName = mod.fileName ? pathMod.parse(mod.fileName).name : null;
-            const existing = resolveModConfigEntry(config, modId, scriptBaseName);
-            if (existing === undefined) {
-                currentMaxOrder++;
-                config[modId] = { status: false, order: currentMaxOrder, params: {} };
-            } else if (typeof existing === 'boolean') {
-                currentMaxOrder++;
-                config[modId] = { status: existing, order: currentMaxOrder, params: {} };
-            }
-        }
-        
-        saveConfig(config);
-        
-        // 重新扫描并渲染
-        _modData = scanAllMods();
-        refreshDependencyCheck();
-        renderModList();
-        updateCounts();
-
-        // 显示成功提示
-        showConfirmDialog(
-            t('install.success'),
-            t('install.importSuccess').replace('{count}', successCount),
-            [
-                { text: t('dialog.ok'), class: "ml-btn-primary", action: () => { hideConfirmDialog(); hideInstallOverlay(); } }
-            ]
-        );
-    }
-
-    /**
-     * 从 DataTransfer 复制文件
-     */
-    function copyFileFromDataTransfer(file, destPath) {
-        log(3, "=== copyFileFromDataTransfer 开始 ===");
-        log(3, "源文件名:", file.name);
-        log(3, "目标路径:", destPath);
-        
-        return new Promise((resolve, reject) => {
-            log(3, "创建 FileReader...");
-            const reader = new FileReader();
-            
-            reader.onload = (e) => {
-                log(3, "FileReader onload 触发");
-                try {
-                    log(3, "转换为 Buffer...");
-                    const buffer = Buffer.from(e.target.result);
-                    log(3, "Buffer 大小:", buffer.length, "字节");
-                    
-                    log(3, "写入文件到:", destPath);
-                    fs.writeFileSync(destPath, buffer);
-                    log(3, "✅ 成功写入！");
-                    
-                    log(3, "验证文件是否存在:", fs.existsSync(destPath));
-                    if (fs.existsSync(destPath)) {
-                        const stats = fs.statSync(destPath);
-                        log(3, "文件大小:", stats.size, "字节");
-                    }
-                    
-                    resolve();
-                } catch (err) {
-                    log(1, "❌ 复制文件失败:", file.name, err);
-                    reject(err);
-                }
-            };
-            
-            reader.onerror = () => {
-                log(1, "❌ FileReader 出错:", reader.error);
-                reject(reader.error);
-            };
-            
-            log(3, "开始 readAsArrayBuffer...");
-            reader.readAsArrayBuffer(file);
-        });
+        finalizeInstallAndRefresh();
+        showInstallDoneDialog(t('install.importSuccess').replace('{count}', successCount));
     }
 
     // ================================================================
-    // 模块 4 · Mod 元数据与 Schema 解析
+    // 模块 4 · Mod 元数据与 Schema 解析 → modloader/modMetadata.js
     // ----------------------------------------------------------------
     // 含：4.1 note 换行归一 · 4.2 Schema 默认值 · 4.3 头部标签解析 ·
     //     4.4 配置回填（applyModConfigToEntry）
-    // 依赖：模块 1（日志/路径）、模块 2（配置读取 / t()）、以及模块 6.1 中的
-    //       类型判定与校验（isNoteType / isDatabaseType / isValidColor）；
-    //       另调用模块 5.4 的 parseDependencyList（拆分 baseList / orderAfterList）。
-    // order 由调用方（模块 5）传入，本模块不依赖扫描/排序分配工具。
-    // 与 6.1 共享类型工具，拆文件时须一并带走或上移类型工具。
+    // 依赖：模块 1/2、modloader/paramTypeKit、modloader/dependencyResolver
     // ================================================================
 
-    // ---- 4.1 note / multiline_string 换行归一 ----
-    /**
-     * note / multiline_string：把 @default 或旧配置里的字面量 \n 还原为真换行。
-     * 已是真换行的字符串不受影响。不使用官方 note 的 JSON 包装格式。
-     */
-    function normalizeNoteNewlines(text) {
-        if (text == null || typeof text !== 'string') return text;
-        return text.replace(/\\n/g, '\n');
+    const dependencyResolver = createDependencyResolver({
+        fs,
+        log,
+        t,
+        pluginsPath: PLUGINS_PATH
+    });
+
+    const {
+        parseDependencyList,
+        getGamePluginInfo,
+        checkModDependencies,
+        isBaseLoadGuardSatisfied
+    } = dependencyResolver;
+
+    const modMetadataDeps = {
+        fs,
+        pathMod,
+        paramTypeKit,
+        log,
+        t,
+        parseDependencyList,
+        resolveModConfigEntry,
+        normalizeSingleParamValue: null
+    };
+    const modMetadata = createModMetadata(modMetadataDeps);
+
+    const {
+        normalizeNoteNewlines,
+        normalizeNoteFieldsInStructParam,
+        parseModInfo,
+        applyModConfigToEntry
+    } = modMetadata;
+
+    const {
+        isValidColor,
+        sanitizeText,
+        isDatabaseType,
+        isNoteType,
+        calculateStep,
+        getDbLabel: getDbLabelRaw,
+        getDatabaseEntryName,
+        normalizeDatabaseCollection
+    } = paramTypeKit;
+
+    function getDbLabel(type) {
+        return getDbLabelRaw(type, t);
     }
 
-    /**
-     * 递归归一 struct 内 note/multiline_string 的字面量 \n（与顶层 note 一致）
-     */
-    function normalizeNoteFieldsInStructObject(obj, schemaFields) {
-        if (!obj || typeof obj !== 'object' || !Array.isArray(schemaFields)) return obj;
-        for (let i = 0; i < schemaFields.length; i++) {
-            const field = schemaFields[i];
-            if (!field || !field.name || !Object.prototype.hasOwnProperty.call(obj, field.name)) continue;
-            const key = field.name;
-            if (isNoteType(field.type)) {
-                obj[key] = normalizeNoteNewlines(String(obj[key] == null ? '' : obj[key]));
-            } else if (field.type === 'struct') {
-                const raw = obj[key];
-                const wasString = typeof raw === 'string';
-                let nested = raw;
-                if (wasString) {
-                    try { nested = JSON.parse(raw); } catch (e) { continue; }
-                }
-                if (!nested || typeof nested !== 'object') continue;
-                const subSchema = (field.schema && _schemaDictionary[field.schema])
-                    || field.schemaFields
-                    || [];
-                normalizeNoteFieldsInStructObject(nested, subSchema);
-                obj[key] = wasString ? JSON.stringify(nested) : nested;
-            }
-        }
-        return obj;
+    const paramValues = createParamValues({
+        paramTypeKit,
+        normalizeNoteNewlines,
+        normalizeNoteFieldsInStructParam
+    });
+    modMetadataDeps.normalizeSingleParamValue = paramValues.normalizeSingleParamValue;
+
+    const {
+        normalizeColorField,
+        normalizeTextField,
+        normalizeSingleParamValue,
+        buildModFinalParameters,
+        buildFinalParametersFromValues
+    } = paramValues;
+
+    /** 参数 UI 在浏览器上下文；子模块 require 作用域须显式传入 window */
+    function getDatabaseArray(type) {
+        const root = typeof window !== 'undefined' ? window : globalThis;
+        return paramTypeKit.getDatabaseArray(type, root);
     }
 
-    /** 对 struct 参数字符串/对象做 note 换行归一，保持原值形态（字符串仍返回字符串） */
-    function normalizeNoteFieldsInStructParam(value, schemaFields) {
-        if (value == null || value === '') return value;
-        const wasString = typeof value === 'string';
-        let obj;
-        try {
-            obj = wasString ? JSON.parse(value) : value;
-        } catch (e) {
-            return value;
-        }
-        if (!obj || typeof obj !== 'object') return value;
-        normalizeNoteFieldsInStructObject(obj, schemaFields || []);
-        return wasString ? JSON.stringify(obj) : obj;
-    }
+    const scanPipeline = createScanPipeline({
+        fs,
+        pathMod,
+        log,
+        ensureDir,
+        discoverPackageScripts,
+        applyModConfigToEntry,
+        modCatalog,
+        workshopBridge,
+        loadWorkshopConfig,
+        localmodsDir: LOCALMODS_DIR,
+        workshopBridgeDir: WORKSHOP_BRIDGE_DIR
+    });
 
-    function standardizeDefault(val, type) {
-        if (type === 'boolean') {
-            const lowerVal = String(val).toLowerCase();
-            if (lowerVal === 'true' || lowerVal === '1' || lowerVal === 'on') return 'true';
-            return 'false';
-        }
-        if (isNoteType(type)) {
-            return normalizeNoteNewlines(String(val));
-        }
-        return val;
-    }
-
-    // ---- 4.2 Schema 字典与默认值生成 ----
-    /**
-     * 递归生成 struct/table 的默认值
-     * 根据 Schema 模板中子参数的 default 递归拼装成嵌套 JSON 对象
-     * param {Array} schemaFields - Schema 模板的子参数数组
-     * returns {object} - 拼装好的默认值对象
-     */
-    function generateDefaultFromSchema(schemaFields) {
-        const obj = {};
-        for (const field of schemaFields) {
-            if (field.type === 'struct' && field.schema) {
-                // 递归生成嵌套 struct 的默认值
-                const subSchema = _schemaDictionary[field.schema];
-                if (subSchema) {
-                    obj[field.name] = JSON.stringify(generateDefaultFromSchema(subSchema));
-                } else {
-                    obj[field.name] = '{}';
-                }
-            } else if (field.type === 'table' && field.schema) {
-                // table 默认为空数组
-                obj[field.name] = '[]';
-            } else if (field.default !== undefined) {
-                obj[field.name] = field.default;
-            } else {
-                // 无默认值时按类型推断
-                if (field.type === 'number') obj[field.name] = '0';
-                else if (field.type === 'boolean') obj[field.name] = 'false';
-                else if (field.type === 'color') obj[field.name] = '#ffffff';
-                else obj[field.name] = '';
-            }
-        }
-        return obj;
-    }
-
-    /**
-     * 解析 define-schema 块，将模板存入全局 _schemaDictionary
-     * 格式: define-schema 模板名 \n JSON字符串
-     * param {string} metaContent - 清洗后的元数据内容
-     */
-    function parseSchemaDefinitions(metaContent) {
-        // 匹配 @define-schema 模板名，下一行为 JSON 定义
-        const schemaRegex = /@define-schema\s+(\w+)\s*\n\s*(.+)/g;
-        let match;
-        while ((match = schemaRegex.exec(metaContent)) !== null) {
-            const schemaName = match[1];
-            const jsonStr = match[2].trim();
-            try {
-                const schemaObj = JSON.parse(jsonStr);
-                if (Array.isArray(schemaObj)) {
-                    // 数组格式：每个元素是 { name, type, ... }
-                    _schemaDictionary[schemaName] = schemaObj.map(item => ({
-                        name: item.name || item.param || '',
-                        type: (item.type || 'string').toLowerCase(),
-                        text: item.text || item.name || item.param || '',
-                        desc: item.desc || '',
-                        default: item.default !== undefined
-                            ? (isNoteType((item.type || 'string').toLowerCase())
-                                ? normalizeNoteNewlines(String(item.default))
-                                : String(item.default))
-                            : undefined,
-                        min: item.min !== undefined ? Number(item.min) : undefined,
-                        max: item.max !== undefined ? Number(item.max) : undefined,
-                        step: item.step !== undefined ? Number(item.step) : undefined,
-                        options: item.options || [],
-                        schema: item.schema || undefined
-                    }));
-                    log(3, `[Schema字典] 注册模板: ${schemaName}, 字段数: ${_schemaDictionary[schemaName].length}`);
-                } else {
-                    log(2, `[Schema字典] 模板 ${schemaName} 的 JSON 不是数组格式，已跳过`);
-                }
-            } catch (e) {
-                log(1, `[Schema字典] 解析模板 ${schemaName} 失败:`, jsonStr, e);
-            }
-        }
-    }
-
-    // ---- 4.3 头部标签解析（parseModInfo / @param / @define-schema） ----
-    function parseModInfo(filePath) {
-        try {
-            const content = fs.readFileSync(filePath, 'utf-8');
-            const metaBlockMatch = content.match(/\/\*:[\s\S]*?\*\//);
-            if (!metaBlockMatch) return { author: t('detail.labelUnknown'), help: "", params: [], version: undefined, base: undefined, orderAfter: undefined, orderBefore: undefined };
-            let metaContent = metaBlockMatch[0];
-
-            const lines = metaContent.split(/\r?\n/);
-            let cleanedLines = [];
-            for (let line of lines) {
-                line = line.trim();
-                if (line.startsWith('/*:')) {
-                    cleanedLines.push('/*:');
-                } else if (line === '*/') {
-                    cleanedLines.push('*/');
-                } else if (line.startsWith('*')) {
-                    cleanedLines.push(line.substring(1).replace(/^\s*/, ''));
-                } else {
-                    cleanedLines.push(line);
-                }
-            }
-            metaContent = cleanedLines.join('\n');
-
-            // 先扫描 @define-schema 定义，存入全局字典
-            parseSchemaDefinitions(metaContent);
-
-            const helpBlockMatch = metaContent.match(/@help\s*\n([\s\S]*?)(?=\n@|\n\*\/|$)/);
-            const helpContent = helpBlockMatch ? helpBlockMatch[1].trim() : "";
-            const helpBlock = helpBlockMatch ? helpBlockMatch[0] : "";
-
-            const contentWithoutHelp = metaContent.replace(helpBlock, '');
-
-            const authorMatch = contentWithoutHelp.match(/@author\s+(.+?)$/m);
-            const versionMatch = contentWithoutHelp.match(/@version\s+(.+?)$/m);
-            const baseMatch = contentWithoutHelp.match(/@base\s+(.+?)$/m);
-            const orderAfterMatch = contentWithoutHelp.match(/@orderAfter\s+(.+?)$/m);
-            const orderBeforeMatch = contentWithoutHelp.match(/@orderBefore\s+(.+?)$/m);
-
-            const paramBlocks = [];
-            let currentParam = null;
-
-            const contentLines = contentWithoutHelp.split('\n');
-            for (const line of contentLines) {
-                if (line === '/*:' || line === '*/') continue;
-                
-                // 跳过 @define-schema 行（已在 parseSchemaDefinitions 中处理）
-                if (/^@define-schema\s/.test(line)) continue;
-
-                const paramMatch = line.match(/@param\s+(.+)$/);
-                if (paramMatch) {
-                    if (currentParam) paramBlocks.push(currentParam);
-                    let rawName = paramMatch[1].trim();
-                    rawName = rawName.replace(/\{.*?\}\s*/, '');
-                    const dashIndex = rawName.indexOf(' - ');
-                    if (dashIndex > 0) rawName = rawName.substring(0, dashIndex).trim();
-                    // text 默认等于 name（后续 @text 可覆盖）
-                    currentParam = { name: rawName, type: "string", text: rawName, desc: "", default: undefined, min: undefined, max: undefined, step: undefined, options: [], schema: undefined };
-                    continue;
-                }
-                if (currentParam) {
-                    const typeMatch = line.match(/@type\s+(.+)$/);
-                    const descMatch = line.match(/@desc\s+(.+)$/);
-                    const defaultMatch = line.match(/@default\s+(.+)$/);
-                    const minMatch = line.match(/@min\s+(.+)$/);
-                    const maxMatch = line.match(/@max\s+(.+)$/);
-                    const stepMatch = line.match(/@step\s+(.+)$/);
-                    const optionMatch = line.match(/@option\s+(.+)$/);
-                    const textMatch = line.match(/@text\s+(.+)$/);
-                    const schemaMatch = line.match(/@schema\s+(.+)$/);
-
-                    if (typeMatch) currentParam.type = typeMatch[1].trim().toLowerCase();
-                    else if (textMatch) currentParam.text = textMatch[1].trim();
-                    else if (schemaMatch) currentParam.schema = schemaMatch[1].trim();
-                    else if (descMatch) currentParam.desc = descMatch[1].trim();
-                    else if (defaultMatch) currentParam.default = standardizeDefault(defaultMatch[1].trim(), currentParam.type);
-                    else if (minMatch && currentParam.type === 'number') currentParam.min = Number(minMatch[1].trim());
-                    else if (maxMatch && currentParam.type === 'number') currentParam.max = Number(maxMatch[1].trim());
-                    else if (stepMatch && currentParam.type === 'number') currentParam.step = Number(stepMatch[1].trim());
-                    else if (optionMatch && currentParam.type === 'select') currentParam.options.push(optionMatch[1].trim());
-                }
-            }
-            if (currentParam) paramBlocks.push(currentParam);
-
-            // 为 struct/table 解析 schema 子参数并自动生成默认值
-            for (let p of paramBlocks) {
-                if ((p.type === 'struct' || p.type === 'table') && p.schema) {
-                    const schemaFields = _schemaDictionary[p.schema];
-                    if (schemaFields) {
-                        // 将 schema 子参数列表挂载到参数上，供渲染器使用
-                        p.schemaFields = schemaFields;
-                        log(3, `[Schema] 参数 "${p.name}" 引用模板 "${p.schema}", 子字段数: ${schemaFields.length}`);
-                    } else {
-                        log(2, `[Schema] 参数 "${p.name}" 引用的模板 "${p.schema}" 不存在！`);
-                        p.schemaFields = [];
-                    }
-                    // 自动生成默认值：若缺少 @default，则递归拼装
-                    if (p.default === undefined) {
-                        if (p.type === 'struct') {
-                            const defaultObj = generateDefaultFromSchema(p.schemaFields);
-                            p.default = JSON.stringify(defaultObj);
-                        } else {
-                            // table 默认为空数组的双重转义
-                            p.default = '[]';
-                        }
-                        log(3, `[Schema] 参数 "${p.name}" 自动生成默认值: ${p.default}`);
-                    }
-                }
-            }
-
-            // note 默认值：若 @default 写在 @type 之前，补做一次换行还原
-            for (let p of paramBlocks) {
-                if (isNoteType(p.type) && typeof p.default === 'string') {
-                    p.default = normalizeNoteNewlines(p.default);
-                }
-                if (p.schemaFields) {
-                    p.schemaFields.forEach(f => {
-                        if (isNoteType(f.type) && typeof f.default === 'string') {
-                            f.default = normalizeNoteNewlines(f.default);
-                        }
-                    });
-                }
-            }
-
-            let isStrictLocked = false;
-            for (let p of paramBlocks) {
-                if (p.default === undefined) {
-                    log(2, `参数严苛校验失败：Mod [${pathMod.basename(filePath)}] 的参数 [${p.name}] 缺少 @default，该Mod参数编辑功能已被锁定。`);
-                    isStrictLocked = true;
-                    break;
-                }
-            }
-
-            // 解析 @base / @orderAfter 为依赖插件名列表（供依赖检测使用）
-            const baseRaw = baseMatch ? baseMatch[1].trim() : undefined;
-            const orderAfterRaw = orderAfterMatch ? orderAfterMatch[1].trim() : undefined;
-            const baseList = parseDependencyList(baseRaw);
-            const orderAfterList = parseDependencyList(orderAfterRaw);
-
-            return {
-                author: authorMatch ? authorMatch[1].trim() : t('detail.labelUnknown'),
-                help: helpContent || t('detail.noHelp'),
-                version: versionMatch ? versionMatch[1].trim() : undefined,
-                base: baseRaw,           // 保留原始字符串，用于详情显示
-                orderAfter: orderAfterRaw, // 保留原始字符串，用于详情显示
-                baseList: baseList,
-                orderAfterList: orderAfterList,
-                orderBefore: orderBeforeMatch ? orderBeforeMatch[1].trim() : undefined,
-                params: isStrictLocked ? [] : paramBlocks
-            };
-        } catch (e) {
-            log(1, "解析Mod信息异常", e);
-            return { author: t('detail.labelUnknown'), help: "", params: [], version: undefined, base: undefined, orderAfter: undefined, baseList: [], orderAfterList: [], orderBefore: undefined };
-        }
-    }
-
-    // ---- 4.4 配置回填（applyModConfigToEntry） ----
-    /**
-     * 从 mod_config 读取 status/params/order 并构建 Mod 条目公共字段。
-     * defaultOrder 由调用方（模块 5 扫描）传入。
-     */
-    function applyModConfigToEntry(modId, filePath, fileName, displayName, config, defaultOrder, scriptBaseName) {
-        const info = parseModInfo(filePath);
-        let modConfig = resolveModConfigEntry(config, modId, scriptBaseName);
-        let status = false;
-        let currentParams = {};
-        let order = defaultOrder;
-
-        if (typeof modConfig === 'boolean') {
-            status = modConfig;
-        } else if (modConfig && typeof modConfig === 'object') {
-            status = modConfig.status || false;
-            if (modConfig.order !== undefined) {
-                order = modConfig.order;
-            }
-            const rawParams = modConfig.params || {};
-            info.params.forEach(p => {
-                let value = rawParams.hasOwnProperty(p.name) ? rawParams[p.name] : undefined;
-                if (value === '' || value === undefined || value === null) {
-                    currentParams[p.name] = p.default;
-                } else if (p.type === 'number') {
-                    const numValue = Number(value);
-                    if (isNaN(numValue)) {
-                        currentParams[p.name] = p.default;
-                    } else {
-                        let finalValue = numValue;
-                        if (p.min !== undefined && finalValue < p.min) finalValue = p.min;
-                        if (p.max !== undefined && finalValue > p.max) finalValue = p.max;
-                        currentParams[p.name] = String(finalValue);
-                    }
-                } else if (p.type === 'color') {
-                    currentParams[p.name] = isValidColor(value) ? value : p.default;
-                } else if (isNoteType(p.type)) {
-                    currentParams[p.name] = normalizeNoteNewlines(String(value));
-                } else if (p.type === 'struct') {
-                    currentParams[p.name] = normalizeNoteFieldsInStructParam(value, p.schemaFields);
-                } else if (isDatabaseType(p.type)) {
-                    currentParams[p.name] = String(value);
-                } else {
-                    currentParams[p.name] = value;
-                }
-            });
-        }
-
-        return {
-            id: modId,
-            fileName: fileName,
-            displayName: displayName || pathMod.parse(fileName).name,
-            status: status,
-            params: info.params,
-            currentParams: currentParams,
-            author: info.author,
-            help: info.help,
-            version: info.version,
-            base: info.base,
-            orderAfter: info.orderAfter,
-            orderBefore: info.orderBefore,
-            baseList: info.baseList,
-            orderAfterList: info.orderAfterList,
-            order: order
-        };
-    }
+    const { scanLocalMods, scanWorkshopMods, mergeScanResults } = scanPipeline;
 
     // ================================================================
     // 模块 5 · 扫描 / 依赖 / 运行时加载
     // ----------------------------------------------------------------
-    // 含：5.1 工坊桥接与扫描 · 5.2 本地 Mod 工具与预览 ·
-    //     5.3 扫描主流程 · 5.4 依赖检测 · 5.5 运行时加载与启动钩子
+    // 含：5.1 工坊桥接（→ modloader/workshopBridge.js + scanPipeline.js） ·
+    //     5.2 本地 Mod 预览（路径/版本 → modloader/modCatalog.js） ·
+    //     5.3 扫描主流程（→ modloader/scanPipeline.js） ·
+    //     5.4 依赖检测 · 5.5 运行时加载与启动钩子
     // 依赖：模块 1（路径）、模块 2（配置）、模块 4（元数据）；
-    //       buildModFinalParameters 另用模块 6.1 的 sanitizeText / isValidColor。
+    //       buildModFinalParameters → modloader/paramValues.js
     // ================================================================
 
-    // ---- 5.1 工坊（Steam Workshop）桥接与扫描 ----
-    function readWorkshopManifest(root) {
-        const manifestPath = pathMod.join(root, 'modloader.json');
-        try {
-            if (fs.existsSync(manifestPath)) {
-                return JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
-            }
-        } catch (e) {
-            log(2, '解析 modloader.json 失败: ' + root, e.message);
-        }
-        return null;
-    }
-
-    /**
-     * modloader.json entries 仅允许包根下的 .js 文件名（禁止路径，防目录穿越）
-     */
-    function resolvePackageEntryFileName(entry) {
-        const raw = String(entry).trim();
-        if (!raw) return null;
-        if (/[\\/]/.test(raw) || raw.indexOf('..') !== -1) {
-            log(2, '包 entries 忽略非法路径项（仅允许文件名）: ' + raw);
-            return null;
-        }
-        const fileName = pathMod.basename(raw);
-        if (!fileName.toLowerCase().endsWith('.js') || fileName === 'ModLoader.js') {
-            log(2, '包 entries 忽略无效项（须为 .js 文件名）: ' + raw);
-            return null;
-        }
-        return fileName;
-    }
-
-    /**
-     * 发现 Mod 包内脚本（modloader.json entries → 包根 *.js；不递归子目录）
-     */
-    function discoverPackageScripts(packageRoot) {
-        const scripts = [];
-        const manifest = readWorkshopManifest(packageRoot);
-
-        if (manifest && Array.isArray(manifest.entries) && manifest.entries.length > 0) {
-            for (const entry of manifest.entries) {
-                const fileName = resolvePackageEntryFileName(entry);
-                if (!fileName) continue;
-                const absPath = pathMod.join(packageRoot, fileName);
-                if (fs.existsSync(absPath)) {
-                    scripts.push({
-                        relPath: fileName,
-                        absPath: absPath
-                    });
-                } else {
-                    log(2, '包 entries 文件不存在: ' + fileName);
-                }
-            }
-            return scripts;
-        }
-
-        try {
-            const files = fs.readdirSync(packageRoot).filter(file => file.endsWith('.js') && file !== 'ModLoader.js');
-            for (const file of files) {
-                scripts.push({
-                    relPath: file,
-                    absPath: pathMod.join(packageRoot, file)
-                });
-            }
-        } catch (e) {
-            log(2, '扫描包目录失败: ' + packageRoot, e.message);
-        }
-        return scripts;
-    }
-
-    /**
-     * 正式工坊：在 js/mods/_workshop/<fileId>/ 建立联接，供 PluginManager 加载。
-     * RMMZ 的 loadScript 只能解析游戏目录内路径，不能直接加载 steamapps/workshop/ 下的文件。
-     */
-    function syncWorkshopBridge(fileId, root, scripts) {
-        if (!scripts || scripts.length === 0) return false;
-
-        ensureDir(WORKSHOP_BRIDGE_DIR);
-        const bridgeDir = pathMod.join(WORKSHOP_BRIDGE_DIR, String(fileId));
-        removePathSafe(bridgeDir);
-
-        try {
-            fs.symlinkSync(root, bridgeDir, 'junction');
-            return true;
-        } catch (e) {
-            log(2, '工坊包根 junction 失败，改用逐文件桥接: ' + fileId, e.message);
-            removePathSafe(bridgeDir);
-        }
-
-        ensureDir(bridgeDir);
-        for (const script of scripts) {
-            const fileName = pathMod.basename(script.relPath);
-            const linkPath = pathMod.join(bridgeDir, fileName);
-            removePathSafe(linkPath);
-            try {
-                fs.symlinkSync(script.absPath, linkPath, 'file');
-            } catch (e1) {
-                try {
-                    fs.linkSync(script.absPath, linkPath);
-                } catch (e2) {
-                    log(1, '工坊桥接失败: ' + script.absPath, e1.message, e2.message);
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-
-    function buildWorkshopBridgeLoadPath(fileId, relPath) {
-        const baseName = pathMod.parse(relPath).name;
-        return '../mods/_workshop/' + String(fileId) + '/' + baseName;
-    }
-
-    function scanWorkshopMods(config, orderState) {
-        const wsCfg = loadWorkshopConfig();
-        if (!wsCfg.enabled) {
-            if (fs.existsSync(WORKSHOP_BRIDGE_DIR)) {
-                removePathSafe(WORKSHOP_BRIDGE_DIR);
-            }
-            return [];
-        }
-
-        const { workshopDir, steamAppId } = resolveSteamPaths();
-        const mods = [];
-        const seenLoadPaths = new Set();
-
-        function addWorkshopPackage(root, fileId) {
-            const fileIdStr = String(fileId);
-            const scripts = discoverPackageScripts(root);
-            if (scripts.length === 0) {
-                return;
-            }
-
-            let installState = 'ready';
-            const bridged = syncWorkshopBridge(fileIdStr, root, scripts);
-            if (!bridged) {
-                installState = 'missing';
-            }
-
-            scripts.forEach(script => {
-                const scriptBaseName = pathMod.parse(script.relPath).name;
-                const modId = 'ws:' + fileIdStr + ':' + scriptBaseName;
-                const loadPath = buildWorkshopBridgeLoadPath(fileIdStr, script.relPath);
-                if (seenLoadPaths.has(loadPath)) return;
-                seenLoadPaths.add(loadPath);
-
-                const displayName = scriptBaseName;
-                const entry = applyModConfigToEntry(
-                    modId,
-                    script.absPath,
-                    pathMod.basename(script.relPath),
-                    displayName,
-                    config,
-                    allocDefaultOrderForMod(config, orderState, modId, scriptBaseName),
-                    scriptBaseName
-                );
-                mods.push(Object.assign(entry, {
-                    loadPath: loadPath,
-                    source: 'workshop',
-                    workshopId: fileIdStr,
-                    workshopRoot: root,
-                    packageRoot: root,
-                    subscribed: true,
-                    readOnly: true,
-                    installState: installState
-                }));
-            });
-        }
-
-        if (steamAppId && workshopDir && fs.existsSync(workshopDir)) {
-            try {
-                fs.readdirSync(workshopDir, { withFileTypes: true })
-                    .filter(entry => entry.isDirectory())
-                    .forEach(entry => addWorkshopPackage(pathMod.join(workshopDir, entry.name), entry.name));
-            } catch (e) {
-                log(2, '扫描工坊目录失败: ' + workshopDir, e.message);
-            }
-        }
-
-        return mods;
-    }
-
-    // ---- 5.2 本地 Mod 工具与预览（路径/ID/排序/缩略图） ----
-    function buildLocalModId(packageName, scriptBaseName) {
-        return 'local:' + packageName + ':' + scriptBaseName;
-    }
-
-    function buildLocalLoadPath(packageName, scriptBaseName) {
-        return '../mods/_localmods/' + packageName + '/' + scriptBaseName;
-    }
-
-    function getLocalModInstallPath(scriptFileName) {
-        const baseName = pathMod.parse(scriptFileName).name;
-        const packageDir = pathMod.join(LOCALMODS_DIR, baseName);
-        return pathMod.join(packageDir, scriptFileName);
-    }
-
-    /** 包根 preview.png */
+    // ---- 5.2 本地 Mod 预览（路径/ID/排序/缩略图；规则 → modloader/modCatalog.js） ----
     function getPackagePreviewPath(packageRoot) {
         if (!packageRoot) return null;
         const previewPath = pathMod.join(packageRoot, 'preview.png');
@@ -1636,62 +774,6 @@
         }
     }
 
-    function getModPackageRoot(mod) {
-        if (!mod) return null;
-        return mod.packageRoot || mod.workshopRoot || null;
-    }
-
-    /** 包根更新日志文件名（与商店打包约定一致，唯一合法名） */
-    const PACKAGE_CHANGELOG_FILENAME = 'CHANGELOG.md';
-
-    function getPackageDisplayName(mod) {
-        if (!mod) return '';
-        if (mod.localPackageName) return mod.localPackageName;
-        const packageRoot = getModPackageRoot(mod);
-        if (packageRoot) return pathMod.basename(packageRoot);
-        return mod.displayName || '';
-    }
-
-    /**
-     * 解析包版本：优先 modloader.json.version；单脚本可回退 @version；多脚本无清单版本则无版本
-     */
-    function resolvePackageVersion(mod) {
-        if (!mod) return null;
-        const packageRoot = getModPackageRoot(mod);
-        if (packageRoot) {
-            const manifest = readWorkshopManifest(packageRoot);
-            if (manifest && manifest.version != null && String(manifest.version).trim()) {
-                return String(manifest.version).trim();
-            }
-            const scripts = discoverPackageScripts(packageRoot);
-            if (scripts.length > 1) return null;
-        }
-        if (mod.version != null && String(mod.version).trim()) {
-            return String(mod.version).trim();
-        }
-        return null;
-    }
-
-    function getPackageChangelogPath(mod) {
-        const packageRoot = getModPackageRoot(mod);
-        if (!packageRoot) return null;
-        return pathMod.join(packageRoot, PACKAGE_CHANGELOG_FILENAME);
-    }
-
-    function packageHasChangelog(mod) {
-        const changelogPath = getPackageChangelogPath(mod);
-        if (!changelogPath || !fs.existsSync(changelogPath)) return false;
-        try {
-            return fs.statSync(changelogPath).isFile();
-        } catch (e) {
-            return false;
-        }
-    }
-
-    function canShowModChangelog(mod) {
-        return !!(resolvePackageVersion(mod) && packageHasChangelog(mod));
-    }
-
     function buildModPreviewHtml(mod) {
         if (mod.source !== 'workshop' && mod.source !== 'local') return '';
         const packageRoot = getModPackageRoot(mod);
@@ -1709,433 +791,100 @@
         return '<div class="ml-workshop-preview' + extraClass + '"' + titleAttr + '>' + inner + '</div>';
     }
 
-    function getConfigMaxOrder(config) {
-        let max = 0;
-        Object.keys(config).forEach(key => {
-            if (isModConfigMetaKey(key)) return;
-            const entry = config[key];
-            if (entry && typeof entry === 'object' && entry.order !== undefined) {
-                max = Math.max(max, Number(entry.order) || 0);
-            }
-        });
-        return max;
-    }
-
-    function allocDefaultOrderForMod(config, orderState, modId, scriptBaseName) {
-        const entry = resolveModConfigEntry(config, modId, scriptBaseName);
-        if (entry && typeof entry === 'object' && entry.order !== undefined) {
-            return entry.order;
-        }
-        return orderState.next++;
-    }
-
-  /**
-     * 移除路径（目录联接 / 符号链接 / 普通文件）
-     */
-    function removePathSafe(targetPath) {
-        if (!fs.existsSync(targetPath)) return;
-        try {
-            const stat = fs.lstatSync(targetPath);
-            if (stat.isDirectory()) {
-                fs.rmSync(targetPath, { recursive: true, force: true });
-            } else {
-                fs.unlinkSync(targetPath);
-            }
-        } catch (e) {
-            log(2, '移除路径失败: ' + targetPath, e.message);
-        }
-    }
-
-    // ---- 5.3 扫描主流程（scanLocalMods / scanWorkshopMods / scanAllMods / reassignOrders） ----
-    function scanLocalMods(config, orderState) {
-        ensureDir(LOCALMODS_DIR);
-        const mods = [];
-        try {
-            const packageDirs = fs.readdirSync(LOCALMODS_DIR, { withFileTypes: true })
-                .filter(entry => entry.isDirectory())
-                .map(entry => entry.name);
-
-            for (const packageName of packageDirs) {
-                const packageRoot = pathMod.join(LOCALMODS_DIR, packageName);
-                const scripts = discoverPackageScripts(packageRoot);
-                if (scripts.length === 0) continue;
-
-                for (const script of scripts) {
-                    const scriptBaseName = pathMod.parse(script.relPath).name;
-                    const modId = buildLocalModId(packageName, scriptBaseName);
-                    const loadPath = buildLocalLoadPath(packageName, scriptBaseName);
-                    const displayName = scriptBaseName;
-                    const entry = applyModConfigToEntry(
-                        modId,
-                        script.absPath,
-                        pathMod.basename(script.relPath),
-                        displayName,
-                        config,
-                        allocDefaultOrderForMod(config, orderState, modId, scriptBaseName),
-                        scriptBaseName
-                    );
-                    mods.push(Object.assign(entry, {
-                        loadPath: loadPath,
-                        source: 'local',
-                        workshopId: null,
-                        workshopRoot: null,
-                        localPackageName: packageName,
-                        packageRoot: packageRoot,
-                        subscribed: true,
-                        readOnly: false,
-                        installState: 'ready'
-                    }));
-                }
-            }
-        } catch (e) {
-            log(1, '扫描本地 Mod 包目录失败', e);
-        }
-        return mods;
-    }
-
+    // ---- 5.3 扫描主流程（→ modloader/scanPipeline.js） ----
     function scanAllMods() {
         ensureModLoaderConfigFile();
         invalidateWorkshopConfigCache();
-        _schemaDictionary = {};
         const config = loadConfig();
         const orderState = { next: getConfigMaxOrder(config) + 1 };
-        const localMods = scanLocalMods(config, orderState);
-        const workshopMods = scanWorkshopMods(config, orderState);
-        const seenLoadPaths = new Set();
-        const mods = [];
-
-        for (const mod of localMods.concat(workshopMods)) {
-            if (seenLoadPaths.has(mod.loadPath)) {
-                log(2, '跳过重复 loadPath:', mod.loadPath);
-                continue;
-            }
-            seenLoadPaths.add(mod.loadPath);
-            mods.push(mod);
-        }
-
-        mods.sort((a, b) => a.order - b.order);
-        reassignOrders(mods);
-        return mods;
+        return mergeScanResults(
+            scanLocalMods(config, orderState),
+            scanWorkshopMods(config, orderState)
+        );
     }
 
     /**
-     * 重新分配模组的连续顺序号
+     * 重新分配模组的连续顺序号（无参时使用当前 _modData）
      */
     function reassignOrders(modList) {
         if (!modList) modList = _modData;
-        modList.forEach((mod, index) => {
-            mod.order = index + 1;
-        });
+        modCatalog.reassignOrders(modList);
     }
 
-    // ---- 5.4 依赖检测系统（@base / @orderAfter 解析与校验，UI 颜色警告） ----
-
-    /**
-     * 解析base / orderAfter 标签中的依赖插件列表
-     * 
-     * 支持格式：
-     *   情况① base 插件1.js        → 标准带.js后缀
-     *   情况② base 插件1            → 标准不带.js后缀（含中文插件名如"界面UI"）
-     *   情况③ base 插件1.js（确保放在它后面） → 非标准：.js后紧跟中文说明无空格，丢弃说明文本
-     *   情况④ base 插件1.js（确保放在它后面） 插件2 → 非标准：识别到插件2
-     *   多插件：base 插件1.js 插件2 插件3.js → 空格分隔
-     *
-     * 核心思路：以 .js 作为插件名与说明文字的分界标记
-     *   - 含 .js → 提取到 .js 为止的部分作为插件名，.js 后面的文本视为说明丢弃
-     *   - 不含 .js → 整个 token 就是插件名（支持中文插件名）
-     *
-     * param {string} rawStr - base 或 orderAfter 后的原始字符串
-     * returns {string[]} 解析出的插件名列表（统一不含.js后缀）
-     */
-    function parseDependencyList(rawStr) {
-        if (!rawStr || typeof rawStr !== 'string') return [];
-        const trimmed = rawStr.trim();
-        if (!trimmed) return [];
-
-        const result = [];
-        // 按空格分割原始字符串
-        const tokens = trimmed.split(/\s+/);
-
-        for (let i = 0; i < tokens.length; i++) {
-            let token = tokens[i];
-            if (!token) continue;
-
-            // 检查 token 中是否包含 .js
-            // .js 是插件名与说明文字的分界标记：
-            //   - "插件1.js" → 插件名 "插件1"
-            //   - "插件1.js（说明）" → 插件名 "插件1"，丢弃 "（说明）"
-            //   - "界面UI"（无.js）→ 整个就是插件名 "界面UI"
-            const jsIndex = token.indexOf('.js');
-            if (jsIndex !== -1) {
-                // 情况①③：token 含 .js
-                // 提取从开头到 .js 结束的部分（含.js），丢弃 .js 后面的说明文字
-                let pluginName = token.substring(0, jsIndex + 3); // 包含 ".js"
-                // 去掉 .js 后缀，统一格式
-                pluginName = pluginName.slice(0, -3);
-                if (pluginName) {
-                    result.push(pluginName);
-                }
-            } else {
-                // 情况②：token 不含 .js，整个 token 就是插件名
-                // 支持中文插件名如 "界面UI"、"分解界面UI"、"主菜单UI"
-                result.push(token);
-            }
-        }
-
-        // 去重
-        return [...new Set(result)];
-    }
-
-    /**
-     * 获取游戏原生插件信息（非mod插件）
-     * 从 plugins.js 中读取已注册的原生游戏插件及其开启状态。
-     * 返回 Map<插件名, {enabled: boolean}>（不含.js后缀），支持检测「存在但未开启」。
-     */
-    function getGamePluginInfo() {
-        const gamePlugins = new Map();
-        try {
-            const content = fs.readFileSync(PLUGINS_PATH, 'utf-8');
-            const lines = content.split('\n');
-            for (const line of lines) {
-                const objMatch = line.match(/^\s*(\{.*\})\s*,?\s*$/);
-                if (objMatch) {
-                    try {
-                        let obj = JSON.parse(objMatch[1]);
-                        if (obj.name) {
-                            let name = obj.name;
-                            // 跳过旧版写入 plugins.js 的 mod 路径条目
-                            if (name.startsWith('../mods/') || obj.__isMod) continue;
-                            // 去掉.js后缀，统一格式
-                            if (name.endsWith('.js')) name = name.slice(0, -3);
-                            // 只取文件名部分（去掉目录路径）
-                            const baseName = name.includes('/') ? name.split('/').pop() : name;
-                            const enabled = obj.status !== false;
-                            // 同时存储文件名和完整路径名
-                            gamePlugins.set(baseName, { enabled });
-                            if (baseName !== name) {
-                                gamePlugins.set(name, { enabled });
-                            }
-                        }
-                    } catch (jsonErr) { /* 忽略解析失败的行 */ }
-                }
-            }
-        } catch (e) {
-            log(1, "读取游戏插件列表失败", e);
-        }
-        return gamePlugins;
-    }
-
-    /**
-     * 检测所有mod的依赖状态
-     *
-     * 5种状态判定逻辑：
-     *
-     * 判定流程（对每个依赖插件名逐一检测）：
-     *   Step 1: 在游戏原生插件中查找
-     *     ├─ 找到且已开启 → PASS（游戏插件始终在mod之前加载，顺序天然满足）
-     *     ├─ 找到但未开启 → GAME_DISABLED（"游戏中的前置插件：XXX未开启"）
-     *     └─ 未找到 → Step 2
-     *   Step 2: 在mod列表中查找
-     *     ├─ 未找到 → NOT_FOUND（"缺少前置插件：XXX"）
-     *     ├─ 找到但未开启 → MOD_DISABLED（"前置Mod插件：XXX未开启"）
-     *     └─ 找到且已开启 → Step 3
-     *   Step 3: 检查排序（仅mod间需要，游戏插件天然在最前）
-     *     ├─ 依赖mod在当前mod之前 → PASS
-     *     └─ 依赖mod在当前mod之后（含同位） → WRONG_ORDER（"应放置于前置Mod插件：XXX下方"）
-     *
-     *  param {Array} modList - 模组数据列表，默认使用_modData
-     *  returns {Object} 每个mod的依赖检测结果
-     *   { modId: {
-     *       baseDetails: [{ name, status, message }],
-     *       orderAfterDetails: [{ name, status, message }],
-     *       baseWarning: boolean,
-     *       orderAfterWarning: boolean
-     *   } }
-     */
-    function checkModDependencies(modList) {
-        if (!modList) modList = _modData;
-        const result = {};
-
-        // 获取游戏原生插件信息 Map<插件名, {enabled}>
-        const gamePlugins = getGamePluginInfo();
-
-        // 构建当前mod列表的查找表：{ 插件名(不含.js): { mod, index, status } }
-        const modLookup = {};
-        modList.forEach((mod, index) => {
-            const modName = mod.id.replace('../mods/', '');
-            modLookup[modName] = { mod, index, status: mod.status };
-            if (mod.fileName) {
-                const fileNameNoExt = mod.fileName.replace(/\.js$/, '');
-                modLookup[fileNameNoExt] = { mod, index, status: mod.status };
-            }
-            if (mod.id.startsWith('ws:')) {
-                const parts = mod.id.split(':');
-                if (parts.length >= 3) {
-                    modLookup[parts[2]] = { mod, index, status: mod.status };
-                }
-            }
-            if (mod.id.startsWith('local:')) {
-                const parts = mod.id.split(':');
-                if (parts.length >= 3) {
-                    modLookup[parts[2]] = { mod, index, status: mod.status };
-                }
-            }
-        });
-
-        /**
-         * 检测单个依赖插件的状态
-         * @param {string} depName - 依赖插件名
-         * @param {number} currentIndex - 当前mod在列表中的索引
-         * @returns {{ status: string, message: string }}
-         *   status: "pass" | "not_found" | "game_disabled" | "mod_disabled" | "wrong_order"
-         */
-        function checkSingleDep(depName, currentIndex) {
-            // Step 1: 在游戏原生插件中查找
-            const gameInfo = gamePlugins.get(depName);
-            if (gameInfo) {
-                if (gameInfo.enabled) {
-                    // 游戏插件已开启，且游戏插件始终在mod之前加载 → 顺序天然满足
-                    return { status: 'pass', message: '' };
-                } else {
-                    // 游戏插件存在但未开启
-                    return { status: 'game_disabled', message: t('dep.gameDisabled').replace('{name}', depName) };
-                }
-            }
-
-            // Step 2: 在mod列表中查找
-            const modEntry = modLookup[depName];
-            if (!modEntry) {
-                // 游戏插件和mod列表中都找不到
-                return { status: 'not_found', message: t('dep.notFound').replace('{name}', depName) };
-            }
-
-            if (!modEntry.status) {
-                // mod存在但未开启
-                return { status: 'mod_disabled', message: t('dep.modDisabled').replace('{name}', depName) };
-            }
-
-            // Step 3: mod已开启，检查排序
-            if (modEntry.index < currentIndex) {
-                // 依赖mod在当前mod之前 → 顺序正确
-                return { status: 'pass', message: '' };
-            } else {
-                // 依赖mod在当前mod之后或同位 → 顺序错误
-                return { status: 'wrong_order', message: t('dep.wrongOrder').replace('{name}', depName) };
-            }
-        }
-
-        modList.forEach((mod, index) => {
-            const modId = mod.id;
-            const depInfo = {
-                baseDetails: [],
-                orderAfterDetails: [],
-                baseWarning: false,
-                orderAfterWarning: false
-            };
-
-            // ---- 检测 @base 依赖 ----
-            if (mod.baseList && mod.baseList.length > 0) {
-                for (const depName of mod.baseList) {
-                    const check = checkSingleDep(depName, index);
-                    depInfo.baseDetails.push({
-                        name: depName,
-                        status: check.status,
-                        message: check.message
-                    });
-                    if (check.status !== 'pass') {
-                        depInfo.baseWarning = true;
-                    }
-                }
-            }
-
-            // ---- 检测 @orderAfter 依赖 ----
-            if (mod.orderAfterList && mod.orderAfterList.length > 0) {
-                for (const depName of mod.orderAfterList) {
-                    const check = checkSingleDep(depName, index);
-                    depInfo.orderAfterDetails.push({
-                        name: depName,
-                        status: check.status,
-                        message: check.message
-                    });
-                    if (check.status !== 'pass') {
-                        depInfo.orderAfterWarning = true;
-                    }
-                }
-            }
-
-            result[modId] = depInfo;
-        });
-
-        return result;
-    }
+    // ---- 5.4 依赖检测 + 脚本基名冲突（规则子模块；缓存与 UI 留主文件） ----
 
     /**
      * 缓存的依赖检测结果
      */
     let _dependencyCache = {};
 
+    /** 脚本基名冲突（与 @base 依赖检测独立） */
+    let _pluginNameConflictCache = {};
+
+    const { resolvePluginNameConflicts, wouldModBeEffectiveIfEnabled } = pluginNameConflict;
+
     /**
-     * 刷新依赖检测缓存并更新UI
-     * 在进入管理器、排序变动、开关变动时调用
+     * 刷新依赖检测与脚本基名冲突缓存并更新 UI
      */
     function refreshDependencyCheck() {
         _dependencyCache = checkModDependencies(_modData);
-        log(3, "依赖检测完成，结果:", JSON.stringify(_dependencyCache));
+        _pluginNameConflictCache = resolvePluginNameConflicts(_modData, getGamePluginInfo());
+        log(3, '依赖检测完成，结果:', JSON.stringify(_dependencyCache));
     }
 
-    /**
-     * 获取指定mod的依赖状态（含 baseDetails / orderAfterDetails）
-     * @param {Object} mod - 模组对象
-     * @returns {Object} { baseDetails, orderAfterDetails, baseWarning, orderAfterWarning }
-     */
     function getModDepStatus(mod) {
         if (!mod || !mod.id) return { baseDetails: [], orderAfterDetails: [], baseWarning: false, orderAfterWarning: false };
         return _dependencyCache[mod.id] || { baseDetails: [], orderAfterDetails: [], baseWarning: false, orderAfterWarning: false };
     }
 
-    /**
-     * 为运行时加载组装 Mod 的 PluginManager 参数字典
-     * @param {Object} mod - scanAllMods() 返回的模组对象
-     * @returns {Object} parameters 对象
-     */
-    function buildModFinalParameters(mod) {
-        const finalParams = {};
-        if (!mod.params) return finalParams;
-        mod.params.forEach(p => {
-            let value = mod.currentParams.hasOwnProperty(p.name)
-                ? mod.currentParams[p.name]
-                : p.default;
-
-            if (value === '' || value === undefined || value === null) {
-                finalParams[p.name] = p.default;
-            } else if (p.type === 'number') {
-                const numValue = Number(value);
-                if (isNaN(numValue)) {
-                    finalParams[p.name] = p.default;
-                } else {
-                    let finalValue = numValue;
-                    if (p.min !== undefined && finalValue < p.min) finalValue = p.min;
-                    if (p.max !== undefined && finalValue > p.max) finalValue = p.max;
-                    finalParams[p.name] = String(finalValue);
-                }
-            } else if (p.type === 'color') {
-                finalParams[p.name] = isValidColor(value) ? value : p.default;
-            } else if (isNoteType(p.type)) {
-                finalParams[p.name] = normalizeNoteNewlines(sanitizeText(value));
-            } else if (isDatabaseType(p.type)) {
-                finalParams[p.name] = String(value);
-            } else if (p.type === 'struct') {
-                finalParams[p.name] = normalizeNoteFieldsInStructParam(
-                    value || p.default, p.schemaFields
-                );
-            } else if (p.type === 'table') {
-                finalParams[p.name] = value || p.default;
-            } else {
-                finalParams[p.name] = sanitizeText(value);
-            }
-        });
-        return finalParams;
+    function getModPluginNameConflict(mod) {
+        if (!mod || !mod.id) return null;
+        return _pluginNameConflictCache[mod.id] || null;
     }
+
+    /** 列表/详情：同名冲突说明（红字） */
+    function formatPluginNameConflictLabel(conflict) {
+        if (!conflict || !conflict.hasConflict) return '';
+        const parts = [];
+        if (conflict.gameName) {
+            if (conflict.gameEnabled) {
+                parts.push(t('conflict.withGameEnabled').replace('{name}', conflict.gameName));
+            } else {
+                parts.push(t('conflict.withGameDisabled').replace('{name}', conflict.gameName));
+            }
+        }
+        if (conflict.otherModOrders && conflict.otherModOrders.length > 0) {
+            const ordersText = conflict.otherModOrders.map((o) => String(o)).join(t('conflict.separator'));
+            parts.push(t('conflict.withModOrders').replace('{orders}', ordersText));
+        }
+        return parts.join(t('conflict.separator'));
+    }
+
+    function formatPluginNameConflictRule(conflict) {
+        if (!conflict || !conflict.hasConflict) return '';
+        if (conflict.gameEnabled) {
+            return t('conflict.ruleGameWins').replace('{name}', conflict.gameName || conflict.pluginBaseName);
+        }
+        return t('conflict.ruleModLowestOrder');
+    }
+
+    /** 列表状态：未开启 / 生效 / 不生效 */
+    function getModPluginNameConflictListStatus(mod, conflict) {
+        if (!conflict || !conflict.hasConflict) return null;
+        if (!mod.status) return 'off';
+        if (conflict.gameEnabled) return 'ineffective';
+        return conflict.isEffective ? 'effective' : 'ineffective';
+    }
+
+    function formatPluginNameConflictListStatus(mod, conflict) {
+        const status = getModPluginNameConflictListStatus(mod, conflict);
+        if (status === 'off') return t('conflict.statusOff');
+        if (status === 'effective') return t('conflict.statusEffective');
+        if (status === 'ineffective') return t('conflict.statusIneffective');
+        return '';
+    }
+
+    // buildModFinalParameters → modloader/paramValues.js（模块 4 已注入）
 
     // ---- 5.5 运行时加载与启动钩子（loadEnabledModsRuntime / bootstrapModLoaderReady / installBootstrapHooks / cleanupLegacyModEntriesFromPluginsJs） ----
 
@@ -2164,29 +913,21 @@
 
             // @base 依赖守卫：如果 @base 声明的依赖未启用，跳过加载以防崩溃
             if (mod.baseList && mod.baseList.length > 0) {
-                var missingBase = null;
-                for (var bi = 0; bi < mod.baseList.length; bi++) {
-                    var baseName = mod.baseList[bi];
-                    var baseLoaded = PluginManager._scripts.includes(baseName);
-                    if (!baseLoaded) {
-                        // 检查是否在本次待加载列表中
-                        var baseInQueue = enabled.some(function(e) {
-                            var eName = typeof Utils !== 'undefined'
-                                ? Utils.extractFileName(e.loadPath || e.id)
-                                : e.displayName;
-                            return eName === baseName;
-                        });
-                        if (!baseInQueue) {
-                            missingBase = baseName;
-                            break;
-                        }
-                    }
-                }
-                if (missingBase) {
-                    var skipName = typeof Utils !== 'undefined'
+                const pendingModNames = enabled.map(function(e) {
+                    return typeof Utils !== 'undefined'
+                        ? Utils.extractFileName(e.loadPath || e.id)
+                        : e.displayName;
+                });
+                const guard = isBaseLoadGuardSatisfied(
+                    mod.baseList,
+                    PluginManager._scripts,
+                    pendingModNames
+                );
+                if (!guard.satisfied) {
+                    const skipName = typeof Utils !== 'undefined'
                         ? Utils.extractFileName(loadPath)
                         : mod.displayName;
-                    log(1, `[依赖守卫] 跳过 ${skipName}：@base 依赖 "${missingBase}" 未启用`);
+                    log(1, `[依赖守卫] 跳过 ${skipName}：@base 依赖 "${guard.missingBase}" 未启用`);
                     continue;
                 }
             }
@@ -2318,13 +1059,13 @@
     // ================================================================
     // 模块 6 · UI / 渲染 / 启动 / 扩展宿主
     // ----------------------------------------------------------------
-    // 含：6.1 共享工具（滚动 / 校验 / 转义 / 类型与数据库，解析与运行时也会用） ·
+    // 含：6.1 共享工具（6.1.1 wheel · 6.1.2 校验/bind* 留主文件；类型/DB 工具 → modloader/paramTypeKit.js） ·
     //     6.2 CSS 样式 · 6.3 DOM UI 主面板 · 6.4 参数编辑器 · 6.5 标题按钮 ·
     //     6.6 键盘快捷键 · 6.7 初始化 · 6.8 扩展 API（冲突日志 / ManagerGate / libs）
     // 体积最大；拆文件时注意 6.1 被模块 4/5 共用，不可当作纯 UI 搬走。
     // ================================================================
 
-    // ---- 6.1 共享工具（滚动 / 输入验证 / XSS / 颜色与数据库类型；UI·解析·运行时共用） ----
+    // ---- 6.1 共享工具（DOM 校验/滚动 + 类型工具 re-export 自 modloader/paramTypeKit） ----
 
     // ---- 6.1.1 滚动容器 wheel 绑定（防止被 RMMZ 拦截冒泡） ----
     let _wheelListeners = []; // 存储需要移除的监听器
@@ -2380,33 +1121,7 @@
         return str.replace(/[^a-zA-Z0-9_-]/g, '_');
     }
     
-    /**
-     * 验证颜色格式是否有效
-     * 支持：#RRGGBB, #RGB, rgb/rgba, hsl/hsla, 或有效的颜色名
-     */
-    function isValidColor(color) {
-        if (!color || color === '') return false;
-        
-        // 检查 #RRGGBB 或 #RGB
-        if (/^#([0-9A-Fa-f]{3}){1,2}$/.test(color)) return true;
-        
-        // 检查 rgb/rgba
-        if (/^rgba?\s*\(\s*\d+\s*,\s*\d+\s*,\s*\d+(\s*,\s*(0|1|0?\.\d+))?\s*\)$/i.test(color)) return true;
-        
-        // 检查 hsl/hsla
-        if (/^hsla?\s*\(\s*\d+\s*,\s*\d+%?\s*,\s*\d+%?(\s*,\s*(0|1|0?\.\d+))?\s*\)$/i.test(color)) return true;
-        
-        // 检查常见颜色名（简化版）
-        const colorNames = ['black', 'white', 'red', 'green', 'blue', 'yellow', 'cyan', 'magenta', 
-                            'gray', 'grey', 'orange', 'purple', 'pink', 'brown', 'lightgray', 
-                            'darkgray', 'lightgrey', 'darkgrey', 'transparent', 'aqua', 
-                            'lime', 'maroon', 'navy', 'olive', 'silver', 'teal', 'violet'];
-        if (colorNames.includes(color.toLowerCase())) return true;
-        
-        return false;
-    }
-
-    // ---- 6.1.2 通用输入验证与安全（顶层 / struct / table 共用） ----
+    // ---- 6.1.2 通用输入验证与安全（顶层 / struct / table 共用；依赖 paramTypeKit.isValidColor / sanitizeText） ----
 
     /**
      * 验证并修正数值输入框的值
@@ -2418,27 +1133,10 @@
      * @returns {string} 修正后的合法值（字符串形式）
      */
     function validateNumberInput(inputEl, opts) {
-        const raw = inputEl.value.trim();
-        const { min, max, fallback } = opts;
-        const defaultVal = fallback !== undefined ? fallback : '0';
-
-        if (raw === '' || raw === undefined || raw === null) {
-            inputEl.value = defaultVal;
-            log(3, `[validateNumber] 空值，回退到: ${defaultVal}`);
-            return defaultVal;
+        const result = normalizeNumberField(inputEl.value, opts);
+        if (result !== inputEl.value.trim()) {
+            log(3, `[validateNumber] 修正为: ${result}`);
         }
-
-        let num = Number(raw);
-        if (isNaN(num)) {
-            inputEl.value = defaultVal;
-            log(3, `[validateNumber] 非法数字 "${raw}"，回退到: ${defaultVal}`);
-            return defaultVal;
-        }
-
-        // clamp 到范围
-        if (min !== undefined && num < min) { num = min; }
-        if (max !== undefined && num > max) { num = max; }
-        const result = String(num);
         inputEl.value = result;
         return result;
     }
@@ -2452,23 +1150,15 @@
      * @returns {string} 修正后的合法颜色值
      */
     function validateColorInput(textInputEl, colorInputEl, fallback) {
-        const raw = textInputEl.value.trim();
-        const defaultVal = fallback || '#ffffff';
-
-        if (!raw || !isValidColor(raw)) {
-            textInputEl.value = defaultVal;
-            if (colorInputEl) {
-                colorInputEl.value = defaultVal.startsWith('#') ? defaultVal : '#ffffff';
-            }
-            log(3, `[validateColor] 非法颜色 "${raw}"，回退到: ${defaultVal}`);
-            return defaultVal;
+        const result = normalizeColorField(textInputEl.value, fallback);
+        if (result !== textInputEl.value.trim()) {
+            log(3, `[validateColor] 修正为: ${result}`);
         }
-
-        // 合法颜色，同步到颜色选择器
-        if (colorInputEl && raw.startsWith('#')) {
-            colorInputEl.value = raw;
+        textInputEl.value = result;
+        if (colorInputEl) {
+            colorInputEl.value = result.startsWith('#') ? result : '#ffffff';
         }
-        return raw;
+        return result;
     }
 
     /**
@@ -2480,64 +1170,15 @@
      * @returns {string} 修正后的安全文本值
      */
     function validateTextInput(inputEl, fallback) {
-        let raw = inputEl.value;
-        const defaultVal = fallback !== undefined ? fallback : '';
-
-        if (raw === '' || raw === undefined || raw === null) {
-            inputEl.value = defaultVal;
-            return defaultVal;
-        }
-
-        // XSS 防护：移除危险内容
-        const sanitized = sanitizeText(raw);
-        if (sanitized !== raw) {
-            inputEl.value = sanitized;
+        const result = normalizeTextField(inputEl.value, fallback);
+        if (result !== inputEl.value) {
             log(3, `[validateText] 文本已净化，移除了潜在危险内容`);
         }
-        return sanitized;
-    }
-
-    /**
-     * 文本 XSS 净化函数
-     * 移除/转义可能被用于注入攻击的内容：
-     * - <script> 标签
-     * - javascript: 协议
-     * - 事件处理器属性 (onxxx=)
-     * - <iframe>, <embed>, <object> 等危险标签
-     * - data: 协议中的 HTML
-     * 
-     * 注意：此函数用于净化"存储到配置文件"的文本值，
-     * 防止恶意 Mod 作者通过参数值注入脚本攻击玩家。
-     * 渲染时仍使用 escapeHtml() 进行二次防护。
-     * 
-     * @param {string} text - 原始文本
-     * @returns {string} 净化后的安全文本
-     */
-    function sanitizeText(text) {
-        if (!text || typeof text !== 'string') return text;
-
-        let result = text;
-
-        // 1. 移除 <script> 标签及其内容
-        result = result.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-
-        // 2. 移除危险 HTML 标签（iframe, embed, object, applet, form, base, link, meta）
-        result = result.replace(/<\/?(iframe|embed|object|applet|form|base|link|meta)\b[^>]*>/gi, '');
-
-        // 3. 移除事件处理器属性 (onclick, onerror, onload, etc.)
-        result = result.replace(/\bon\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)/gi, '');
-
-        // 4. 移除 javascript: 协议
-        result = result.replace(/javascript\s*:/gi, '');
-
-        // 5. 移除 data:text/html 协议
-        result = result.replace(/data\s*:\s*text\/html/gi, '');
-
-        // 6. 移除 vbscript: 协议
-        result = result.replace(/vbscript\s*:/gi, '');
-
+        inputEl.value = result;
         return result;
     }
+
+    // isValidColor / sanitizeText → modloader/paramTypeKit.js（模块 4 已 re-export）
 
     /**
      * 为数值输入框绑定通用 blur 验证事件
@@ -2607,152 +1248,7 @@
         });
     }
 
-    /**
-     * 数据库引用类型映射表
-     * 将 @type actor/class/skill/.../switch/variable 映射到 RMMZ 数据源和中文名
-     * - global: window 上的 $dataXxx 数组
-     * - systemKey: $dataSystem 上的字符串数组（switches / variables）
-     */
-    const DB_TYPE_MAP = {
-        actor:        { global: '$dataActors',       label: '角色' },
-        class:        { global: '$dataClasses',      label: '职业' },
-        skill:        { global: '$dataSkills',       label: '技能' },
-        item:         { global: '$dataItems',        label: '物品' },
-        weapon:       { global: '$dataWeapons',      label: '武器' },
-        armor:        { global: '$dataArmors',       label: '防具' },
-        enemy:        { global: '$dataEnemies',      label: '敌人' },
-        troop:        { global: '$dataTroops',       label: '敌群' },
-        state:        { global: '$dataStates',       label: '状态' },
-        animation:    { global: '$dataAnimations',   label: '动画' },
-        common_event: { global: '$dataCommonEvents', label: '公共事件' },
-        switch:       { systemKey: 'switches',       label: '开关' },
-        variable:     { systemKey: 'variables',      label: '变量' }
-    };
-
-    /**
-     * 判断参数类型是否为数据库引用类型
-     */
-    function isDatabaseType(type) {
-        return DB_TYPE_MAP.hasOwnProperty(type);
-    }
-
-    function getDbLabel(type) {
-        var key = 'db.' + type;
-        var translated = t(key);
-        if (translated !== key) return translated;
-        var mapping = DB_TYPE_MAP[type];
-        return mapping ? mapping.label : type;
-    }
-
-    /**
-     * 将数据库集合归一化为可按下标遍历的数组
-     * - 标准 RMMZ：本身就是 Array
-     * - YEP_ItemCore 等：可能把 $dataWeapons/$dataArmors 转成数字键普通对象
-     * 返回 null 表示数据不可用
-     */
-    function normalizeDatabaseCollection(data) {
-        if (!data) return null;
-        if (Array.isArray(data)) return data;
-        if (typeof data !== 'object') return null;
-        const keys = Object.keys(data)
-            .map(Number)
-            .filter(function(n) { return Number.isInteger(n) && n >= 0; });
-        if (keys.length === 0) return null;
-        let max = 0;
-        for (let i = 0; i < keys.length; i++) {
-            if (keys[i] > max) max = keys[i];
-        }
-        const arr = new Array(max + 1);
-        for (let i = 0; i < keys.length; i++) {
-            arr[keys[i]] = data[keys[i]];
-        }
-        return arr;
-    }
-
-    /**
-     * 获取数据库引用类型对应的 RMMZ 数据数组
-     * 返回 null 表示数据库未加载 / 不可用
-     */
-    function getDatabaseArray(type) {
-        const mapping = DB_TYPE_MAP[type];
-        if (!mapping) return null;
-        try {
-            if (mapping.systemKey) {
-                const system = window.$dataSystem;
-                if (system && Array.isArray(system[mapping.systemKey])) {
-                    return system[mapping.systemKey];
-                }
-                return null;
-            }
-            return normalizeDatabaseCollection(window[mapping.global]);
-        } catch (e) { /* 忽略 */ }
-        return null;
-    }
-
-    /**
-     * 从数据库条目取显示名
-     * 对象条目用 .name；switch/variable 条目本身是字符串
-     */
-    function getDatabaseEntryName(entry) {
-        if (entry == null) return '';
-        if (typeof entry === 'string') return entry.trim();
-        if (typeof entry === 'object' && entry.name != null) return String(entry.name).trim();
-        return '';
-    }
-
-    /**
-     * 判断参数类型是否为长文本类型
-     */
-    function isNoteType(type) {
-        return type === 'note' || type === 'multiline_string';
-    }
-
-    /**
-     * 计算数值参数的合适步长
-     * 优先使用 @step 标签，否则根据 min/max 自动计算
-     */
-    function calculateStep(param) {
-        // 优先使用自定义 step
-        if (param.step !== undefined && !isNaN(param.step) && param.step > 0) {
-            return param.step;
-        }
-
-        // 如果没有 min/max，默认步长 1
-        if (param.min === undefined || param.max === undefined) {
-            return 1;
-        }
-
-        const min = param.min;
-        const max = param.max;
-        const range = max - min;
-
-        // 计算小数位数
-        function getDecimalPlaces(num) {
-            const str = num.toString();
-            const dotIndex = str.indexOf('.');
-            return dotIndex === -1 ? 0 : str.length - dotIndex - 1;
-        }
-
-        const minDecimals = getDecimalPlaces(min);
-        const maxDecimals = getDecimalPlaces(max);
-        const maxDecimalPlaces = Math.max(minDecimals, maxDecimals);
-
-        // 根据范围和小数位数计算合适的步长
-        if (maxDecimalPlaces > 0) {
-            // 有小数的情况
-            if (range <= 1) {
-                return 0.1;
-            } else if (range <= 10) {
-                return 0.5;
-            } else {
-                // 范围较大时，根据小数位数确定步长
-                return Math.pow(10, -maxDecimalPlaces);
-            }
-        }
-
-        // 整数的情况
-        return 1;
-    }
+    // isValidColor / sanitizeText / 类型与数据库工具 → modloader/paramTypeKit.js（模块 4 已 re-export）
 
     /**
      * HTML 转义，防止 XSS
@@ -2822,7 +1318,7 @@
     // ---- 6.2 CSS 样式注入（主题/布局） ----
     // 样式唯一来源：config/modloader.css（无内置 fallback，缺失时仅打日志）
     function injectStyles() {
-            var mlConfig = loadModLoaderConfig();
+            const mlConfig = loadModLoaderConfig();
             _currentTheme = mlConfig.ml_theme || 'dark';
             document.documentElement.setAttribute('data-ml-theme', _currentTheme);
 
@@ -2831,8 +1327,8 @@
                 return;
             }
 
-            var cssPath = pathMod.join(MODS_DIR, 'config', 'modloader.css');
-            var cssContent = null;
+            const cssPath = pathMod.join(MODS_DIR, 'config', 'modloader.css');
+            let cssContent = null;
             try {
                 if (fs.existsSync(cssPath)) {
                     cssContent = fs.readFileSync(cssPath, 'utf-8');
@@ -2846,7 +1342,7 @@
                 return;
             }
 
-            var styleEl = document.createElement('style');
+            const styleEl = document.createElement('style');
             styleEl.id = 'ml-styles';
             styleEl.textContent = cssContent;
             document.head.appendChild(styleEl);
@@ -2886,10 +1382,6 @@
 
     // 跟踪当前是否有输入框获得焦点
     let _isInputFocused = false;
-
-    // Schema 字典：存储 @define-schema 定义的模板，供 @schema 引用
-    // 格式: { 模板名: [ { name, type, text, default, min, max, step, options, schema, ... }, ... ] }
-    let _schemaDictionary = {};
     
     /**
      * 检查是否有输入框获得焦点
@@ -3067,7 +1559,7 @@
         document.getElementById('ml-btn-delete').addEventListener('click', toggleDeleteMode);
         document.getElementById('ml-btn-sort').addEventListener('click', toggleDrag);
 
-        var logPanelClose = document.getElementById('ml-log-panel-close');
+        const logPanelClose = document.getElementById('ml-log-panel-close');
         if (logPanelClose) {
             logPanelClose.addEventListener('click', function(e) {
                 e.stopPropagation();
@@ -3075,10 +1567,10 @@
             });
         }
 
-        var filterTabs = document.getElementById('ml-filter-tabs');
+        const filterTabs = document.getElementById('ml-filter-tabs');
         if (filterTabs) {
             filterTabs.addEventListener('click', function(e) {
-                var btn = e.target.closest('[data-filter]');
+                const btn = e.target.closest('[data-filter]');
                 if (!btn) return;
                 _listFilter = btn.dataset.filter || 'all';
                 filterTabs.querySelectorAll('.ml-filter-btn').forEach(function(b) {
@@ -3088,13 +1580,13 @@
             });
         }
 
-        var refreshWorkshopBtn = document.getElementById('ml-btn-refresh-workshop');
+        const refreshWorkshopBtn = document.getElementById('ml-btn-refresh-workshop');
         if (refreshWorkshopBtn) {
             refreshWorkshopBtn.addEventListener('click', refreshWorkshopMods);
         }
         
         // 绑定更新日志链接
-        var changelogLink = document.getElementById('ml-changelog-link');
+        const changelogLink = document.getElementById('ml-changelog-link');
         if (changelogLink) {
             changelogLink.addEventListener('click', function(e) {
                 e.stopPropagation();
@@ -3103,8 +1595,8 @@
         }
         
         // 绑定系统设置齿轮
-        var settingsGear = document.getElementById('ml-settings-gear');
-        var settingsCard = document.getElementById('ml-settings-card');
+        const settingsGear = document.getElementById('ml-settings-gear');
+        const settingsCard = document.getElementById('ml-settings-card');
         if (settingsGear && settingsCard) {
             settingsGear.addEventListener('click', function(e) {
                 e.stopPropagation();
@@ -3129,7 +1621,7 @@
         });
         
         // 绑定语言下拉
-        var langSelect = document.getElementById('ml-language-select');
+        const langSelect = document.getElementById('ml-language-select');
         if (langSelect) {
             langSelect.addEventListener('change', function() {
                 setLanguage(this.value);
@@ -3141,8 +1633,8 @@
         }
         
         // 绑定主题按钮
-        var themeBtnDark = document.getElementById('ml-theme-btn-dark');
-        var themeBtnWarm = document.getElementById('ml-theme-btn-warm');
+        const themeBtnDark = document.getElementById('ml-theme-btn-dark');
+        const themeBtnWarm = document.getElementById('ml-theme-btn-warm');
         if (themeBtnDark) {
             themeBtnDark.addEventListener('click', function(e) {
                 e.stopPropagation();
@@ -3200,8 +1692,7 @@
         if (!runManagerGates()) return;
 
         ensureModLoaderConfigFile();
-        const config = loadConfig();
-        var mlConfig = loadModLoaderConfig();
+        const mlConfig = loadModLoaderConfig();
         invalidateWorkshopConfigCache();
         loadLanguageConfigs();
         _currentLanguage = mlConfig.ml_language || 'zh_CN';
@@ -3230,7 +1721,7 @@
         renderModList();
 
         overlay.style.display = 'flex';
-        var filterTabs = document.getElementById('ml-filter-tabs');
+        const filterTabs = document.getElementById('ml-filter-tabs');
         if (filterTabs) {
             filterTabs.querySelectorAll('.ml-filter-btn').forEach(function(b) {
                 b.classList.toggle('active', b.dataset.filter === 'all');
@@ -3411,13 +1902,30 @@
                     installWarn = `<span class="ml-install-warn" title="${escapeHtml(t('workshop.unsubscribed'))}">○</span>`;
                 }
 
+                const nameConflict = getModPluginNameConflict(mod);
+                let nameConflictHtml = '';
+                if (nameConflict && nameConflict.hasConflict) {
+                    const conflictLabel = formatPluginNameConflictLabel(nameConflict);
+                    const conflictRule = formatPluginNameConflictRule(nameConflict);
+                    const statusText = formatPluginNameConflictListStatus(mod, nameConflict);
+                    const listStatus = getModPluginNameConflictListStatus(mod, nameConflict);
+                    const title = conflictLabel + '\n' + conflictRule;
+                    nameConflictHtml = `<span class="ml-name-conflict" title="${escapeHtml(title)}">${escapeHtml(conflictLabel)}</span>`;
+                    if (statusText) {
+                        nameConflictHtml += `<span class="ml-name-conflict-status ml-name-conflict-status-${listStatus}">${escapeHtml(statusText)}</span>`;
+                    }
+                    if (listStatus === 'ineffective') {
+                        itemClass += ' ml-plugin-ineffective';
+                    }
+                }
+
                 item.innerHTML = `
                     ${orderHtml}
                     <div class="ml-toggle ${mod.status ? 'on' : ''}" data-action="toggle" data-index="${index}">
                         <div class="${thumbClass}"></div>
                     </div>
                     <div class="ml-mod-name" data-action="select" data-index="${index}">
-                        ${parseColorTagsFromRaw(mod.displayName)}${workshopBadge}${installWarn}
+                        ${parseColorTagsFromRaw(mod.displayName)}${workshopBadge}${installWarn}${nameConflictHtml}
                     </div>
                     ${hasParams ? `<div class="ml-gear" data-action="params" data-index="${index}" title="${t('param.title')}">&#9881;</div>` : ''}
                     ${deleteHtml}
@@ -3525,12 +2033,23 @@
         const mod = _modData[index];
         const newStatus = !mod.status;
 
-        // 开启时检测依赖，按具体原因弹框确认
+        // 开启时检测依赖与同名冲突，按具体原因弹框确认
         if (newStatus) {
+            let warningMsg = '';
             const depStatus = getModDepStatus(mod);
-            if (depStatus.baseWarning || depStatus.orderAfterWarning) {
-                let warningMsg = '';
+            const nameConflict = getModPluginNameConflict(mod);
 
+            if (nameConflict && nameConflict.hasConflict) {
+                warningMsg += `⚠️ ${t('conflict.detailTitle')}：\n`;
+                warningMsg += `  • ${formatPluginNameConflictLabel(nameConflict)}\n`;
+                warningMsg += `  • ${formatPluginNameConflictRule(nameConflict)}\n`;
+                if (!wouldModBeEffectiveIfEnabled(mod, _modData, getGamePluginInfo())) {
+                    warningMsg += `  • ${t('conflict.enableWillNotWin')}\n`;
+                }
+                warningMsg += '\n';
+            }
+
+            if (depStatus.baseWarning || depStatus.orderAfterWarning) {
                 // @base 依赖问题（红色级别：容易崩溃）
                 if (depStatus.baseWarning) {
                     const baseProblems = depStatus.baseDetails
@@ -3548,7 +2067,9 @@
                         .join('\n');
                     warningMsg += `⚠️ @orderAfter 依赖问题（可能导致插件失效）：\n${orderProblems}\n\n`;
                 }
+            }
 
+            if (warningMsg) {
                 warningMsg += t('confirm.stillEnableMod');
 
                 showConfirmDialog(t('confirm.depWarning'), warningMsg, [
@@ -3648,7 +2169,7 @@
         const panel = document.getElementById('ml-detail-panel');
         if (!panel) return;
 
-        var DT = {
+        const DT = {
             labelParams: t('detail.labelParams'),
             labelVersion: t('detail.labelVersion'),
             labelAuthor: t('detail.labelAuthor'),
@@ -3829,6 +2350,24 @@
             `;
         }
 
+        const nameConflict = getModPluginNameConflict(mod);
+        if (nameConflict && nameConflict.hasConflict) {
+            const conflictLabel = formatPluginNameConflictLabel(nameConflict);
+            const conflictRule = formatPluginNameConflictRule(nameConflict);
+            const statusText = formatPluginNameConflictListStatus(mod, nameConflict);
+            let conflictValue = escapeHtml(conflictLabel);
+            if (statusText) {
+                conflictValue += ' <span class="ml-name-conflict-status">' + escapeHtml(statusText) + '</span>';
+            }
+            conflictValue += '<div class="ml-conflict-reason">' + escapeHtml(conflictRule) + '</div>';
+            metaHtml += `
+                <div class="ml-detail-section">
+                    <div class="ml-detail-label ml-conflict-label">${escapeHtml(t('conflict.detailTitle'))}</div>
+                    <div class="ml-detail-value ml-conflict-value">${conflictValue}</div>
+                </div>
+            `;
+        }
+
         let workshopHtml = '';
         if (mod.source === 'workshop') {
             workshopHtml = `
@@ -3951,18 +2490,10 @@
     }
 
     /**
-     * 将当前 _modData 全量写入 mod_config（含连续 order）
+     * mod_config 唯一写入路径：从当前 _modData 全量重写（无 merge、无 legacy 键残留）
      */
     function persistModListToConfig() {
-        const config = {};
-        _modData.forEach(mod => {
-            config[mod.id] = {
-                status: mod.status,
-                params: mod.currentParams,
-                order: mod.order
-            };
-        });
-        saveConfig(config);
+        saveConfig(serializeModListToConfig(_modData));
     }
 
     function getLocalModsInPackage(packageName) {
@@ -3971,24 +2502,15 @@
     }
 
     /**
-     * 保存所有修改。
-     * 全量从当前 _modData 重写配置（不合并旧文件），避免已删除 Mod 的残留条目。
+     * 保存所有修改（UI 入口；内部走 persistModListToConfig）
      */
     function saveAllChanges() {
-        const config = {};
-        _modData.forEach(mod => {
-            config[mod.id] = {
-                status: mod.status,
-                params: mod.currentParams,
-                order: mod.order
-            };
-        });
-        saveConfig(config);
+        persistModListToConfig();
         _needsRestart = true;
         _hasUnsavedChanges = false;
         updateRestartHint();
         updateSaveButton();
-        log(3, "所有修改已保存（全量重写配置）");
+        log(3, "所有修改已保存");
         try {
             if (typeof SoundManager !== 'undefined') SoundManager.playOk();
         } catch (e) { /* 忽略 */ }
@@ -4077,14 +2599,14 @@
     }
 
     function toggleTheme() {
-        var newTheme = _currentTheme === 'dark' ? 'warm' : 'dark';
+        const newTheme = _currentTheme === 'dark' ? 'warm' : 'dark';
         setTheme(newTheme);
         updateThemeButtons();
     }
 
     function updateThemeButtons() {
-        var btnDark = document.getElementById('ml-theme-btn-dark');
-        var btnWarm = document.getElementById('ml-theme-btn-warm');
+        const btnDark = document.getElementById('ml-theme-btn-dark');
+        const btnWarm = document.getElementById('ml-theme-btn-warm');
         if (btnDark) {
             btnDark.textContent = t('theme.dark');
             if (_currentTheme === 'dark') {
@@ -4162,10 +2684,10 @@
      */
     function showChangelogModal(title, body, options) {
         options = options || {};
-        var mode = options.mode === 'text' ? 'text' : 'md';
+        const mode = options.mode === 'text' ? 'text' : 'md';
         hideChangelogModal();
 
-        var htmlContent = mode === 'text'
+        const htmlContent = mode === 'text'
             ? '<p>' + escapeHtml(body || '') + '</p>'
             : parseMarkdownToHtml(body);
 
@@ -4210,8 +2732,8 @@
 
     /** 显示管理器自身更新日志 */
     function showChangelog() {
-        var changelogPath = pathMod.join(MODS_DIR, 'docs', 'modloader_CHANGELOG.md');
-        var mdContent;
+        const changelogPath = pathMod.join(MODS_DIR, 'docs', 'modloader_CHANGELOG.md');
+        let mdContent;
         try {
             mdContent = fs.readFileSync(changelogPath, 'utf-8');
         } catch (e) {
@@ -4224,29 +2746,29 @@
     /** 显示当前选中 Mod 包的更新日志（包级 CHANGELOG.md，多脚本共用） */
     function showModChangelog(mod) {
         if (!canShowModChangelog(mod)) return;
-        var changelogPath = getPackageChangelogPath(mod);
-        var version = resolvePackageVersion(mod);
-        var name = getPackageDisplayName(mod);
-        var mdContent;
+        const changelogPath = getPackageChangelogPath(mod);
+        const version = resolvePackageVersion(mod);
+        const name = getPackageDisplayName(mod);
+        let mdContent;
         try {
             mdContent = fs.readFileSync(changelogPath, 'utf-8');
         } catch (e) {
             log(1, '无法读取 Mod 更新日志:', e.message);
             return;
         }
-        var title = t('detail.changelogTitle')
+        const title = t('detail.changelogTitle')
             .replace('{name}', name)
             .replace('{version}', version || '');
         showChangelogModal(title, mdContent);
     }
 
     function populateLanguageSelect() {
-        var select = document.getElementById('ml-language-select');
+        const select = document.getElementById('ml-language-select');
         if (!select) return;
         select.innerHTML = '';
-        var langs = getAvailableLanguages();
+        const langs = getAvailableLanguages();
         langs.forEach(function(lang) {
-            var option = document.createElement('option');
+            const option = document.createElement('option');
             option.value = lang;
             option.textContent = getLanguageDisplayName(lang);
             if (lang === _currentLanguage) {
@@ -4254,50 +2776,50 @@
             }
             select.appendChild(option);
         });
-        var langLabel = document.querySelector('#ml-settings-lang-item .ml-settings-label');
+        const langLabel = document.querySelector('#ml-settings-lang-item .ml-settings-label');
         if (langLabel) langLabel.textContent = t('language.label');
-        var themeLabel = document.querySelector('#ml-settings-theme-item .ml-settings-label');
+        const themeLabel = document.querySelector('#ml-settings-theme-item .ml-settings-label');
         if (themeLabel) themeLabel.textContent = t('settings.theme');
     }
 
     function refreshAllUIText() {
-        var titleEl = document.querySelector('.ml-header h2');
+        const titleEl = document.querySelector('.ml-header h2');
         if (titleEl) titleEl.textContent = t('title');
         
-        var gear = document.getElementById('ml-settings-gear');
+        const gear = document.getElementById('ml-settings-gear');
         if (gear) gear.title = t('settings');
         
-        var saveBtn = document.getElementById('ml-btn-save');
+        const saveBtn = document.getElementById('ml-btn-save');
         if (saveBtn) saveBtn.textContent = t('button.save');
         
-        var closeBtn = document.getElementById('ml-btn-close');
+        const closeBtn = document.getElementById('ml-btn-close');
         if (closeBtn) closeBtn.textContent = t('button.close');
         
-        var disableAllBtn = document.getElementById('ml-btn-disable-all');
+        const disableAllBtn = document.getElementById('ml-btn-disable-all');
         if (disableAllBtn) disableAllBtn.textContent = t('button.disableAll');
         
-        var installBtn = document.getElementById('ml-btn-install');
+        const installBtn = document.getElementById('ml-btn-install');
         if (installBtn) installBtn.textContent = t('button.installMod');
         
-        var deleteBtn = document.getElementById('ml-btn-delete');
+        const deleteBtn = document.getElementById('ml-btn-delete');
         if (deleteBtn) {
             deleteBtn.textContent = _deleteMode ? t('sort.deleteEnabled') : t('sort.deleteDisabled');
         }
         
-        var sortBtn = document.getElementById('ml-btn-sort');
+        const sortBtn = document.getElementById('ml-btn-sort');
         if (sortBtn) {
             sortBtn.textContent = _dragEnabled ? t('sort.enabled') : t('sort.disabled');
             sortBtn.title = isListFilterRestrictingSort() ? t('sort.filterBlockedHint') : '';
         }
 
-        var refreshWorkshopBtn = document.getElementById('ml-btn-refresh-workshop');
+        const refreshWorkshopBtn = document.getElementById('ml-btn-refresh-workshop');
         if (refreshWorkshopBtn) refreshWorkshopBtn.textContent = t('workshop.refresh');
         updateWorkshopToolbarState();
 
-        var filterTabs = document.getElementById('ml-filter-tabs');
+        const filterTabs = document.getElementById('ml-filter-tabs');
         if (filterTabs) {
             filterTabs.querySelectorAll('[data-filter]').forEach(function(btn) {
-                var filter = btn.dataset.filter;
+                const filter = btn.dataset.filter;
                 if (filter === 'all') btn.textContent = t('tab.all');
                 else if (filter === 'local') btn.textContent = t('tab.local');
                 else if (filter === 'workshop') btn.textContent = t('tab.workshop');
@@ -4306,28 +2828,28 @@
         
         updateCounts();
         
-        var restartHint = document.getElementById('ml-restart-hint');
+        const restartHint = document.getElementById('ml-restart-hint');
         if (restartHint && !restartHint.classList.contains('hidden')) {
             restartHint.innerHTML = '&#9888; ' + t('footer.restartHint');
         }
         
-        var unsavedHint = document.getElementById('ml-unsaved-indicator');
+        const unsavedHint = document.getElementById('ml-unsaved-indicator');
         if (unsavedHint && !unsavedHint.classList.contains('hidden')) {
             unsavedHint.innerHTML = '&#8226; ' + t('footer.unsaved');
         }
         
-        var listOrderEl = document.querySelector('.ml-list-header span:first-child');
+        const listOrderEl = document.querySelector('.ml-list-header span:first-child');
         if (listOrderEl) listOrderEl.textContent = t('list.headerOrder');
-        var listModEl = document.querySelector('.ml-list-header span:nth-child(2)');
+        const listModEl = document.querySelector('.ml-list-header span:nth-child(2)');
         if (listModEl) listModEl.textContent = t('list.headerModList');
-        var listGearEl = document.querySelector('.ml-list-header span:last-child');
+        const listGearEl = document.querySelector('.ml-list-header span:last-child');
         if (listGearEl) listGearEl.textContent = t('list.headerClickGear');
         
         renderModList();
         if (_selectedIndex >= 0 && _selectedIndex < _modData.length) {
             renderDetail(_modData[_selectedIndex]);
         } else {
-            var panel = document.getElementById('ml-detail-panel');
+            const panel = document.getElementById('ml-detail-panel');
             if (panel && _modData.length === 0) {
                 panel.innerHTML = '<div class="ml-detail-empty">' + t('detail.empty') + '</div>';
             } else if (panel) {
@@ -4335,7 +2857,7 @@
             }
         }
         
-        var changelogLink = document.getElementById('ml-changelog-link');
+        const changelogLink = document.getElementById('ml-changelog-link');
         if (changelogLink) changelogLink.textContent = t('changelog');
 
         if (_titleBtn) _titleBtn.textContent = t('title');
@@ -4467,8 +2989,8 @@
 
     function suppressNextListClick() {
         _suppressListClick = true;
-        var cleared = false;
-        var clear = function(e) {
+        let cleared = false;
+        const clear = function(e) {
             if (cleared) return;
             cleared = true;
             if (e) {
@@ -5053,7 +3575,7 @@
 
         if (field.type === 'struct' && field.schema) {
             // ---- 嵌套 struct：递归渲染 ----
-            const subSchemaFields = _schemaDictionary[field.schema] || field.schemaFields || [];
+            const subSchemaFields = field.schemaFields || [];
             let structObj = {};
             try {
                 structObj = typeof curVal === 'string' ? JSON.parse(curVal) : (curVal || {});
@@ -6019,78 +4541,21 @@
                 }
             });
 
-            // 保存参数前处理空值
-            const finalParams = {};
+            const finalParams = buildFinalParametersFromValues(mod.params, editParams);
             mod.params.forEach(p => {
-                let value = editParams[p.name];
-                // struct/table 已在上一步序列化，直接透传
                 if (p.type === 'struct' || p.type === 'table') {
-                    finalParams[p.name] = value || p.default;
                     log(3, `[${p.type}] 参数 "${p.name}" 保存值:`, finalParams[p.name]);
-                    return; // 跳过后续验证
-                }                // 检查值是否为空
-                if (value === '' || value === undefined || value === null) {
-                    // 空值时使用默认值
-                    finalParams[p.name] = p.default;
-                    log(3, `参数 "${p.name}" 为空，使用默认值:`, p.default);
-                } else if (p.type === 'number') {
-                    // 数值类型额外验证
-                    const numValue = Number(value);
-                    if (isNaN(numValue)) {
-                        finalParams[p.name] = p.default;
-                        log(3, `参数 "${p.name}" 不是有效数字，使用默认值:`, p.default);
-                    } else {
-                        // 检查是否有最小/最大值限制
-                        let finalValue = numValue;
-                        if (p.min !== undefined && finalValue < p.min) finalValue = p.min;
-                        if (p.max !== undefined && finalValue > p.max) finalValue = p.max;
-                        finalParams[p.name] = String(finalValue);
-                    }
-                } else if (p.type === 'color') {
-                    // 颜色类型额外验证
-                    if (isValidColor(value)) {
-                        finalParams[p.name] = value;
-                    } else {
-                        finalParams[p.name] = p.default;
-                        log(3, `参数 "${p.name}" 颜色格式无效 (${value})，使用默认值:`, p.default);
-                    }
-                } else if (isNoteType(p.type)) {
-                    // 长文本类型：保留换行符，进行 XSS 净化
-                    finalParams[p.name] = sanitizeText(value);
-                } else if (isDatabaseType(p.type)) {
-                    // 数据库引用类型：值必须是字符串类型的 ID
-                    finalParams[p.name] = String(value);
-                } else {
-                    // 文本等其他类型：进行 XSS 净化
-                    finalParams[p.name] = sanitizeText(value);
                 }
             });
             
-            // 保存参数
             mod.currentParams = { ...finalParams };
-            const config = loadConfig();
-            config[mod.id] = {
-                status: mod.status,
-                params: mod.currentParams,
-                order: mod.order
-            };
-            saveConfig(config);
+            saveAllChanges();
 
-            _needsRestart = true;
-            updateRestartHint();
-            _hasUnsavedChanges = false;
-            updateSaveButton();
-
-            // 刷新详情
             if (_selectedIndex >= 0 && _modData[_selectedIndex] === mod) {
                 renderDetail(mod);
             }
 
             hideParamEditor();
-
-            try {
-                if (typeof SoundManager !== 'undefined') SoundManager.playOk();
-            } catch (e) { /* 忽略 */ }
 
             log(3, "参数已保存:", mod.displayName, finalParams);
         });
@@ -6323,7 +4788,8 @@
                     <div class="ml-drop-zone-text">${t('install.dragHint')}</div>
                 </div>
                 <div class="ml-install-or">${t('install.orClickBrowse')}</div>
-                <button class="ml-btn ml-btn-primary ml-install-browse" id="ml-btn-browse">${t('button.browseFiles')}</button>
+                <button class="ml-btn ml-btn-primary ml-install-browse" id="ml-btn-browse-js">${t('button.browseFiles')}</button>
+                <button class="ml-btn ml-btn-primary ml-install-browse" id="ml-btn-browse-folder">${t('button.browseModsFolder')}</button>
                 <br>
                 <button class="ml-btn ml-btn-secondary" id="ml-btn-exit-install">${t('button.exit')}</button>
             </div>
@@ -6334,7 +4800,8 @@
         const dropZone = document.getElementById('ml-drop-zone');
 
         // 绑定事件
-        document.getElementById('ml-btn-browse').addEventListener('click', browseFiles);
+        document.getElementById('ml-btn-browse-js').addEventListener('click', browseJsFiles);
+        document.getElementById('ml-btn-browse-folder').addEventListener('click', browseModsFolder);
         document.getElementById('ml-btn-exit-install').addEventListener('click', hideInstallOverlay);
 
         // 绑定拖放事件
@@ -6382,71 +4849,52 @@
     }
 
     /**
-     * 浏览本地文件（通过 NW.js）
+     * 浏览本地 .js（NW.js input；部分运行时无 showOpenDialog）
      */
-    function browseFiles() {
-        // NW.js 有打开文件对话框的API
-        try {
-            const nwGui = require('nw.gui');
-            const win = nwGui.Window.get();
-            if (DEBUG_LEVEL >= 3) {
-                win.showDevTools(); // 仅调试级别3及以上
+    function browseJsFiles() {
+        const dialog = document.createElement('input');
+        dialog.type = 'file';
+        dialog.accept = '.js';
+        dialog.multiple = true;
+        dialog.style.display = 'none';
+        document.body.appendChild(dialog);
+        dialog.onchange = (e) => {
+            if (e.target.files && e.target.files.length > 0) {
+                dispatchBrowseJsFiles(e.target.files);
             }
-            
-            // 弹出文件选择对话框
-            const dialog = document.createElement('input');
-            dialog.type = 'file';
-            dialog.accept = '.js';
-            dialog.multiple = true;
-            dialog.onchange = async (e) => {
-                if (e.target.files && e.target.files.length > 0) {
-                    const files = Array.from(e.target.files);
-                    handleJsFilesDrop(files.map(f => ({ type: 'file', file: f, name: f.name })));
-                }
-            };
-            dialog.click();
-        } catch (err) {
-            log(2, "无法打开文件浏览器：", err);
-            showConfirmDialog(
-                t('dialog.title'),
-                t('install.dragDirectly'),
-                [{ text: t('dialog.ok'), class: "ml-btn-primary", action: hideConfirmDialog }]
-            );
-        }
+            dialog.remove();
+        };
+        dialog.click();
     }
 
     /**
-     * 处理安装拖放
+     * 浏览本地 mods 文件夹（NW.js nwdirectory input）
      */
+    function browseModsFolder() {
+        const dialog = document.createElement('input');
+        dialog.type = 'file';
+        dialog.setAttribute('nwdirectory', '');
+        dialog.setAttribute('nwdirectorydesc', t('install.browseSelectModsFolder'));
+        dialog.style.display = 'none';
+        document.body.appendChild(dialog);
+        dialog.onchange = () => {
+            const rawPath = dialog.value;
+            dialog.remove();
+            if (!rawPath) return;
+            dispatchBrowseModsFolder(rawPath);
+        };
+        dialog.click();
+    }
+
+    /** 安装页拖放 → 模块 3 dispatchCollectedInstall */
     function handleInstallDrop(e) {
-        log(3, "=== handleInstallDrop ===");
-        
+        e.preventDefault();
+        e.stopPropagation();
         const items = e.dataTransfer.items;
-        const files = collectFiles(items ? Array.from(items) : [], e.dataTransfer.files);
-
-        if (files.length === 0) {
-            showConfirmDialog(
-                t('dialog.title'),
-                t('install.dragJsOrFolder'),
-                [{ text: t('dialog.ok'), class: "ml-btn-primary", action: hideConfirmDialog }]
-            );
-            return;
-        }
-
-        const modsFolder = files.find(f => f.type === 'mods-folder');
-        if (modsFolder) {
-            // 如果 entry 方式识别，强制用 dataTransfer.files
-            if (!modsFolder.files && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                modsFolder.files = Array.from(e.dataTransfer.files);
-            }
-            handleModsFolderDrop(modsFolder);
-            return;
-        }
-
-        const jsFiles = files.filter(f => f.type === 'file' && f.name.toLowerCase().endsWith('.js'));
-        if (jsFiles.length > 0) {
-            handleJsFilesDrop(jsFiles);
-        }
+        dispatchCollectedInstall(
+            items ? Array.from(items) : [],
+            e.dataTransfer.files
+        );
     }
 
     /**
@@ -6697,7 +5145,7 @@
     injectStyles();
     ensureModLoaderConfigFile();
     loadLanguageConfigs();
-    var initMlConfig = loadModLoaderConfig();
+    const initMlConfig = loadModLoaderConfig();
     _currentLanguage = initMlConfig.ml_language || 'zh_CN';
     if (!_languageConfigs[_currentLanguage]) {
         _currentLanguage = 'zh_CN';
@@ -6708,7 +5156,7 @@
     bootstrapModLoaderReady();
     window.addEventListener('load', () => {
         loadLanguageConfigs();
-        var mlCfg = loadModLoaderConfig();
+        const mlCfg = loadModLoaderConfig();
         _currentLanguage = mlCfg.ml_language || 'zh_CN';
         if (!_languageConfigs[_currentLanguage]) {
             _currentLanguage = 'zh_CN';
@@ -6720,8 +5168,8 @@
     // 须在 loadLibsExtensions 与任何同步加载的 Mod 注册之前完成赋值。
     // 当前安全顺序：6.7 只 defer 加载 → 本小节先导出 → 再扫 libs → 事件循环后再跑 Mod。
 
-    var _logEntries = [];  // { id, label, getConflictCount, getUpdateCount, render }
-    var _managerGates = [];
+    const _logEntries = [];  // { id, label, getConflictCount, getUpdateCount, render }
+    const _managerGates = [];
 
     /**
      * 供前置 Mod 注册冲突日志入口（设置菜单项 + 面板内容渲染）
@@ -6732,7 +5180,7 @@
             log(1, 'registerLogEntry: invalid entry (need id + render)');
             return;
         }
-        var normalized = {
+        const normalized = {
             id: String(entry.id),
             label: entry.label || '日志',
             getConflictCount: typeof entry.getConflictCount === 'function'
@@ -6743,8 +5191,8 @@
                 : function() { return 0; },
             render: entry.render
         };
-        var found = -1;
-        for (var i = 0; i < _logEntries.length; i++) {
+        let found = -1;
+        for (let i = 0; i < _logEntries.length; i++) {
             if (_logEntries[i].id === normalized.id) {
                 found = i;
                 break;
@@ -6775,7 +5223,7 @@
     }
 
     function runManagerGates() {
-        for (var i = 0; i < _managerGates.length; i++) {
+        for (let i = 0; i < _managerGates.length; i++) {
             try {
                 if (_managerGates[i]() === false) return false;
             } catch (e) {
@@ -6796,7 +5244,7 @@
             log(3, 'libs 目录不存在，跳过扩展加载');
             return;
         }
-        var files;
+        let files;
         try {
             files = fs.readdirSync(LIBS_DIR);
         } catch (e) {
@@ -6806,12 +5254,12 @@
         files = files.filter(function(f) {
             return /\.js$/i.test(f) && !LIBS_VENDOR_FILES[f];
         }).sort();
-        for (var i = 0; i < files.length; i++) {
-            var file = files[i];
-            var fullPath = pathMod.join(LIBS_DIR, file);
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            const fullPath = pathMod.join(LIBS_DIR, file);
             try {
-                var code = fs.readFileSync(fullPath, 'utf-8');
-                var script = document.createElement('script');
+                const code = fs.readFileSync(fullPath, 'utf-8');
+                const script = document.createElement('script');
                 script.setAttribute('data-ml-lib', file);
                 script.textContent = code;
                 (document.head || document.documentElement).appendChild(script);
@@ -6834,12 +5282,12 @@
     }
 
     function _applyLogItemBadges(entry, updateBadge, conflictBadge) {
-        var conflictCount = 0;
-        var updateCount = 0;
+        let conflictCount = 0;
+        let updateCount = 0;
         try {
-            var c = entry.getConflictCount();
+            const c = entry.getConflictCount();
             if (typeof c === 'number' && c > 0) conflictCount = c;
-            var u = entry.getUpdateCount();
+            const u = entry.getUpdateCount();
             if (typeof u === 'number' && u > 0) updateCount = u;
         } catch (e) { /* ignore */ }
         if (conflictBadge) {
@@ -6855,34 +5303,34 @@
     }
 
     function _refreshSettingsLogMenu() {
-        var container = document.getElementById('ml-settings-log-entries');
+        const container = document.getElementById('ml-settings-log-entries');
         if (!container) return;
         container.innerHTML = '';
         if (_logEntries.length === 0) return;
 
-        var sep = document.createElement('div');
+        const sep = document.createElement('div');
         sep.className = 'ml-settings-log-sep';
         container.appendChild(sep);
 
-        for (var i = 0; i < _logEntries.length; i++) {
+        for (let i = 0; i < _logEntries.length; i++) {
             (function(entry) {
-                var btn = document.createElement('button');
+                const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = 'ml-settings-log-item';
                 btn.setAttribute('data-log-entry-id', entry.id);
 
-                var label = document.createElement('span');
+                const label = document.createElement('span');
                 label.className = 'ml-settings-log-item-label';
                 label.textContent = entry.label;
 
-                var badgesWrap = document.createElement('span');
+                const badgesWrap = document.createElement('span');
                 badgesWrap.className = 'ml-settings-log-item-badges';
 
-                var updateBadge = document.createElement('span');
+                const updateBadge = document.createElement('span');
                 updateBadge.className = 'ml-settings-log-item-update-badge';
                 updateBadge.style.display = 'none';
 
-                var conflictBadge = document.createElement('span');
+                const conflictBadge = document.createElement('span');
                 conflictBadge.className = 'ml-settings-log-item-conflict-badge';
                 conflictBadge.style.display = 'none';
 
@@ -6894,7 +5342,7 @@
                 btn.appendChild(badgesWrap);
                 btn.addEventListener('click', function(e) {
                     e.stopPropagation();
-                    var settingsCard = document.getElementById('ml-settings-card');
+                    const settingsCard = document.getElementById('ml-settings-card');
                     if (settingsCard) settingsCard.style.display = 'none';
                     _openLogPanel(entry);
                 });
@@ -6904,9 +5352,9 @@
     }
 
     function _openLogPanel(entry) {
-        var panel = document.getElementById('ml-log-panel');
-        var title = document.getElementById('ml-log-panel-title');
-        var body = document.getElementById('ml-log-panel-body');
+        const panel = document.getElementById('ml-log-panel');
+        const title = document.getElementById('ml-log-panel-title');
+        const body = document.getElementById('ml-log-panel-body');
         if (!panel || !body) return;
         if (title) title.textContent = entry.label || '';
         body.innerHTML = '';
@@ -6921,26 +5369,26 @@
     }
 
     function _closeLogPanel() {
-        var panel = document.getElementById('ml-log-panel');
+        const panel = document.getElementById('ml-log-panel');
         if (panel) panel.style.display = 'none';
-        var body = document.getElementById('ml-log-panel-body');
+        const body = document.getElementById('ml-log-panel-body');
         if (body) body.innerHTML = '';
     }
 
     function _refreshSettingsBadges() {
-        var conflictBadge = document.getElementById('ml-settings-conflict-badge');
-        var updateBadge = document.getElementById('ml-settings-update-badge');
-        var conflictTotal = 0;
-        var updateTotal = 0;
-        for (var i = 0; i < _logEntries.length; i++) {
+        const conflictBadge = document.getElementById('ml-settings-conflict-badge');
+        const updateBadge = document.getElementById('ml-settings-update-badge');
+        let conflictTotal = 0;
+        let updateTotal = 0;
+        for (let i = 0; i < _logEntries.length; i++) {
             try {
-                var entry = _logEntries[i];
-                var c = entry.getConflictCount();
+                const entry = _logEntries[i];
+                const c = entry.getConflictCount();
                 if (typeof c === 'number' && c > 0) conflictTotal += c;
-                var u = entry.getUpdateCount();
+                const u = entry.getUpdateCount();
                 if (typeof u === 'number' && u > 0) updateTotal += u;
 
-                var menuItem = document.querySelector(
+                const menuItem = document.querySelector(
                     '.ml-settings-log-item[data-log-entry-id="' + entry.id + '"]'
                 );
                 if (menuItem) {
@@ -6964,7 +5412,7 @@
         _applyUpdateBadgeEl(document.getElementById('ml-title-update-badge'), updateTotal);
     }
 
-    var _refreshConflictBadge = _refreshSettingsBadges;
+    const _refreshConflictBadge = _refreshSettingsBadges;
 
     // 导出公共 API（libs / 前置 Mod 依赖此对象；必须在 loadLibsExtensions 之前赋值）
     window.ModLoader = {

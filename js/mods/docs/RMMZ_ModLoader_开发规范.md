@@ -16,6 +16,7 @@
 | [`mod商店拓展.md`](mod商店拓展.md) | Mod 商店设计与测试 |
 | [`管理器在线更新plan.md`](管理器在线更新plan.md) | 管理器在线更新（`libs/modLoaderUpdater.js`）设计与待办 |
 | [`adr/CONTEXT.md`](adr/CONTEXT.md) | 名词；ADR 记架构决策 |
+| [`ModLoader_技术债调查.md`](ModLoader_技术债调查.md) / [`ModLoader_第5波拆分方案.md`](ModLoader_第5波拆分方案.md) | **仅开发仓**；`pathRules` SYNC_EXCLUDE，不进发行仓 / catalog |
 
 本文件不维护模块清单、行号对照或内部函数黄页。
 
@@ -47,13 +48,13 @@
 
 ### 变量声明（`let` / `const` / `var`）
 
-**全项目目标：禁止 `var`**（含 `ModLoader.js`、`libs/`、发版工具脚本等）。默认 `const`；需要重新赋值时用 `let`。
+**全项目禁止 `var`**（含 `ModLoader.js`、`libs/`、发版工具脚本等）。默认 `const`；需要重新赋值时用 `let`。
 
 | 范围 | 规则 |
 | --- | --- |
 | **新写与改动代码** | 一律 `const` / `let`，不得新增 `var` |
 | **`libs/`** | 已统一为 `let` / `const` |
-| **`ModLoader.js`** | **待迁移**：仍含历史 `var`；后续将批量改为 `let` / `const`。动到该文件时，**顺手把触及的 `var` 改掉**，勿再引入新的 `var` |
+| **`ModLoader.js`** | 已统一为 `let` / `const`；**不得新增 `var`** |
 | **循环计数器等** | `for (let i = 0; …)`，不用 `for (var i = …)` |
 
 常量配置、模块级路径、不会重绑的引用一律 `const`；仅状态、累加器、需二次赋值的用 `let`。
