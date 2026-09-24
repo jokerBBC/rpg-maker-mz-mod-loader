@@ -1,5 +1,15 @@
 # ModLoader 更新日志
 
+## V4.4.7 (2026-09-24)
+
+### 管理器在线更新 · 文档默认不更新
+
+- **新增**：「在线更新时不更新文档（保留管理器更新日志 · docs/）」选项（`excludeDocsExceptChangelog`，**默认勾选**）— 跳过 `docs/` 下除 `docs/modloader_CHANGELOG.md`（及 catalog `changelogPath`）外的文档下载/清理，**不删除**本地已有文档；避免文档修订打扰玩家
+- **过滤**：与 `excludeAuthorTools` 同构，经 `catalogForApply` 同时作用于检查差异与实际更新；仅文档变更且勾选时不提示可更新
+- **取消勾选**后文档随在线更新一并更新
+- **发版排除**：`pathRules` / updater 内嵌排除增加 `tools/gitee-catalog-seed/`（独立目录源种子仓，不进发行仓 / catalog）
+- **发版修复**：可选插件（`CATALOG_ONLY_EXCLUDE`，如 `piracyGate.js`）更新语义为**未选用不添加、已选用不删除** — 不进 `catalog.files[]`/`remove[]`；游戏仓未收录时发行仓仍保留；SYNC_EXCLUDE 误落盘只清 dest、不写玩家 `remove[]`
+
 ## V4.4.6 (2026-08-29)
 
 ### 配置预设 polish

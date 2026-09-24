@@ -70,6 +70,7 @@
             btnUpdating: '更新中…',
             disableUpdates: '禁用管理器更新',
             excludeAuthorTools: '在线更新时不更新 Mod 商店作者工具（打包 GUI、catalog 发布等 · tools/modstore/）',
+            excludeDocsExceptChangelog: '在线更新时不更新文档（保留管理器更新日志 · docs/）',
             logTitle: '升级过程',
             logEmpty: '点击「检查更新」开始。',
             logDisabled: '已禁用管理器更新。',
@@ -131,6 +132,7 @@
             btnUpdating: '更新中…',
             disableUpdates: '停用管理器更新',
             excludeAuthorTools: '線上更新時不更新 Mod 商店作者工具（打包 GUI、catalog 發布等 · tools/modstore/）',
+            excludeDocsExceptChangelog: '線上更新時不更新文檔（保留管理器更新日誌 · docs/）',
             logTitle: '升級過程',
             logEmpty: '點擊「檢查更新」開始。',
             logDisabled: '已停用管理器更新。',
@@ -192,6 +194,7 @@
             btnUpdating: 'Updating…',
             disableUpdates: 'Disable manager updates',
             excludeAuthorTools: 'Skip Mod store author tools in online updates (pack GUI, catalog publish — tools/modstore/)',
+            excludeDocsExceptChangelog: 'Skip docs in online updates (keep manager changelog — docs/)',
             logTitle: 'Update log',
             logEmpty: 'Click “Check for updates” to start.',
             logDisabled: 'Manager updates are disabled.',
@@ -334,6 +337,7 @@
             'tools/.sora文件解包工具/',
             'tools/sorajm.js解密工具/',
             'tools/modstore/test/',
+            'tools/gitee-catalog-seed/',
             'modloader/test/',
             'docs/adr/',
             'docs/功能Mod更新日志/'
@@ -670,6 +674,7 @@
         return {
             updatesDisabled: false,
             excludeAuthorTools: true,
+            excludeDocsExceptChangelog: true,
             lastCheckedAt: null,
             lastRemoteVersion: null,
             lastError: null
@@ -688,6 +693,9 @@
                     cfg.excludeAuthorTools = raw.excludeAuthorTools === undefined
                         ? true
                         : !!raw.excludeAuthorTools;
+                    cfg.excludeDocsExceptChangelog = raw.excludeDocsExceptChangelog === undefined
+                        ? true
+                        : !!raw.excludeDocsExceptChangelog;
                     cfg.lastCheckedAt = raw.lastCheckedAt || null;
                     cfg.lastRemoteVersion = raw.lastRemoteVersion || null;
                     cfg.lastError = raw.lastError || null;
@@ -956,23 +964,56 @@
         return p.indexOf('tools/modstore/') === 0;
     }
 
-    /** 玩家勾选剔除 Mod 商店作者工具时，过滤 catalog 应用范围（仅跳过下载，不删本地文件） */
+    /** docs/ 白名单：勾选跳过文档时仍会更新（管理器更新日志） */
+    const DOCS_UPDATE_KEEP = {
+        'docs/modloader_CHANGELOG.md': true
+    };
+
+    /**
+     * docs/ 下可选文档（管理器更新日志除外）。
+     * 勾选「不更新文档」时跳过下载/清理，不删本地文件。
+     * @param {string} relPath
+     * @param {Object<string,true>} [keepPaths] 额外白名单（如 catalog.changelogPath）
+     */
+    function isOptionalDocPath(relPath, keepPaths) {
+        const p = normalizeRelPath(relPath);
+        if (p.indexOf('docs/') !== 0) return false;
+        if (DOCS_UPDATE_KEEP[p]) return false;
+        if (keepPaths && keepPaths[p]) return false;
+        return true;
+    }
+
+    /** 玩家勾选剔除作者工具 / 文档时，过滤 catalog 应用范围（仅跳过下载，不删本地文件） */
     function catalogForApply(catalog) {
         if (!catalog) return { files: [], remove: [] };
         const cfg = getConfig();
-        if (!cfg.excludeAuthorTools) {
+        const skipAuthorTools = !!cfg.excludeAuthorTools;
+        const skipDocs = !!cfg.excludeDocsExceptChangelog;
+        if (!skipAuthorTools && !skipDocs) {
             return { files: catalog.files.slice(), remove: (catalog.remove || []).slice() };
         }
+        const docKeep = {};
+        for (const k in DOCS_UPDATE_KEEP) {
+            if (Object.prototype.hasOwnProperty.call(DOCS_UPDATE_KEEP, k)) docKeep[k] = true;
+        }
+        if (catalog.changelogPath) docKeep[normalizeRelPath(catalog.changelogPath)] = true;
+
+        function shouldSkip(p) {
+            if (skipAuthorTools && isModStorePublishToolPath(p)) return true;
+            if (skipDocs && isOptionalDocPath(p, docKeep)) return true;
+            return false;
+        }
+
         const files = [];
         for (let i = 0; i < catalog.files.length; i++) {
             const f = catalog.files[i];
-            if (!isModStorePublishToolPath(f.path)) files.push(f);
+            if (!shouldSkip(f.path)) files.push(f);
         }
         const remove = [];
         const remList = catalog.remove || [];
         for (let j = 0; j < remList.length; j++) {
             const p = remList[j];
-            if (!isModStorePublishToolPath(p)) remove.push(p);
+            if (!shouldSkip(p)) remove.push(p);
         }
         return { files: files, remove: remove };
     }
@@ -1346,6 +1387,8 @@
         if (cb) cb.checked = disabled;
         const toolsCb = _panelRoot.querySelector('.ml-updater-exclude-tools-input');
         if (toolsCb) toolsCb.checked = !!getConfig().excludeAuthorTools;
+        const docsCb = _panelRoot.querySelector('.ml-updater-exclude-docs-input');
+        if (docsCb) docsCb.checked = !!getConfig().excludeDocsExceptChangelog;
     }
 
     function showRemoteChangelog() {
@@ -1429,6 +1472,8 @@
             '<span>' + escHtml(t('disableUpdates')) + '</span></label>' +
             '<label><input type="checkbox" class="ml-updater-exclude-tools-input" />' +
             '<span>' + escHtml(t('excludeAuthorTools')) + '</span></label>' +
+            '<label><input type="checkbox" class="ml-updater-exclude-docs-input" />' +
+            '<span>' + escHtml(t('excludeDocsExceptChangelog')) + '</span></label>' +
             '</div>' +
             '<div class="ml-updater-log-title">' + escHtml(t('logTitle')) + '</div>' +
             '<pre class="ml-updater-log ml-list-scroll"></pre>' +
@@ -1481,6 +1526,15 @@
             toolsCb.addEventListener('change', function () {
                 const cfg = getConfig();
                 cfg.excludeAuthorTools = !!toolsCb.checked;
+                saveConfig();
+                refreshChrome();
+            });
+        }
+        const docsCb = container.querySelector('.ml-updater-exclude-docs-input');
+        if (docsCb) {
+            docsCb.addEventListener('change', function () {
+                const cfg = getConfig();
+                cfg.excludeDocsExceptChangelog = !!docsCb.checked;
                 saveConfig();
                 refreshChrome();
             });

@@ -8,7 +8,7 @@
 
 > **[中文版 README](README.md)**
 
-In-game mod manager **V4.4.6**
+In-game mod manager **V4.4.7**
 
 A powerful RPG Maker MZ mod manager that lets you enable/disable, edit parameters, reorder, and check dependencies for **local mods** and **Steam Workshop mods** — all from inside the game. **Multilingual UI** is supported (Simplified Chinese / Traditional Chinese / English).
 
@@ -32,7 +32,7 @@ A powerful RPG Maker MZ mod manager that lets you enable/disable, edit parameter
 | 🎮 **In-game management** | Manage mod toggles, parameters, and load order without external tools |
 | 🛒 **Steam Workshop** | Scans `workshop/content/<AppID>/` (AppID configurable); filter, refresh list; unified package layout for local and Workshop mods |
 | 🏪 **Mod store extension** | `libs/modStore.js`: multi-source HTTPS catalog subscribe, download/update packages to `_localmods`, resume for large files (>50MB); **multilingual UI** (Simplified / Traditional Chinese, English — follows manager language); list **Changelog** button |
-| 🔄 **Manager self-update** | `libs/modLoaderUpdater.js`: manual check/update for ModLoader itself (catalog + raw files); separate from Mod store; disable toggle; green badge additive |
+| 🔄 **Manager self-update** | `libs/modLoaderUpdater.js`: manual check/update for ModLoader itself (catalog + raw files); separate from Mod store; disable toggle; green badge additive; optional skip of author tools / docs (manager changelog kept) |
 | 💾 **Config presets** | `libs/modConfigPresets.js`: save current mod toggles/params/order as named presets in Settings; preview diffs then apply (preview only or save immediately); files under `config/mod_presets/` |
 | 📦 **Unified package layout** | Local `_localmods/<package>/` matches Workshop subscription root layout (V4.1); package-root `CHANGELOG.md` is the only mod changelog location (V4.2) |
 | 📋 **Mod changelogs** | Detail panel link next to version; header **(Changelog)** for ModLoader itself; shared Markdown modal for store / detail / manager |
@@ -280,4 +280,4 @@ MIT License — see [LICENSE](LICENSE)
 
 ***
 
-**Version**: V4.4.6 | **Updated**: 2026-08-29
+**Version**: V4.4.7 | **Updated**: 2026-09-24

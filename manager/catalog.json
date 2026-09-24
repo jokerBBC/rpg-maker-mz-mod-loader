@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "id": "modloader-manager",
-  "version": "V4.4.6",
-  "publishedAt": "2026-08-29T12:02:12Z",
+  "version": "V4.4.7",
+  "publishedAt": "2026-09-24T09:03:50Z",
   "changelogPath": "docs/modloader_CHANGELOG.md",
   "files": [
     {
       "path": "ModLoader.js",
-      "sha256": "10443115396aa7ff559ccd30a389c94adcf10fe4e941df58ff21514525f2420c",
+      "sha256": "cbf86d48900bc78efdc858f9e70bdcf5804d9324726d1670d503fbf1c6839624",
       "size": 237940
     },
     {
@@ -37,18 +37,18 @@
     },
     {
       "path": "docs/ModLoader_测试文档.md",
-      "sha256": "3c01ddb70a93e17bb75d1be92af976c85d436bc158a7c3b32971eef1fb8e728b",
-      "size": 11546
+      "sha256": "57b13713c7a1b6d459f309947bcf7b6d325b40cb7948c703e5eb045a675f1012",
+      "size": 12059
     },
     {
       "path": "docs/README-en.md",
-      "sha256": "e5e60d4de871168e14be17e8a2ef1da92787602b83008eda7d9bf674f66c0e38",
-      "size": 11786
+      "sha256": "9cd613730ba05ced7cf17e91a350a7fe51ba30b9328ec347f9ec13bda126750c",
+      "size": 11849
     },
     {
       "path": "docs/README.md",
-      "sha256": "1949488d2f9e898503bc07d47f42c02700c102b6cda9743e608ef7eb1161259d",
-      "size": 11623
+      "sha256": "3a14764dc5ced721b69729bd6a74b0f7b3befb85cd3601849f8d6dc7c9b871e1",
+      "size": 11701
     },
     {
       "path": "docs/RMMZ_ModLoader_开发规范.md",
@@ -92,8 +92,8 @@
     },
     {
       "path": "docs/modloader_CHANGELOG.md",
-      "sha256": "7566047d5de38bcad807552963758ee08d41822625842f76001d95aacde7ff18",
-      "size": 47091
+      "sha256": "04f8c8cd712160eac01484f6ef4a0255199d882fceead49aa2757d96dbd0cb9b",
+      "size": 48152
     },
     {
       "path": "docs/mod商店拓展.md",
@@ -102,8 +102,8 @@
     },
     {
       "path": "docs/使用手册.md",
-      "sha256": "2f00d0e56e7e04e2be986f48d9a00006f4797eb2e6b92769a674cd2e451a81eb",
-      "size": 23195
+      "sha256": "4b83145a6526a5d6581254efbe5d32a93e528dbb6506c19e386e92118b5ba51f",
+      "size": 23508
     },
     {
       "path": "docs/前置Mod相关文档/前置Mod测试清单.md",
@@ -132,8 +132,8 @@
     },
     {
       "path": "libs/modLoaderUpdater.js",
-      "sha256": "4f4983ce754f271b3d24469d95e4c4be847adc851da1a021a78fedc715f67547",
-      "size": 64318
+      "sha256": "6cbb20ba18f1240cff74d1aba5d00a586de6f4dc4299a39bcf42b5217def0c93",
+      "size": 66947
     },
     {
       "path": "libs/modStore.js",

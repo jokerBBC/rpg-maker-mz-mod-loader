@@ -380,7 +380,7 @@
         },
 
         /**
-         * 【挂机升级打怪兽 / sorajm.js】
+         * 【打怪升级爆装备 / sorajm.js】
          * Hook DataManager.onLoad，在每份数据库加载完成后应用注册表
          */
         installSorajmLoadPath() {
@@ -430,7 +430,7 @@
         },
 
         /**
-         * 【挂机升级打怪兽 / YEP 插件栈】
+         * 【YEP 插件栈】
          * 包装 notetag 处理器，对 null 槽临时 stub
          */
         installYepNotetagNullSlot() {
