@@ -788,6 +788,7 @@
     modMetadataDeps.normalizeSingleParamValue = paramValues.normalizeSingleParamValue;
 
     const {
+        normalizeNumberField,
         normalizeColorField,
         normalizeTextField,
         normalizeSingleParamValue,
