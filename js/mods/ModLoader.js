@@ -4880,13 +4880,7 @@
 
         // 移除点击遮罩关闭功能，用户必须点击确认或取消按钮
 
-        // 设置初始焦点到第一个输入框
-        setTimeout(() => {
-            const firstInput = body.querySelector('input[type="text"], input[type="number"], input[type="color"], select');
-            if (firstInput) {
-                firstInput.focus();
-            }
-        }, 50);
+        // 不自动聚焦第一个输入框：保持焦点在容器外，方便打开后直接用鼠标滚轮浏览参数列表
 
         log(3, "参数编辑器已打开:", mod.displayName);
     }
