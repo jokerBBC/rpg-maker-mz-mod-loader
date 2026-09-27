@@ -1,4 +1,4 @@
-<!-- 本文件由 tools/manager-release/sync.js 从 js/mods/docs/ 自动生成，请勿手改 -->
+<!-- 本文件由 tools/manager-release/catalogCore.js 从 js/mods/docs/ 自动生成，请勿手改 -->
 
 # RMMZ ModLoader
 
@@ -8,7 +8,7 @@
 
 > **[English README](README-en.md)**
 
-游戏内模组管理器 **V4.4.7**
+游戏内模组管理器 **V4.4.8**
 
 一款功能强大的 RPG Maker MZ 模组管理器，支持在游戏内管理 **本地 Mod** 与 **Steam 创意工坊 Mod** 的开启/关闭、参数编辑、排序与依赖检测。**现已支持多语言界面**（简体中文 / 繁體中文 / English）。
 
@@ -278,4 +278,4 @@ MIT License — 详见 [LICENSE](LICENSE)
 
 ***
 
-**版本**: V4.4.7 | **更新日期**: 2026-09-24
+**版本**: V4.4.8 | **更新日期**: 2026-09-27

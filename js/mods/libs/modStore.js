@@ -600,9 +600,10 @@
         return true;
     }
 
-    function forEachDedupedPackage(callback) {
-        const rows = dedupePackageRows(collectStoreRows('all'));
-        rebuildMultiSourceMap(rows);
+    function forEachDedupedPackage(callback, filterSourceId) {
+        // 多源标记始终基于全部来源，避免按源过滤后误判
+        rebuildMultiSourceMap(dedupePackageRows(collectStoreRows('all')));
+        const rows = dedupePackageRows(collectStoreRows(filterSourceId == null ? 'all' : filterSourceId));
         const seenPkg = {};
         for (let i = 0; i < rows.length; i++) {
             const row = rows[i];
@@ -1438,20 +1439,27 @@
         };
     }
 
-    function countUpdatable() {
+    /** 按当前来源 tab 统计状态行数，与列表展示保持一致 */
+    function countRowsMatchingStatus(matchFn) {
+        rebuildMultiSourceMap(dedupePackageRows(collectStoreRows('all')));
+        const rows = dedupePackageRows(collectStoreRows(_activeTab));
         let n = 0;
-        forEachDedupedPackage(function (info) {
-            if (info.status === 'update') n++;
-        });
+        for (let i = 0; i < rows.length; i++) {
+            if (matchFn(enrichRow(rows[i]))) n++;
+        }
         return n;
     }
 
-    function countNew() {
-        let n = 0;
-        forEachDedupedPackage(function (info) {
-            if (info.isNew) n++;
+    function countUpdatable() {
+        return countRowsMatchingStatus(function (info) {
+            return info.status === 'update';
         });
-        return n;
+    }
+
+    function countNew() {
+        return countRowsMatchingStatus(function (info) {
+            return info.isNew;
+        });
     }
 
     /** 齿轮角标：可更新 + 未查看的新增 Mod（按 packageName 去重） */
@@ -1959,12 +1967,9 @@
     }
 
     function countMissing() {
-        const rows = dedupePackageRows(collectStoreRows('all'));
-        let n = 0;
-        for (let i = 0; i < rows.length; i++) {
-            if (enrichRow(rows[i]).status === 'missing') n++;
-        }
-        return n;
+        return countRowsMatchingStatus(function (info) {
+            return info.status === 'missing';
+        });
     }
 
     function applyDefaultStatusFilter() {
@@ -2454,6 +2459,9 @@
             tabs[t].addEventListener('click', function (e) {
                 _activeTab = e.currentTarget.getAttribute('data-tab') || 'all';
                 _listScrollTop = 0;
+                if (!_statusFilterPinnedByUser) {
+                    applyDefaultStatusFilter();
+                }
                 renderPanel(container, { preserveScroll: false });
             });
         }
