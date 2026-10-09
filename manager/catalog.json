@@ -2,33 +2,33 @@
   "schema": 1,
   "id": "modloader-manager",
   "version": "V4.4.9",
-  "publishedAt": "2026-10-09T04:00:07Z",
+  "publishedAt": "2026-10-09T04:06:08Z",
   "changelogPath": "docs/modloader_CHANGELOG.md",
   "files": [
     {
       "path": "ModLoader.js",
-      "sha256": "8eced4e7629eed22a17bc8d91ef7161f868fbc7801ae1da68edf743513d4cf76",
-      "size": 240020
+      "sha256": "f5a3d470691d7a692767aee005f02dd82d33a12dfbfe3e0e58b7c618035d7c39",
+      "size": 241648
     },
     {
       "path": "config/language/en.json",
-      "sha256": "c17a293525e76bdf8457f944ba95372c53388ddc44682cc7f418683c98ef7214",
-      "size": 9186
+      "sha256": "d02fbb34ebf89f61e48943858327c60d64cb1ddc9f6d26a9f9cb4c94e2de7184",
+      "size": 9420
     },
     {
       "path": "config/language/zh_CN.json",
-      "sha256": "360af44913b46722ccaae6a5691b84226438b57ca84d7466d903699965488f6c",
-      "size": 9198
+      "sha256": "1f64134c8688f70bad0a090238ef8919a5cb9a0701c6dfaf84f520029a0d2d76",
+      "size": 9394
     },
     {
       "path": "config/language/zh_TW.json",
-      "sha256": "c36b40322640bbae6557ad3392826e887143bd313e13fffd7558171b78ea8059",
-      "size": 9206
+      "sha256": "1698e02baf02361f1912bbd2ecd92170007e1f6abf987c9f48e00af6b5bdc20d",
+      "size": 9405
     },
     {
       "path": "config/modloader.css",
-      "sha256": "74980f742d6b8b88060bdaedbfce00c41d38f335b43fa9a97646e1f506896b2a",
-      "size": 47516
+      "sha256": "a35693f962d69adc7ea5a151abdfd94cf28576a6de1a3a5ed0e311aea9839fc2",
+      "size": 47724
     },
     {
       "path": "docs/LICENSE",
