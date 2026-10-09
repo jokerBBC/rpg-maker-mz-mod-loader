@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "modloader-manager",
   "version": "V4.4.10",
-  "publishedAt": "2026-10-09T06:10:59Z",
+  "publishedAt": "2026-10-09T06:27:27Z",
   "changelogPath": "docs/modloader_CHANGELOG.md",
   "files": [
     {
@@ -82,8 +82,8 @@
     },
     {
       "path": "docs/modloader_CHANGELOG.md",
-      "sha256": "3b06bb03729a087a9e3795c8d6848e7b727a4284e580b554700624e77439aff3",
-      "size": 52508
+      "sha256": "7c72fb3a2601411c1fe0d5188d7c3040f5aa4ccc5204e5ca8841638ed151961d",
+      "size": 52919
     },
     {
       "path": "docs/mod商店拓展.md",
