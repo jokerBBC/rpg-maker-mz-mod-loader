@@ -2,33 +2,33 @@
   "schema": 1,
   "id": "modloader-manager",
   "version": "V4.4.9",
-  "publishedAt": "2026-10-09T01:15:13Z",
+  "publishedAt": "2026-10-09T04:00:07Z",
   "changelogPath": "docs/modloader_CHANGELOG.md",
   "files": [
     {
       "path": "ModLoader.js",
-      "sha256": "39c7f8b223218bc3b2c76285c3fbde08693baec0acb3331d3e81189e9efb9381",
-      "size": 237801
+      "sha256": "8eced4e7629eed22a17bc8d91ef7161f868fbc7801ae1da68edf743513d4cf76",
+      "size": 240020
     },
     {
       "path": "config/language/en.json",
-      "sha256": "ed128c00ae516588e4e2819bfa3e00a5bd330cd6d1d6dd2a22051c7b501cfa74",
-      "size": 9100
+      "sha256": "c17a293525e76bdf8457f944ba95372c53388ddc44682cc7f418683c98ef7214",
+      "size": 9186
     },
     {
       "path": "config/language/zh_CN.json",
-      "sha256": "6ec85ddda36b358c7c8857829385b6ab5e45c6f13c0f0c00b04d3c2a3b42b520",
-      "size": 9117
+      "sha256": "360af44913b46722ccaae6a5691b84226438b57ca84d7466d903699965488f6c",
+      "size": 9198
     },
     {
       "path": "config/language/zh_TW.json",
-      "sha256": "e680697d7dbee2b3a908e3391de8ec277d0d155eb066930268d49bf4584dbcc4",
-      "size": 9125
+      "sha256": "c36b40322640bbae6557ad3392826e887143bd313e13fffd7558171b78ea8059",
+      "size": 9206
     },
     {
       "path": "config/modloader.css",
-      "sha256": "6ae5f6448cc0020d6e7c8e7eb01e41d0fa2546320cf90b203413e09746905ac1",
-      "size": 47358
+      "sha256": "74980f742d6b8b88060bdaedbfce00c41d38f335b43fa9a97646e1f506896b2a",
+      "size": 47516
     },
     {
       "path": "docs/LICENSE",
@@ -36,24 +36,14 @@
       "size": 1066
     },
     {
-      "path": "docs/ModLoader_测试文档.md",
-      "sha256": "57b13713c7a1b6d459f309947bcf7b6d325b40cb7948c703e5eb045a675f1012",
-      "size": 12059
-    },
-    {
       "path": "docs/README-en.md",
-      "sha256": "97ef09d9e9af5210009b12f4e6541105a7e4c731082cd9a38ef8510dbd597cde",
-      "size": 11849
+      "sha256": "50af99829017a64638f26199e13d470a416c352ec4cc8d53f0722109e03d7ad0",
+      "size": 11503
     },
     {
       "path": "docs/README.md",
-      "sha256": "1fcabefdad9872ded47bcdcca1dfe188e3e69f8b8f26fcd034b1fb724a021a12",
-      "size": 11701
-    },
-    {
-      "path": "docs/RMMZ_ModLoader_开发规范.md",
-      "sha256": "014474c1fe3f710278f4d74228490378fc9bb22422bc6a9047cbf71e89760d22",
-      "size": 4738
+      "sha256": "6f4456680f07b3d490eeaefa88506736c7e29f29f4b1071234b2ff4353969b70",
+      "size": 11357
     },
     {
       "path": "docs/img/主界面-创意工坊.png",
@@ -97,28 +87,13 @@
     },
     {
       "path": "docs/mod商店拓展.md",
-      "sha256": "9fd7d878807622d856a190ee4778cab2c57dadc30552041849fe4463c9402bf9",
-      "size": 16201
+      "sha256": "75eef35dedc6fd44147b268ea27d597733fe685461ae045408ea00101f90774a",
+      "size": 16127
     },
     {
       "path": "docs/使用手册.md",
-      "sha256": "dbda5abbe8086bf3719a68a8417bfa06252f615f72e7d3d32e9cfc522336305a",
-      "size": 23508
-    },
-    {
-      "path": "docs/前置Mod相关文档/前置Mod测试清单.md",
-      "sha256": "34ec5a18113e5867c8966d2ac63da913ffd530de6e3bf335aa070e3f6bc69704",
-      "size": 9450
-    },
-    {
-      "path": "docs/前置Mod相关文档/数据和资源前置Mod-V2-需求规格书.md",
-      "sha256": "8b808080f7d3011c7cd845507697bb139d90bcbb477904f70ad274aaee5fe907",
-      "size": 21939
-    },
-    {
-      "path": "docs/前置Mod相关文档/调用规范.md",
-      "sha256": "8790c6145ccd8a5f4c27b87cc64b3694800ffc12de9953074e685f5d4589c086",
-      "size": 10300
+      "sha256": "550fa450b757dd5eaa6f0dd2ab90aa892040f1f66635119ed687f8b59fb863f2",
+      "size": 23081
     },
     {
       "path": "libs/marked.min.js",
@@ -132,13 +107,13 @@
     },
     {
       "path": "libs/modLoaderUpdater.js",
-      "sha256": "6cbb20ba18f1240cff74d1aba5d00a586de6f4dc4299a39bcf42b5217def0c93",
-      "size": 66947
+      "sha256": "c245003fae4655e07ab6611a26704164d70bc4f5ffaedcf3bac5afb5753e3917",
+      "size": 67318
     },
     {
       "path": "libs/modStore.js",
-      "sha256": "a22a1d213c6d15000eab23882f7e2557fb081ba91c3c4b58c5a89ef326653cf2",
-      "size": 108462
+      "sha256": "57a9cd895735e6c7832f0187422cf0b927b8e0831adeac888ae61591932e7cce",
+      "size": 111986
     },
     {
       "path": "modloader/configCore.js",
@@ -272,11 +247,16 @@
     }
   ],
   "remove": [
+    "docs/ModLoader_测试文档.md",
+    "docs/RMMZ_ModLoader_开发规范.md",
     "docs/mod商店拓展plan.md",
     "docs/前置Mod更新日志等/ModDataLoader_CHANGELOG.md",
     "docs/前置Mod更新日志等/ModResourceLoader_CHANGELOG.md",
     "docs/前置Mod更新日志等/前置Mod测试清单.md",
     "docs/前置Mod更新日志等/数据和资源前置Mod-V2-需求规格书.md",
-    "docs/前置Mod更新日志等/调用规范.md"
+    "docs/前置Mod更新日志等/调用规范.md",
+    "docs/前置Mod相关文档/前置Mod测试清单.md",
+    "docs/前置Mod相关文档/数据和资源前置Mod-V2-需求规格书.md",
+    "docs/前置Mod相关文档/调用规范.md"
   ]
 }

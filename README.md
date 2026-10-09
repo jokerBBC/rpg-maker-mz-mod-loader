@@ -155,11 +155,8 @@ js/mods/
 ├── docs/
 │   ├── README.md / README-en.md
 │   ├── 使用手册.md
-│   ├── ModLoader_模块结构.md
 │   ├── modloader_CHANGELOG.md
-│   ├── mod商店拓展.md
-│   └── 前置Mod相关文档/
-│       └── 调用规范.md
+│   └── mod商店拓展.md
 ├── libs/                           # 依赖库 + 可选扩展（存在即生效，删除即关闭）
 │   ├── marked.min.js               # Markdown 渲染
 │   ├── modStore.js                 # Mod 商店
@@ -200,8 +197,6 @@ ModLoader 仅管理 `.js` 插件的开关、排序与参数；**数据库与游�
 | 资源 | 说明 |
 | --- | --- |
 | [使用手册.md](js/mods/docs/使用手册.md) | 游戏制作者 / 玩家 / Mod 作者完整指南 |
-| [ModLoader_模块结构.md](js/mods/docs/ModLoader_模块结构.md) | 维护地图：改动归属、怎么测、管理器边界 |
-| [调用规范.md](js/mods/docs/前置Mod相关文档/调用规范.md) | 前置 Mod 调用规范（数据 + 资源） |
 | [modloader_CHANGELOG.md](js/mods/docs/modloader_CHANGELOG.md) | ModLoader 更新日志 |
 | [mod商店拓展.md](js/mods/docs/mod商店拓展.md) | Mod 商店设计与测试 |
 | [tools/modstore/gui/README.md](js/mods/docs/js/mods/tools/modstore/gui/README.md) | 作者打包 GUI 与 catalog 发布 |

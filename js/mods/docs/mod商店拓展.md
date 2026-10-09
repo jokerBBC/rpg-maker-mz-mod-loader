@@ -294,7 +294,6 @@
 - [`使用手册.md`](使用手册.md) 商店章节（制作者 / 玩家 / 作者）
 - 作者打包：[`tools/modstore/gui/README.md`](../../tools/modstore/gui/README.md)
 - [`README.md`](README.md) / [`README-en.md`](README-en.md) 功能与结构树
-- [`ModLoader_测试文档.md`](ModLoader_测试文档.md) §O Mod 商店
 
 ### catalog 字段清理（2026-08-23）
 

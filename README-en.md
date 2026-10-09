@@ -157,11 +157,8 @@ js/mods/
 ├── docs/
 │   ├── README.md / README-en.md
 │   ├── 使用手册.md
-│   ├── ModLoader_模块结构.md
 │   ├── modloader_CHANGELOG.md
-│   ├── mod商店拓展.md
-│   └── 前置Mod相关文档/
-│       └── 调用规范.md
+│   └── mod商店拓展.md
 ├── libs/                           # Vendors + optional extensions (present = on, delete = off)
 │   ├── marked.min.js               # Markdown rendering
 │   ├── modStore.js                 # Mod store
@@ -202,8 +199,6 @@ Sample packages: `_localmods/TestMDL-V2` (data), `_localmods/TestMRL-V2` (resour
 | Resource | Description |
 | --- | --- |
 | [使用手册.md](js/mods/docs/使用手册.md) | Full guide for game authors / players / mod authors |
-| [ModLoader_模块结构.md](js/mods/docs/ModLoader_模块结构.md) | Maintainer map: where changes go, how to test, boundaries |
-| [调用规范.md](js/mods/docs/前置Mod相关文档/调用规范.md) | Prerequisite mod usage spec (data + resources) |
 | [modloader_CHANGELOG.md](js/mods/docs/modloader_CHANGELOG.md) | ModLoader changelog |
 | [mod商店拓展.md](js/mods/docs/mod商店拓展.md) | Mod store design & test |
 | [tools/modstore/gui/README.md](js/mods/docs/js/mods/tools/modstore/gui/README.md) | Author packaging GUI & catalog publishing |
