@@ -427,14 +427,6 @@ html[data-ml-theme="warm"] {
     line-height: inherit;
 }
 
-/* 列表行 - 名字+提示在最小字号仍放不下时换行显示全部信息（由 fitModNameText 添加） */
-.ml-mod-name.ml-mod-name-wrap {
-    white-space: normal;
-    overflow: visible;
-    text-overflow: clip;
-    word-break: break-word;
-}
-
 /* ---------- 齿轮图标 ---------- */
 .ml-gear {
     font-size: 20px;
