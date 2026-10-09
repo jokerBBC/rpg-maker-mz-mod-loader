@@ -157,6 +157,8 @@ Edit `index.html` and inject ModLoader **before** `main.js`:
 </body>
 ```
 
+**Prefer not to hand-edit / one-click restore after game updates**: use the ready-made 「Mod管理器注入工具.bat」 — copy it to the game directory and double-click: **1** inject manager / **2** remove injection (restore vanilla game) / 3 exit. Integration bundles already ship this tool in the game directory; manual installs can copy it from `js/mods/tools/modpack/` in this repo. When a game update overwrites `index.html` and the manager entry disappears, run it and pick 1 to restore. Mod authors: the bundle build script includes it automatically — players never need to hand-edit.
+
 ### Mode 2: Plugin mode
 
 Add `ModLoader.js` to the RMMZ Plugin Manager list.

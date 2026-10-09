@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "modloader-manager",
   "version": "V4.5.0",
-  "publishedAt": "2026-10-09T10:33:18Z",
+  "publishedAt": "2026-10-09T10:42:12Z",
   "changelogPath": "docs/modloader_CHANGELOG.md",
   "files": [
     {
@@ -37,13 +37,13 @@
     },
     {
       "path": "docs/README-en.md",
-      "sha256": "69deb354b7df9becdbdcdac554d6f8757bf80f7c28ea8d17d1de22237f9c6abb",
-      "size": 13028
+      "sha256": "3d900f3c9bd31396ff687c9ba8cfb30d65fc809d29be2fe756112eb965783533",
+      "size": 13627
     },
     {
       "path": "docs/README.md",
-      "sha256": "68f714100b322bedab5cedceddbd89ad1dedfc16a0d43663c6217a3135c4d6f9",
-      "size": 12744
+      "sha256": "35b20ea7e1e7d99a6b4f5e6295ce3db20aa7699daec6e40f1ff35e18c087c59b",
+      "size": 13253
     },
     {
       "path": "docs/img/Mod商店界面.png",
@@ -102,8 +102,8 @@
     },
     {
       "path": "docs/modloader_CHANGELOG.md",
-      "sha256": "3949680bc3e025a9a91dd994aeb77835bcbefa4e3101c3903c18648fbd48f3e3",
-      "size": 54683
+      "sha256": "0a2713a5436c0f1c2df58ed708a17e1ce8fb747642d77ab52c1c69c23fe9adfb",
+      "size": 54786
     },
     {
       "path": "docs/mod商店拓展.md",
