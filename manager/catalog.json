@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "modloader-manager",
   "version": "V4.4.10",
-  "publishedAt": "2026-10-09T09:56:41Z",
+  "publishedAt": "2026-10-09T10:12:23Z",
   "changelogPath": "docs/modloader_CHANGELOG.md",
   "files": [
     {
@@ -37,13 +37,23 @@
     },
     {
       "path": "docs/README-en.md",
-      "sha256": "3c63f5c7e5addc730b3225a6fdd678aafa0b8d7dfae7b496470a2d781a56f210",
-      "size": 12623
+      "sha256": "54b7fba98fc78e3135ca5d2256cf9f39e189dbfaae9fe21991ffa5a410c883a0",
+      "size": 13030
     },
     {
       "path": "docs/README.md",
-      "sha256": "f26152dff03104332abacb2dc1fe2b40123bd303f09d27878886b3bebb8aee6d",
-      "size": 12365
+      "sha256": "a115fbfb3add68baf9ecf4eea9843b51090204142d20f98297ed9e2b5363563c",
+      "size": 12746
+    },
+    {
+      "path": "docs/img/Mod商店界面.png",
+      "sha256": "856f0b986a2b31b2d769d6775e4c0e1d98d6cc7f301bc07cb538ec69c89f599d",
+      "size": 112778
+    },
+    {
+      "path": "docs/img/Mod商店订阅管理界面.png",
+      "sha256": "9053ebf3e78552a2b14d918dfa4f0f1781c33895dfe3e74bb9f03190c73a70ea",
+      "size": 84412
     },
     {
       "path": "docs/img/主界面-创意工坊.png",
@@ -52,8 +62,8 @@
     },
     {
       "path": "docs/img/主界面.png",
-      "sha256": "b73201a810f927788edaa27dcfea2b254faf6088b42464bf4e400a8901fa56d2",
-      "size": 77050
+      "sha256": "dc7752f1b79c57e19457e6fe368c5883583f447d298da4d8d03dc88a7d248d1d",
+      "size": 194936
     },
     {
       "path": "docs/img/参数界面-一般.png",
@@ -79,6 +89,16 @@
       "path": "docs/img/排序与删除.png",
       "sha256": "93a922f9cb92bc7460f701c74df657a0fc5cb0a13955685a5202b6805f906f84",
       "size": 125355
+    },
+    {
+      "path": "docs/img/管理器更新界面.png",
+      "sha256": "08c958511334f96681ba45d82cbdea33a735359d37c6969993420f50347cf8fb",
+      "size": 63436
+    },
+    {
+      "path": "docs/img/配置预设.png",
+      "sha256": "abe46a3a5d1b5a87118e539039cef59820f66fbdbbaac296423f69f84dd40082",
+      "size": 62903
     },
     {
       "path": "docs/modloader_CHANGELOG.md",
