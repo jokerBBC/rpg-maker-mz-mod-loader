@@ -1,14 +1,14 @@
 {
   "schema": 1,
   "id": "modloader-manager",
-  "version": "V4.4.10",
-  "publishedAt": "2026-10-09T10:24:33Z",
+  "version": "V4.5.0",
+  "publishedAt": "2026-10-09T10:33:18Z",
   "changelogPath": "docs/modloader_CHANGELOG.md",
   "files": [
     {
       "path": "ModLoader.js",
-      "sha256": "6bf145b35f77a022dd3965a3d276bba6011470f2a1b469420b0fbfefe216baf8",
-      "size": 241775
+      "sha256": "6de950220a2f7ef7b0ab725c0dfd7892f90042aab5071a4b4de0de3b864fad00",
+      "size": 241773
     },
     {
       "path": "config/language/en.json",
@@ -37,13 +37,13 @@
     },
     {
       "path": "docs/README-en.md",
-      "sha256": "54b7fba98fc78e3135ca5d2256cf9f39e189dbfaae9fe21991ffa5a410c883a0",
-      "size": 13030
+      "sha256": "69deb354b7df9becdbdcdac554d6f8757bf80f7c28ea8d17d1de22237f9c6abb",
+      "size": 13028
     },
     {
       "path": "docs/README.md",
-      "sha256": "a115fbfb3add68baf9ecf4eea9843b51090204142d20f98297ed9e2b5363563c",
-      "size": 12746
+      "sha256": "68f714100b322bedab5cedceddbd89ad1dedfc16a0d43663c6217a3135c4d6f9",
+      "size": 12744
     },
     {
       "path": "docs/img/Mod商店界面.png",
@@ -102,8 +102,8 @@
     },
     {
       "path": "docs/modloader_CHANGELOG.md",
-      "sha256": "7c72fb3a2601411c1fe0d5188d7c3040f5aa4ccc5204e5ca8841638ed151961d",
-      "size": 52919
+      "sha256": "3949680bc3e025a9a91dd994aeb77835bcbefa4e3101c3903c18648fbd48f3e3",
+      "size": 54683
     },
     {
       "path": "docs/mod商店拓展.md",
@@ -112,8 +112,8 @@
     },
     {
       "path": "docs/使用手册.md",
-      "sha256": "47de85521f7816d503fb88696c2d53e6003a91def7b4355eab6c45c43829f3c9",
-      "size": 23082
+      "sha256": "347ae36781eebb99b847df24242dbc3887661c52d61236ab323b5c0bd37350f7",
+      "size": 23343
     },
     {
       "path": "libs/marked.min.js",
@@ -127,8 +127,8 @@
     },
     {
       "path": "libs/modLoaderUpdater.js",
-      "sha256": "4e9995512b666d8ef606f6b71b79c07570326b034ecf0d2b3f0375f5293f2bcb",
-      "size": 67498
+      "sha256": "413c28d0b79feac3251200d6d67f76935733f042a72a766d8872926f07264f34",
+      "size": 67507
     },
     {
       "path": "libs/modStore.js",
