@@ -127,7 +127,8 @@
             errHostNotAllowed: '下载域名不在白名单',
             errCatalogInvalid: 'catalog 无效',
             errSha256Failed: 'sha256 校验失败',
-            errVersionMismatch: '本地版本与目标版本不一致。请点击「刷新」按钮或按 F5 重启游戏后重试'
+            errVersionMismatch: '远程仓库catalog版本号和zip包内的manifest版本不一致，Mod作者请检查修复后再次推送更新。',
+            errHttp404Hint: 'HTTP 404：安装包不存在（作者可能已推送新版本）。请先点界面左上角「刷新」按钮或按 F5 重启游戏后再更新。'
         },
         zh_TW: {
             entryLabel: 'Mod 商店',
@@ -223,7 +224,8 @@
             errHostNotAllowed: '下載域名不在白名單',
             errCatalogInvalid: 'catalog 無效',
             errSha256Failed: 'sha256 校驗失敗',
-            errVersionMismatch: '本機版本與目標版本不一致。請點擊「重新整理」按鈕或按 F5 重啟遊戲後重試'
+            errVersionMismatch: '遠端倉庫catalog版本號和zip包內的manifest版本號不一致，Mod作者請檢查修復後再次推送更新。',
+            errHttp404Hint: 'HTTP 404：安裝包不存在（作者可能已推送新版本）。請先點界面左上角「重新整理」按鈕或按 F5 重啟遊戲後再更新。'
         },
         en: {
             entryLabel: 'Mod Store',
@@ -319,7 +321,8 @@
             errHostNotAllowed: 'Download host not allowed',
             errCatalogInvalid: 'Invalid catalog',
             errSha256Failed: 'SHA256 verification failed',
-            errVersionMismatch: 'Local version does not match the target version. Click the “Refresh” button or press F5 to restart the game, then try again.'
+            errVersionMismatch: 'The remote catalog version does not match the manifest version inside the zip. Mod author: please check, fix, and push the update again.',
+            errHttp404Hint: 'HTTP 404: package not found (the author may have published a new version). Click the “Refresh” button at the top-left or press F5 to restart the game, then update again.'
         }
     };
 
@@ -1573,6 +1576,19 @@
         }
     }
 
+    /**
+     * 安装/更新失败的行内文案：
+     * - HTTP 404（玩家拿着过期内存 catalog 点更新，包已被作者新版发布删除）→ 追加刷新/F5 指引
+     * - 其余错误原样展示
+     */
+    function formatInstallError(err) {
+        const msg = err && err.message ? err.message : String(err);
+        if (/HTTP\s*404/.test(msg)) {
+            return storeT('errHttp404Hint');
+        }
+        return msg;
+    }
+
     function installFromEntry(entry) {
         const cfg = getConfig();
         const maxBytes = cfg.maxDownloadBytes || DEFAULT_MAX_BYTES;
@@ -1660,7 +1676,7 @@
                     throw e;
                 }
                 removePathSafe(partialPath);
-                // 安装后版本校验：本地版本与目标版本不一致（如下载到旧包）时给出刷新/F5 指引
+                // 安装后版本校验：catalog 版本与包内 manifest 不一致（作者打包不规范）→ 作者面向报错
                 const installed = readLocalPackageVersion(entry.packageName);
                 const cmpInstalled = compareVersions(installed.version, entry.version);
                 if (cmpInstalled !== null && cmpInstalled !== 0) {
@@ -1679,7 +1695,7 @@
                 setJob(entry.sourceId, entry.packageName, {
                     status: 'error',
                     progress: 0,
-                    error: err && err.message ? err.message : String(err)
+                    error: formatInstallError(err)
                 });
                 throw err;
             })
