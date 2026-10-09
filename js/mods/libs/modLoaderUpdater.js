@@ -69,7 +69,7 @@
             btnChecking: '检查中…',
             btnUpdating: '更新中…',
             disableUpdates: '禁用管理器更新',
-            excludeAuthorTools: '在线更新时不更新Mod商店作者工具（勾选后无法获取：打包 GUI、catalog 发布、Mod 商店工作流搭建文档等 · tools/modstore/）',
+            excludeAuthorTools: '在线更新时不更新作者工具（勾选后无法获取：Mod 商店打包 GUI、catalog 发布、Mod 商店工作流搭建文档等 · tools/modstore/；整合包构筑工具与指南等 · tools/modpack/）',
             excludeDocsExceptChangelog: '在线更新时不更新文档（勾选后无法获取Mod制作使用指南等文档，仅保留管理器更新日志 · docs/）',
             logTitle: '升级过程',
             logEmpty: '点击「检查更新」开始。',
@@ -87,7 +87,7 @@
             logMirrorFallbackOk: '已改用 {mirror}：{path}',
             logAlreadyLatest: '已是最新版本，无需更新。',
             logSkip: '跳过未改：{path}',
-            logSkipAuthorTool: '跳过 Mod 商店作者工具：{path}',
+            logSkipAuthorTool: '跳过作者工具：{path}',
             logDownload: '下载 {path} …',
             logDownloadOk: '下载 {path} … OK',
             logSha256Mismatch: 'sha256 不匹配：{path}（{mirror}）期望 {expectedSha} / {expectedSize} B · 下载 {actualSha} / {actualSize} B · LF归一 {lfSha} / {lfSize} B',
@@ -131,7 +131,7 @@
             btnChecking: '檢查中…',
             btnUpdating: '更新中…',
             disableUpdates: '停用管理器更新',
-            excludeAuthorTools: '線上更新時不更新 Mod 商店作者工具（勾選後無法取得：打包 GUI、catalog 發布、Mod 商店工作流搭建文件等 · tools/modstore/）',
+            excludeAuthorTools: '線上更新時不更新作者工具（勾選後無法取得：Mod 商店打包 GUI、catalog 發布、Mod 商店工作流搭建文件等 · tools/modstore/；整合包構築工具與指南等 · tools/modpack/）',
             excludeDocsExceptChangelog: '線上更新時不更新文件（勾選後無法取得 Mod 製作使用指南等文件，僅保留管理器更新記錄 · docs/）',
             logTitle: '升級過程',
             logEmpty: '點擊「檢查更新」開始。',
@@ -149,7 +149,7 @@
             logMirrorFallbackOk: '已改用 {mirror}：{path}',
             logAlreadyLatest: '已是最新版本，無需更新。',
             logSkip: '跳過未改：{path}',
-            logSkipAuthorTool: '跳過 Mod 商店作者工具：{path}',
+            logSkipAuthorTool: '跳過作者工具：{path}',
             logDownload: '下載 {path} …',
             logDownloadOk: '下載 {path} … OK',
             logSha256Mismatch: 'sha256 不符：{path}（{mirror}）期望 {expectedSha} / {expectedSize} B · 下載 {actualSha} / {actualSize} B · LF歸一 {lfSha} / {lfSize} B',
@@ -193,7 +193,7 @@
             btnChecking: 'Checking…',
             btnUpdating: 'Updating…',
             disableUpdates: 'Disable manager updates',
-            excludeAuthorTools: 'Skip Mod store author tools in online updates (when checked you will not receive: pack GUI, catalog publish, mod store workflow docs, etc. · tools/modstore/)',
+            excludeAuthorTools: 'Skip author tools in online updates (when checked you will not receive: Mod store pack GUI, catalog publish, mod store workflow docs, etc. · tools/modstore/; bundle build tools & guide, etc. · tools/modpack/)',
             excludeDocsExceptChangelog: 'Skip docs in online updates (when checked you will not receive mod making/usage guides, etc.; only the manager changelog is kept · docs/)',
             logTitle: 'Update log',
             logEmpty: 'Click “Check for updates” to start.',
@@ -211,7 +211,7 @@
             logMirrorFallbackOk: 'Using {mirror}: {path}',
             logAlreadyLatest: 'Already up to date.',
             logSkip: 'Skip unchanged: {path}',
-            logSkipAuthorTool: 'Skip Mod store author tool: {path}',
+            logSkipAuthorTool: 'Skip author tool: {path}',
             logDownload: 'Download {path} …',
             logDownloadOk: 'Download {path} … OK',
             logSha256Mismatch: 'SHA256 mismatch: {path} ({mirror}) expected {expectedSha} / {expectedSize} B · got {actualSha} / {actualSize} B · LF-norm {lfSha} / {lfSize} B',
@@ -958,10 +958,10 @@
         refreshChrome();
     }
 
-    /** Mod 商店作者侧工具（打包 GUI / catalog 发布）；不含 tools/ 下其它目录 */
-    function isModStorePublishToolPath(relPath) {
+    /** 作者侧工具（Mod 商店打包 GUI / catalog 发布 / 整合包构筑脚本与指南）；不含 tools/ 下其它目录 */
+    function isAuthorToolPath(relPath) {
         const p = normalizeRelPath(relPath);
-        return p.indexOf('tools/modstore/') === 0;
+        return p.indexOf('tools/modstore/') === 0 || p.indexOf('tools/modpack/') === 0;
     }
 
     /** docs/ 白名单：勾选跳过文档时仍会更新（管理器更新日志） */
@@ -999,7 +999,7 @@
         if (catalog.changelogPath) docKeep[normalizeRelPath(catalog.changelogPath)] = true;
 
         function shouldSkip(p) {
-            if (skipAuthorTools && isModStorePublishToolPath(p)) return true;
+            if (skipAuthorTools && isAuthorToolPath(p)) return true;
             if (skipDocs && isOptionalDocPath(p, docKeep)) return true;
             return false;
         }
