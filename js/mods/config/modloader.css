@@ -383,6 +383,14 @@ html[data-ml-theme="warm"] {
     background: rgba(245, 158, 11, 0.1);
 }
 
+/* 列表行 - 前置失效文字提示（仅布局，颜色复用上述既有类） */
+.ml-dep-list-hint {
+    display: inline-block;
+    margin-left: 6px;
+    font-size: 0.82em;
+    white-space: normal;
+}
+
 /* 详情面板 - 依赖通过文本绿色 */
 .ml-dep-text-pass {
     color: #22c55e;
@@ -2119,6 +2127,15 @@ html[data-ml-theme="warm"] {
     display: flex;
     flex-direction: column;
     gap: 4px;
+}
+
+.ml-shortcut-hint {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--ml-text-muted);
+    user-select: none;
 }
 
 /* 确认对话框 */

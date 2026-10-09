@@ -1665,6 +1665,7 @@
                 </div>
                 <div class="ml-footer">
                     <div class="ml-footer-hints">
+                        <div class="ml-shortcut-hint" id="ml-shortcut-hint">${t('footer.shortcutHint')}</div>
                         <div class="ml-restart-hint hidden" id="ml-restart-hint">
                             &#9888; ${t('footer.restartHint')}
                         </div>
@@ -1808,17 +1809,6 @@
         updateButtonStates();
         updateWorkshopToolbarState();
         applyUiPreferences(loadModLoaderConfig());
-
-        // ESC 关闭
-        _overlay.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                if (_modalOverlay) {
-                    hideParamEditor();
-                } else {
-                    tryCloseModManager();
-                }
-            }
-        });
 
         // 阻止事件穿透到底层（但不影响我们自己的界面）
         const blockToBelow = function(e) {
@@ -2038,9 +2028,13 @@
                     deleteHtml = `<div class="ml-delete-btn" data-action="delete" data-index="${index}">🗑️</div>`;
                 }
 
+                const nameConflict = getModPluginNameConflict(mod);
                 const depStatus = getModDepStatus(mod);
                 let thumbClass = 'ml-toggle-thumb';
                 if (depStatus.baseWarning) {
+                    thumbClass += ' ml-dep-base-warning';
+                } else if (nameConflict && nameConflict.hasConflict && mod.status === true && nameConflict.gameEnabled === true) {
+                    // 开启中且与启用中的游戏插件同名：小圆球变红（与前置缺失排除错误同色），胶囊底色不变
                     thumbClass += ' ml-dep-base-warning';
                 } else if (depStatus.orderAfterWarning) {
                     thumbClass += ' ml-dep-order-warning';
@@ -2058,7 +2052,6 @@
                     installWarn = `<span class="ml-install-warn" title="${escapeHtml(t('workshop.unsubscribed'))}">○</span>`;
                 }
 
-                const nameConflict = getModPluginNameConflict(mod);
                 let nameConflictHtml = '';
                 if (nameConflict && nameConflict.hasConflict) {
                     const conflictLabel = formatPluginNameConflictLabel(nameConflict);
@@ -2075,13 +2068,33 @@
                     }
                 }
 
+                // 前置失效列表文字提示：base 硬守卫（红，不生效）优先；纯 orderAfter（黄，仍生效仅可能 Bug）
+                let depWarningHtml = '';
+                if (depStatus.baseWarning) {
+                    const badBase = depStatus.baseDetails.filter(d => d.status !== 'pass');
+                    const depTitle = badBase.map(d => d.message).join('\n');
+                    const hasDisabled = badBase.some(d =>
+                        d.status === 'mod_disabled' || d.status === 'game_disabled' || d.status === 'not_found');
+                    const hasWrongOrder = badBase.some(d => d.status === 'wrong_order');
+                    if (hasDisabled) {
+                        depWarningHtml += `<span class="ml-dep-text-base-missing ml-dep-list-hint" title="${escapeHtml(depTitle)}">${escapeHtml(t('dep.listBaseMissing'))}</span>`;
+                    }
+                    if (hasWrongOrder) {
+                        depWarningHtml += `<span class="ml-dep-text-base-missing ml-dep-list-hint" title="${escapeHtml(depTitle)}">${escapeHtml(t('dep.listBaseWrongOrder'))}</span>`;
+                    }
+                } else if (depStatus.orderAfterWarning) {
+                    const badOrder = depStatus.orderAfterDetails.filter(d => d.status !== 'pass');
+                    const depTitle = badOrder.map(d => d.message).join('\n');
+                    depWarningHtml += `<span class="ml-dep-text-order-missing ml-dep-list-hint" title="${escapeHtml(depTitle)}">${escapeHtml(t('dep.listOrderWrongOrder'))}</span>`;
+                }
+
                 item.innerHTML = `
                     ${orderHtml}
                     <div class="ml-toggle ${mod.status ? 'on' : ''}" data-action="toggle" data-index="${index}">
                         <div class="${thumbClass}"></div>
                     </div>
                     <div class="ml-mod-name" data-action="select" data-index="${index}">
-                        ${parseColorTagsFromRaw(mod.displayName)}${workshopBadge}${installWarn}${nameConflictHtml}
+                        ${parseColorTagsFromRaw(mod.displayName)}${workshopBadge}${installWarn}${nameConflictHtml}${depWarningHtml}
                     </div>
                     ${hasParams ? `<div class="ml-gear" data-action="params" data-index="${index}" title="${t('param.title')}">&#9881;</div>` : ''}
                     ${deleteHtml}
@@ -2215,13 +2228,13 @@
                     warningMsg += `⚠️ @base 依赖问题（可能导致游戏崩溃）：\n${baseProblems}\n\n`;
                 }
 
-                // @orderAfter 依赖问题（黄色级别：容易失效）
+                // @orderAfter 依赖问题（黄色级别：仅排序建议，Mod 仍生效、可能出现Bug）
                 if (depStatus.orderAfterWarning) {
                     const orderProblems = depStatus.orderAfterDetails
                         .filter(d => d.status !== 'pass')
                         .map(d => `  • ${d.message}`)
                         .join('\n');
-                    warningMsg += `⚠️ @orderAfter 依赖问题（可能导致插件失效）：\n${orderProblems}\n\n`;
+                    warningMsg += `⚠️ @orderAfter 依赖问题（可能出现Bug）：\n${orderProblems}\n\n`;
                 }
             }
 
@@ -2673,6 +2686,20 @@
     }
 
     /**
+     * 分层关闭：顶层层优先，任一层处理即终止，不透传下一层
+     * 确认对话框 > 参数编辑器 > 安装界面 > 更新日志弹窗 > 拓展界面 > 主界面
+     */
+    function closeTopmostLayer() {
+        if (_confirmModal) { hideConfirmDialog(); return; }
+        if (_modalOverlay) { hideParamEditor(); return; }
+        if (_installOverlay) { hideInstallOverlay(); return; }
+        if (_changelogModal) { hideChangelogModal(); return; }
+        const logPanel = document.getElementById('ml-log-panel');
+        if (logPanel && logPanel.style.display !== 'none') { _closeLogPanel(); return; }
+        tryCloseModManager();
+    }
+
+    /**
      * 尝试关闭管理器（检查未保存）
      */
     function tryCloseModManager() {
@@ -2872,6 +2899,8 @@
 
         _changelogModal.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
+                // 已处理，阻止冒泡到 document 级分层关闭（避免连带关下一层）
+                e.stopPropagation();
                 hideChangelogModal();
             }
         });
@@ -4989,7 +5018,11 @@
 
         // ESC 关闭
         _installOverlay.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') hideInstallOverlay();
+            if (e.key === 'Escape') {
+                // 已处理，阻止冒泡到 document 级分层关闭（避免连带关下一层）
+                e.stopPropagation();
+                hideInstallOverlay();
+            }
         });
 
         log(3, "安装mod界面已打开");
@@ -5214,29 +5247,21 @@
         log(3, "标题画面按钮已创建 (DOM)");
     }
 
-    // ---- 6.6 键盘快捷键支持（F5 重载、Esc 关闭等） ----
+    // ---- 6.6 键盘快捷键支持（F5 重载、Esc/右键 分层关闭、~ 呼出等） ----
     document.addEventListener('keydown', (e) => {
         if (!_overlay || _overlay.style.display === 'none') return;
 
-        // 如果确认对话框打开，ESC关闭它
-        if (_confirmModal) {
-            if (e.key === 'Escape') {
-                hideConfirmDialog();
-                e.preventDefault();
-            }
+        // ESC：分层关闭最顶层（确认框 > 参数编辑器 > 安装界面 > 更新日志 > 拓展界面 > 主界面）
+        // 输入框聚焦时不处理（与 keyboardCaptureHandler 的拦截一致）
+        if (e.key === 'Escape') {
+            if (checkInputFocus()) return;
+            e.preventDefault();
+            closeTopmostLayer();
             return;
         }
 
-        // 如果模态框打开了，让键盘捕获监听器处理
-        if (_modalOverlay) {
-            const isInputFocused = checkInputFocus();
-            // 只有ESC键可以关闭模态框，而且只有输入框没有获得焦点时
-            if (!isInputFocused && e.key === 'Escape') {
-                hideParamEditor();
-                e.preventDefault();
-            }
-            return;
-        }
+        // 弹层打开时其余快捷键不处理
+        if (_confirmModal || _modalOverlay) return;
 
         // 检查是否有输入框获得焦点
         const isInputFocused = checkInputFocus();
@@ -5247,9 +5272,6 @@
         }
 
         switch (e.key) {
-            case 'Escape':
-                tryCloseModManager();
-                break;
             case 'ArrowUp':
                 e.preventDefault();
                 if (_modData.length > 0) {
@@ -5283,6 +5305,35 @@
                 }
                 break;
         }
+    });
+
+    // ---- 右键（contextmenu）与 ESC 等价：分层关闭最顶层；管理器 DOM 内屏蔽系统右键菜单 ----
+    document.addEventListener('contextmenu', (e) => {
+        if (!_overlay || _overlay.style.display === 'none') return;
+        // 输入框聚焦时不处理、不屏蔽菜单
+        if (checkInputFocus()) return;
+        // 仅管理器 DOM 内响应
+        const inManager = _overlay.contains(e.target)
+            || (_installOverlay && _installOverlay.contains(e.target))
+            || (_modalOverlay && _modalOverlay.contains(e.target))
+            || (_confirmModal && _confirmModal.contains(e.target))
+            || (_changelogModal && _changelogModal.contains(e.target));
+        if (!inManager) return;
+        e.preventDefault();
+        e.stopPropagation();
+        closeTopmostLayer();
+    });
+
+    // ---- `~`（Backquote）呼出管理器：仅呼出不关闭；常驻监听，管理器关闭时也生效 ----
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Backquote') return;
+        // 输入框聚焦时不触发
+        if (checkInputFocus()) return;
+        // 已开着时不动作
+        if (_overlay && _overlay.style.display !== 'none') return;
+        e.preventDefault();
+        e.stopPropagation();
+        showModManager();
     });
 
     /**
