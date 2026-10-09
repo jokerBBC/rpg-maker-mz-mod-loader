@@ -383,11 +383,18 @@ html[data-ml-theme="warm"] {
     background: rgba(245, 158, 11, 0.1);
 }
 
-/* 列表行 - 前置失效文字提示（仅布局，颜色复用上述既有类） */
-.ml-dep-list-hint {
-    display: inline-block;
+/* 列表行 - 前置失效文字提示（与同名冲突文字同风格：简单色字，自动换行，无底色） */
+.ml-dep-hint-base {
     margin-left: 6px;
     font-size: 0.82em;
+    color: #ef4444;
+    white-space: normal;
+}
+
+.ml-dep-hint-order {
+    margin-left: 6px;
+    font-size: 0.82em;
+    color: #f59e0b;
     white-space: normal;
 }
 

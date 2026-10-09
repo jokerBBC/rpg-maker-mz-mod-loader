@@ -2077,15 +2077,15 @@
                         d.status === 'mod_disabled' || d.status === 'game_disabled' || d.status === 'not_found');
                     const hasWrongOrder = badBase.some(d => d.status === 'wrong_order');
                     if (hasDisabled) {
-                        depWarningHtml += `<span class="ml-dep-text-base-missing ml-dep-list-hint" title="${escapeHtml(depTitle)}">${escapeHtml(t('dep.listBaseMissing'))}</span>`;
+                        depWarningHtml += `<span class="ml-dep-hint-base" title="${escapeHtml(depTitle)}">${escapeHtml(t('dep.listBaseMissing'))}</span>`;
                     }
                     if (hasWrongOrder) {
-                        depWarningHtml += `<span class="ml-dep-text-base-missing ml-dep-list-hint" title="${escapeHtml(depTitle)}">${escapeHtml(t('dep.listBaseWrongOrder'))}</span>`;
+                        depWarningHtml += `<span class="ml-dep-hint-base" title="${escapeHtml(depTitle)}">${escapeHtml(t('dep.listBaseWrongOrder'))}</span>`;
                     }
                 } else if (depStatus.orderAfterWarning) {
                     const badOrder = depStatus.orderAfterDetails.filter(d => d.status !== 'pass');
                     const depTitle = badOrder.map(d => d.message).join('\n');
-                    depWarningHtml += `<span class="ml-dep-text-order-missing ml-dep-list-hint" title="${escapeHtml(depTitle)}">${escapeHtml(t('dep.listOrderWrongOrder'))}</span>`;
+                    depWarningHtml += `<span class="ml-dep-hint-order" title="${escapeHtml(depTitle)}">${escapeHtml(t('dep.listOrderWrongOrder'))}</span>`;
                 }
 
                 item.innerHTML = `
