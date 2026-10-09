@@ -170,7 +170,7 @@ Add `ModLoader.js` to the RMMZ Plugin Manager list.
 
 ***
 
-## 📁 Project structure (V4.4)
+## 📁 Project structure (V4.5.0)
 
 ```
 js/mods/
@@ -197,16 +197,31 @@ js/mods/
 │   ├── README.md / README-en.md
 │   ├── 使用手册.md
 │   ├── modloader_CHANGELOG.md
-│   └── mod商店拓展.md
+│   ├── mod商店拓展.md
+│   └── img/                        # README screenshots
 ├── libs/                           # Vendors + optional extensions (present = on, delete = off)
 │   ├── marked.min.js               # Markdown rendering
 │   ├── modStore.js                 # Mod store
 │   ├── modLoaderUpdater.js         # Manager self-update
 │   ├── modConfigPresets.js         # Config presets
 │   └── piracyGate.js               # Piracy gate
-└── tools/
-    └── modstore/
-        └── gui/                    # Author packaging GUI (see gui/README.md)
+└── tools/                          # Author-facing tools (delivered via online update; players who keep "skip author tools" checked never download them)
+    ├── modstore/                   # Mod store publishing workflow (AI-assisted setup)
+    │   ├── README.md               #   Publishing workflow guide: whitelist/blacklist, dry-run checks, one-click push
+    │   ├── modStorePublishCore.js  #   Core packaging lib: zip + sha256 + catalog entries
+    │   ├── modstore-catalog.template.json  # catalog template
+    │   └── gui/                    #   Graphical packaging tool (browser UI)
+    │       ├── README.md
+    │       ├── server.js / start-gui.bat / 启动Mod打包工具.bat
+    │       ├── folderDialog.js / gitRemote.js / pick-folder.ps1
+    │       └── public/             #   frontend (index.html / app.js / app.css)
+    └── modpack/                    # Mod manager bundle build workflow (AI-assisted)
+        ├── README.md               #   Build guide: interview checklist → bundle_config → dry-run → build & distribute
+        ├── bundle_config.example.json  # Build config template (bundled mods / store sources / output names)
+        ├── install_builder.py      #   Installer wizard source (game data externalized; PyInstaller-buildable)
+        ├── build_package.py        #   Config-driven packaging script
+        ├── gen_inject_bat.py       #   Generates the GBK injection tool
+        └── Mod管理器注入工具.bat    #   Generated; inject / remove injection, ships with bundles into the game dir
 ```
 
 Steam Workshop subscription package (same layout as `_localmods`, scripts at package root):

@@ -168,7 +168,7 @@ Mod 商店订阅管理
 
 ***
 
-## 📁 项目结构（V4.4）
+## 📁 项目结构（V4.5.0）
 
 ```
 js/mods/
@@ -195,16 +195,31 @@ js/mods/
 │   ├── README.md / README-en.md
 │   ├── 使用手册.md
 │   ├── modloader_CHANGELOG.md
-│   └── mod商店拓展.md
+│   ├── mod商店拓展.md
+│   └── img/                        # README 截图
 ├── libs/                           # 依赖库 + 可选扩展（存在即生效，删除即关闭）
 │   ├── marked.min.js               # Markdown 渲染
 │   ├── modStore.js                 # Mod 商店
 │   ├── modLoaderUpdater.js         # 管理器在线更新
 │   ├── modConfigPresets.js         # 配置预设
 │   └── piracyGate.js               # 盗版检测闸门
-└── tools/
-    └── modstore/
-        └── gui/                    # 作者打包 GUI（见 gui/README.md）
+└── tools/                          # 作者向工具（随在线更新分发；玩家默认勾选「不更新作者工具」不下载）
+    ├── modstore/                   # Mod 商店发布工作流（AI 代办搭建）
+    │   ├── README.md               #   发布工作流指南：白名单/黑名单、干跑检查、一键推送
+    │   ├── modStorePublishCore.js  #   核心打包库：zip + sha256 + catalog 条目
+    │   ├── modstore-catalog.template.json  # catalog 模板
+    │   └── gui/                    #   图形打包工具（浏览器界面）
+    │       ├── README.md
+    │       ├── server.js / start-gui.bat / 启动Mod打包工具.bat
+    │       ├── folderDialog.js / gitRemote.js / pick-folder.ps1
+    │       └── public/             #   前端（index.html / app.js / app.css）
+    └── modpack/                    # Mod管理器整合包 制作工作流（AI 代办构筑）
+        ├── README.md               #   构筑指南：询问清单 → bundle_config → 干跑核对 → 构筑分发
+        ├── bundle_config.example.json  # 构筑配置模板（入包 Mod / 商店源 / 产物命名）
+        ├── install_builder.py      #   安装向导源码（游戏数据外置，PyInstaller 可编译 exe）
+        ├── build_package.py        #   配置驱动打包脚本
+        ├── gen_inject_bat.py       #   生成 GBK 注入工具
+        └── Mod管理器注入工具.bat    #   生成物；注入 / 取消注入，随整合包进游戏目录
 ```
 
 Steam 工坊订阅包（与 `_localmods` 同布局，脚本在包根）：
