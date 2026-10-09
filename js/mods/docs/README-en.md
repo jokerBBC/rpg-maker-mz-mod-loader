@@ -20,6 +20,11 @@ A powerful RPG Maker MZ mod manager that lets you enable/disable, edit parameter
 
 - Guide/wiki for the game *Idle Level Up & Fight Monsters* using RMMZ ModLoader V4.1.2 (includes mod manager tutorial · [Feishu link](https://qcnhq5e2tphh.feishu.cn/wiki/XH1jwdX5uil2ookoEF8cpN1AnJf))
 - Fine-tuning examples for *Crimson Moon Immortal Journey* based on RMMZ ModLoader V4 ([Baidu Tieba post 1](https://tieba.baidu.com/p/10810499585?fr=personpage) · [Baidu Tieba post 2](https://tieba.baidu.com/p/10813947286?fr=personpage))
+- Mod manager usage demo for *Dark Abyss Rises* (暗源崛起) built on RMMZ ModLoader (Bilibili video · [BV1twYY6dEMv](https://www.bilibili.com/video/BV1twYY6dEMv/?spm_id_from=333.788.videopod.sections&vd_source=3ef6190ccbaf3b82c0dd3ef57cd79cc8&p=7))
+- Example Mod store repositories (reference catalog publishing pipelines built with AI assistance; compatibility verified):
+  - 打怪升级爆装备 mod store — validated on the legacy V4.4.6 manager kernel · <https://gitee.com/Jokerbbc/daguaishengjibaozhuangbeimod>
+  - 暗源崛起 (Dark Abyss Rises) mod store · <https://gitee.com/Jokerbbc/dark-abyss-rises-mod>
+  - 挂机升级打怪兽 (*Idle Level Up & Fight Monsters*) mod store · <https://gitee.com/Jokerbbc/guajishengjidaguaishoumod>
 
 ***
 
@@ -200,6 +205,8 @@ Sample packages: `_localmods/TestMDL-V2` (data), `_localmods/TestMRL-V2` (resour
 | [modloader_CHANGELOG.md](modloader_CHANGELOG.md) | ModLoader changelog |
 | [mod商店拓展.md](mod商店拓展.md) | Mod store design & test |
 | [tools/modstore/gui/README.md](../tools/modstore/gui/README.md) | Author packaging GUI & catalog publishing |
+| [Mod store publishing workflow · AI assistant guide](../tools/modstore/README.md) | AI-assisted Mod store setup: whitelist/blacklist governance, dry-run checks, one-click push |
+| [Bundle build guide · AI assistant](../tools/modpack/README.md) | AI-assisted Mod manager bundle creation for any RMMZ game: interview checklist, bundle_config, build & distribute |
 
 ***
 
