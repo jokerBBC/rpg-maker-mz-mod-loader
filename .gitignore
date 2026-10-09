@@ -6,3 +6,7 @@ releases/
 
 # Local release automation (not tracked)
 tools/
+
+# Local-only dev assets (tracked in their own local git repos, never pushed to remote)
+/docs/
+/test/

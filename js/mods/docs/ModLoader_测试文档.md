@@ -4,7 +4,7 @@
 
 本文件为统一包结构（`_localmods` / 工坊包根布局）后的 **完整手工测试清单**。作者自用迁移脚本见 `tools/migrate-local-mods-to-localmods.js`、`tools/migrate-mod-config-keys.js`；玩家侧 `mod_config` 旧键兼容：保存一次自动升级为新键。
 
-**单元测试（发版 / 大范围改动前）**：在 `js/mods` 根目录执行 `node modloader/test/run-all.js`（Windows 可双击 `modloader/test/run-all.bat`）。单模块改动可只跑对应 `modloader/test/<模块>.test.js`。
+**单元测试（发版 / 大范围改动前）**：在仓库根目录执行 `node test/run-all.js`（Windows 可双击 `test/run-all.bat`）。单模块改动可只跑对应 `test/<模块>.test.js`。
 
 ---
 
