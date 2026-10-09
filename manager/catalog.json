@@ -1,14 +1,14 @@
 {
   "schema": 1,
   "id": "modloader-manager",
-  "version": "V4.4.9",
-  "publishedAt": "2026-10-09T05:34:04Z",
+  "version": "V4.4.10",
+  "publishedAt": "2026-10-09T05:39:24Z",
   "changelogPath": "docs/modloader_CHANGELOG.md",
   "files": [
     {
       "path": "ModLoader.js",
-      "sha256": "35181b72327ab54c81ef24d00800bfda40110091c6e3e243ceed88321feeb839",
-      "size": 241773
+      "sha256": "6bf145b35f77a022dd3965a3d276bba6011470f2a1b469420b0fbfefe216baf8",
+      "size": 241775
     },
     {
       "path": "config/language/en.json",
@@ -37,13 +37,13 @@
     },
     {
       "path": "docs/README-en.md",
-      "sha256": "50af99829017a64638f26199e13d470a416c352ec4cc8d53f0722109e03d7ad0",
-      "size": 11503
+      "sha256": "db18c3004d07aa1f9cb040d851c04cde6391004eddfa4023545c56854f650cd7",
+      "size": 11505
     },
     {
       "path": "docs/README.md",
-      "sha256": "6f4456680f07b3d490eeaefa88506736c7e29f29f4b1071234b2ff4353969b70",
-      "size": 11357
+      "sha256": "3352ddad3f5728aab5fcf4796d489ac763cfc9436d2bfc755ec10b9a9f22b195",
+      "size": 11359
     },
     {
       "path": "docs/img/主界面-创意工坊.png",
@@ -82,8 +82,8 @@
     },
     {
       "path": "docs/modloader_CHANGELOG.md",
-      "sha256": "61ef7610fdd67ec86ed23ce44fb53fe0c63ffe87a326d7a4cbafea23262870bc",
-      "size": 49757
+      "sha256": "3b06bb03729a087a9e3795c8d6848e7b727a4284e580b554700624e77439aff3",
+      "size": 52508
     },
     {
       "path": "docs/mod商店拓展.md",
@@ -92,8 +92,8 @@
     },
     {
       "path": "docs/使用手册.md",
-      "sha256": "550fa450b757dd5eaa6f0dd2ab90aa892040f1f66635119ed687f8b59fb863f2",
-      "size": 23081
+      "sha256": "47de85521f7816d503fb88696c2d53e6003a91def7b4355eab6c45c43829f3c9",
+      "size": 23082
     },
     {
       "path": "libs/marked.min.js",
