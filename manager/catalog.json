@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "modloader-manager",
   "version": "V4.4.10",
-  "publishedAt": "2026-10-09T10:12:23Z",
+  "publishedAt": "2026-10-09T10:24:33Z",
   "changelogPath": "docs/modloader_CHANGELOG.md",
   "files": [
     {
@@ -127,8 +127,8 @@
     },
     {
       "path": "libs/modLoaderUpdater.js",
-      "sha256": "c245003fae4655e07ab6611a26704164d70bc4f5ffaedcf3bac5afb5753e3917",
-      "size": 67318
+      "sha256": "4e9995512b666d8ef606f6b71b79c07570326b034ecf0d2b3f0375f5293f2bcb",
+      "size": 67498
     },
     {
       "path": "libs/modStore.js",
