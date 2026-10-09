@@ -2,13 +2,13 @@
   "schema": 1,
   "id": "modloader-manager",
   "version": "V4.4.9",
-  "publishedAt": "2026-10-09T04:57:35Z",
+  "publishedAt": "2026-10-09T05:27:06Z",
   "changelogPath": "docs/modloader_CHANGELOG.md",
   "files": [
     {
       "path": "ModLoader.js",
-      "sha256": "61c561c639bca1182f6f0c90591fa7474834fbe3833ad05289fb3c2c58b32a8b",
-      "size": 243210
+      "sha256": "76940543bcb8e222d58d7b602e73b54ad2a537a810f09c2a789ab640b7d0801b",
+      "size": 241848
     },
     {
       "path": "config/language/en.json",
@@ -27,8 +27,8 @@
     },
     {
       "path": "config/modloader.css",
-      "sha256": "4e3ee7e0feff4c1229ed18de2f9e07186967552b2c2fbe4e167732a32dd9346c",
-      "size": 47977
+      "sha256": "a35693f962d69adc7ea5a151abdfd94cf28576a6de1a3a5ed0e311aea9839fc2",
+      "size": 47724
     },
     {
       "path": "docs/LICENSE",
