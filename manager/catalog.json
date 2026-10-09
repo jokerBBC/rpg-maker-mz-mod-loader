@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "modloader-manager",
   "version": "V4.4.10",
-  "publishedAt": "2026-10-09T06:27:27Z",
+  "publishedAt": "2026-10-09T09:56:41Z",
   "changelogPath": "docs/modloader_CHANGELOG.md",
   "files": [
     {
@@ -37,13 +37,13 @@
     },
     {
       "path": "docs/README-en.md",
-      "sha256": "db18c3004d07aa1f9cb040d851c04cde6391004eddfa4023545c56854f650cd7",
-      "size": 11505
+      "sha256": "3c63f5c7e5addc730b3225a6fdd678aafa0b8d7dfae7b496470a2d781a56f210",
+      "size": 12623
     },
     {
       "path": "docs/README.md",
-      "sha256": "3352ddad3f5728aab5fcf4796d489ac763cfc9436d2bfc755ec10b9a9f22b195",
-      "size": 11359
+      "sha256": "f26152dff03104332abacb2dc1fe2b40123bd303f09d27878886b3bebb8aee6d",
+      "size": 12365
     },
     {
       "path": "docs/img/主界面-创意工坊.png",
@@ -179,6 +179,41 @@
       "path": "modloader/workshopBridge.js",
       "sha256": "b90c0634e6fdec2fb8d0850a7a53487361257cf95591ce5504f339c58116a17f",
       "size": 3884
+    },
+    {
+      "path": "tools/modpack/.gitignore",
+      "sha256": "e3d92719f39cb3877d9ce1b6ae4e208753454b2d5c65bd889c0fd714e302362a",
+      "size": 165
+    },
+    {
+      "path": "tools/modpack/Mod管理器注入工具.bat",
+      "sha256": "d59f53459bd5f20bac5d4f9fea60b69046697cbcd0e0e721388811a1e991ef4b",
+      "size": 4585
+    },
+    {
+      "path": "tools/modpack/README.md",
+      "sha256": "83f20af778c6169e3706686603b4fc194e2d18f3509fbd72d92115745a95df9f",
+      "size": 9849
+    },
+    {
+      "path": "tools/modpack/build_package.py",
+      "sha256": "c4b7b1c3163788a9658bc707b946626835a3386f9ebd0eb217aa32935aedd114",
+      "size": 19186
+    },
+    {
+      "path": "tools/modpack/bundle_config.example.json",
+      "sha256": "39591805e151845d7b25f54352dc5681e926663670939be981b1d9b59210d881",
+      "size": 732
+    },
+    {
+      "path": "tools/modpack/gen_inject_bat.py",
+      "sha256": "c1cd1815dd41ce03e465a267947a16fe8a29ad70781b744b387e72b05e6364cf",
+      "size": 4830
+    },
+    {
+      "path": "tools/modpack/install_builder.py",
+      "sha256": "8e1e7d74cd8d5db117e15a5b66a725a71689e2193be857eeda658f6414f08b1f",
+      "size": 28580
     },
     {
       "path": "tools/modstore/README.md",

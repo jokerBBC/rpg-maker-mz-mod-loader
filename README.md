@@ -22,6 +22,11 @@
 
 - 使用 RMMZ ModLoader V4.1.2 做 Mod 的游戏「挂机升级打怪兽」攻略站（含 Mod 管理器使用教程 · [飞书链接](https://qcnhq5e2tphh.feishu.cn/wiki/XH1jwdX5uil2ookoEF8cpN1AnJf)）
 - 基于 RMMZ ModLoader V4 的「绯月仙行录」游戏微调版运用实例（[百度贴吧 1](https://tieba.baidu.com/p/10810499585?fr=personpage) · [百度贴吧 2](https://tieba.baidu.com/p/10813947286?fr=personpage)）
+- 基于 RMMZ ModLoader 的「暗源崛起」Mod 管理器使用演示（B 站视频 · [BV1twYY6dEMv](https://www.bilibili.com/video/BV1twYY6dEMv/?spm_id_from=333.788.videopod.sections&vd_source=3ef6190ccbaf3b82c0dd3ef57cd79cc8&p=7)）
+- Mod 商店仓库实例（AI 搭建 Mod 源的 catalog 发布链路参考，兼容性已实测）：
+  - 打怪升级爆装备 Mod 源（旧内核 V4.4.6 管理器适配验证）· <https://gitee.com/Jokerbbc/daguaishengjibaozhuangbeimod>
+  - 暗源崛起 Mod 源 · <https://gitee.com/Jokerbbc/dark-abyss-rises-mod>
+  - 挂机升级打怪兽 Mod 源 · <https://gitee.com/Jokerbbc/guajishengjidaguaishoumod>
 
 ## ✨ 功能特性
 
@@ -199,7 +204,9 @@ ModLoader 仅管理 `.js` 插件的开关、排序与参数；**数据库与游�
 | [使用手册.md](js/mods/docs/使用手册.md) | 游戏制作者 / 玩家 / Mod 作者完整指南 |
 | [modloader_CHANGELOG.md](js/mods/docs/modloader_CHANGELOG.md) | ModLoader 更新日志 |
 | [mod商店拓展.md](js/mods/docs/mod商店拓展.md) | Mod 商店设计与测试 |
-| [tools/modstore/gui/README.md](js/mods/docs/js/mods/tools/modstore/gui/README.md) | 作者打包 GUI 与 catalog 发布 |
+| [tools/modstore/gui/README.md](js/mods/tools/modstore/gui/README.md) | 作者打包 GUI 与 catalog 发布 |
+| [Mod 商店发布工作流 · AI 代办搭建指南](js/mods/tools/modstore/README.md) | AI 代办搭建 Mod 商店源：白名单/黑名单治理、干跑检查、一键推送 |
+| [整合包构筑指南 · AI 代办搭建](js/mods/tools/modpack/README.md) | AI 代办制作各 RMMZ 游戏的 Mod 管理器整合包：询问清单、bundle_config、构筑与分发 |
 
 ***
 
