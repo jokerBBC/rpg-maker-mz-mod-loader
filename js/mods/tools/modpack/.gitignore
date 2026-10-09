@@ -1,0 +1,9 @@
+# 生成物与作者本地配置（不入 git）
+Mod文件/
+dist/
+build/
+__pycache__/
+*.pyc
+bundle_config.json
+installer_config.json
+使用说明、修复工具等/

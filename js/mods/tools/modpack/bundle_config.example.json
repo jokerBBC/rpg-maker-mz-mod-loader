@@ -1,0 +1,23 @@
+{
+  "game": {
+    "name": "我的RMMZ游戏",
+    "aliases": ["我的RMMZ游戏", "MyRMMZGame"],
+    "exe": "Game.exe",
+    "installerTitle": "我的RMMZ游戏 Mod管理器整合包 安装向导",
+    "featuredMods": ["快速存档读档", "一键静音"],
+    "featuredModsNote": "其他 Mod 到游戏内 Mod 商店自行下载。"
+  },
+  "packages": ["快速存档读档", "一键静音"],
+  "sources": [
+    {
+      "id": "myrmzgamemods",
+      "name": "我的RMMZ游戏 Mod 源",
+      "catalogUrl": "https://gitee.com/你的账号/你的仓库/raw/master/catalog.json",
+      "enabled": true
+    }
+  ],
+  "output": {
+    "exeName": "Mod管理器整合包安装器",
+    "zipName": "我的RMMZ游戏Mod管理器整合包"
+  }
+}

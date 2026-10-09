@@ -5,7 +5,7 @@ IDEA.md
 releases/
 
 # Local release automation (not tracked)
-tools/
+/tools/
 
 # Local-only dev assets (tracked in their own local git repos, never pushed to remote)
 /docs/
