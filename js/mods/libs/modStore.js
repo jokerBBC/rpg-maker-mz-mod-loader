@@ -39,7 +39,7 @@
             btnRefresh: '刷新',
             btnRefreshing: '刷新中…',
             btnUpdateAll: '更新已安装（{n}）',
-            btnClearNew: '一键消除新增Mod通知',
+            btnClearNew: '一键消除新增Mod通知（{n}）',
             btnBack: '← 返回',
             btnSaveMax: '保存上限',
             btnAddSource: '添加来源',
@@ -77,6 +77,7 @@
             metaSource: '来源',
             badgeMultiSource: '多源',
             badgeNewTitle: '点击后消除绿色气泡通知计数，不再打扰',
+            badgeNewLabel: 'New(点击消除)',
             emptyNoSources: '尚未订阅任何来源。<br>点击「订阅管理」添加 catalog URL。',
             emptyClickRefresh: '点击「刷新」拉取订阅目录。',
             emptyAllSourcesFailed: '所有已启用来源均加载失败。',
@@ -134,7 +135,7 @@
             btnRefresh: '重新整理',
             btnRefreshing: '重新整理中…',
             btnUpdateAll: '更新已安裝（{n}）',
-            btnClearNew: '一鍵消除新增Mod通知',
+            btnClearNew: '一鍵消除新增Mod通知（{n}）',
             btnBack: '← 返回',
             btnSaveMax: '儲存上限',
             btnAddSource: '新增來源',
@@ -172,6 +173,7 @@
             metaSource: '來源',
             badgeMultiSource: '多源',
             badgeNewTitle: '點擊後消除綠色氣泡通知計數，不再打擾',
+            badgeNewLabel: 'New(點擊消除)',
             emptyNoSources: '尚未訂閱任何來源。<br>點擊「訂閱管理」新增 catalog URL。',
             emptyClickRefresh: '點擊「重新整理」拉取訂閱目錄。',
             emptyAllSourcesFailed: '所有已啟用來源均載入失敗。',
@@ -229,7 +231,7 @@
             btnRefresh: 'Refresh',
             btnRefreshing: 'Refreshing…',
             btnUpdateAll: 'Update installed ({n})',
-            btnClearNew: 'Clear new-mod notices',
+            btnClearNew: 'Clear new-mod notices ({n})',
             btnBack: '← Back',
             btnSaveMax: 'Save limit',
             btnAddSource: 'Add source',
@@ -267,6 +269,7 @@
             metaSource: 'Source',
             badgeMultiSource: 'Multi',
             badgeNewTitle: 'Click to dismiss this new-mod notification',
+            badgeNewLabel: 'New(click to dismiss)',
             emptyNoSources: 'No sources subscribed.<br>Open Subscriptions to add a catalog URL.',
             emptyClickRefresh: 'Click Refresh to fetch catalogs.',
             emptyAllSourcesFailed: 'All enabled sources failed to load.',
@@ -1902,6 +1905,7 @@
             '.ml-store-actions .ml-btn:disabled{opacity:.5;cursor:not-allowed;}',
             '.ml-store-progress,.ml-store-error{font-size:12px;color:var(--ml-text-secondary,#9a9ab0);line-height:1.5;max-width:100%;}',
             '.ml-store-update-all:disabled{opacity:.5;cursor:not-allowed;}',
+            '.ml-store-clear-new-btn:disabled{opacity:.5;cursor:not-allowed;}',
             '.ml-store-error{color:var(--ml-danger,#ef5350);}',
             '.ml-store-src-err{margin:0 16px 8px;padding:8px 10px;border-radius:6px;background:var(--ml-danger-bg,rgba(239,83,80,.15));color:var(--ml-danger,#ef5350);font-size:12px;}',
             '.ml-store-sources{padding:0 16px 12px;}',
@@ -1988,7 +1992,10 @@
         btn.textContent = storeT('btnUpdateAll', { n: n });
         btn.title = multi > 0 ? storeT('hintMultiSourceTitle') : '';
         const clearBtn = _panelRoot.querySelector('.ml-store-clear-new-btn');
-        if (clearBtn) clearBtn.disabled = countNew() <= 0;
+        if (clearBtn) {
+            clearBtn.textContent = storeT('btnClearNew', { n: countNew() });
+            clearBtn.disabled = countNew() <= 0;
+        }
     }
 
     function countMissing() {
@@ -2140,7 +2147,7 @@
                 '" data-mod="' + escHtml(r.packageName) + '">';
             html += '<div class="ml-store-item-title">' + escHtml(r.packageName);
             if (info.isNew) {
-                html += '<span class="ml-store-badge ml-store-badge-new" title="' + escHtml(storeT('badgeNewTitle')) + '">New</span>';
+                html += '<span class="ml-store-badge ml-store-badge-new" title="' + escHtml(storeT('badgeNewTitle')) + '">' + escHtml(storeT('badgeNewLabel')) + '</span>';
             }
             if (info.multiSource) {
                 html += '<span class="ml-store-badge">' + escHtml(storeT('badgeMultiSource')) + '</span>';
@@ -2466,7 +2473,7 @@
             '>' + escHtml(storeT('btnUpdateAll', { n: countAutoUpdatable() })) + '</button>' +
             '<button type="button" class="ml-btn ml-btn-primary ml-store-clear-new-btn"' +
             (countNew() > 0 ? '' : ' disabled') +
-            '>' + escHtml(storeT('btnClearNew')) + '</button>' +
+            '>' + escHtml(storeT('btnClearNew', { n: countNew() })) + '</button>' +
             '</div>' +
             '<div class="ml-store-hint">' + escHtml(storeT('hintToolbar')) + '</div>' +
             '<div class="ml-store-tabs">' + buildTabsHtml() + '</div>' +

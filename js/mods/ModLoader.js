@@ -1924,6 +1924,38 @@
     }
 
     /**
+     * 列表行名字自适应：单行放不下时逐档缩小字号；缩至最小仍放不下则换行显示全部信息
+     * （替代默认的省略号截断，保证冲突/前置失效提示文字完整可见）
+     */
+    function fitModNameText(nameEl) {
+        if (!nameEl) return;
+        nameEl.style.fontSize = '';
+        nameEl.classList.remove('ml-mod-name-wrap');
+        const avail = nameEl.clientWidth;
+        if (avail <= 0) return;
+        nameEl.style.whiteSpace = 'nowrap';
+        const fits = function (size) {
+            if (size != null) nameEl.style.fontSize = size + 'px';
+            return nameEl.scrollWidth <= avail;
+        };
+        if (fits(null)) {
+            nameEl.style.whiteSpace = '';
+            return;
+        }
+        const steps = [13, 12, 11, 10];
+        for (let i = 0; i < steps.length; i++) {
+            if (fits(steps[i])) {
+                nameEl.style.whiteSpace = '';
+                return;
+            }
+        }
+        // 最小字号仍放不下 → 换行，显示全部信息
+        nameEl.style.whiteSpace = '';
+        nameEl.style.fontSize = '10px';
+        nameEl.classList.add('ml-mod-name-wrap');
+    }
+
+    /**
      * 刷新 Mod 列表（scanAllMods：本地 + 工坊全量重扫）
      */
     function refreshWorkshopMods() {
@@ -2101,6 +2133,8 @@
                 `;
 
                 container.appendChild(item);
+                // 名字+提示放不下时自适应缩字/换行，保证提示文字完整可见
+                fitModNameText(item.querySelector('.ml-mod-name'));
             });
         }
 
@@ -5324,9 +5358,11 @@
         closeTopmostLayer();
     });
 
-    // ---- `~`（Backquote）呼出管理器：仅呼出不关闭；常驻监听，管理器关闭时也生效 ----
+    // ---- `~` 呼出管理器：仅呼出不关闭；常驻监听，管理器关闭时也生效 ----
+    // 注意：e.key 对该物理键只会在 ` 与 ~ 之间变化（是否按 Shift），'Backquote' 是 e.code 的值，三者均接受
     document.addEventListener('keydown', (e) => {
-        if (e.key !== 'Backquote') return;
+        const isTildeKey = e.code === 'Backquote' || e.key === '~' || e.key === '`';
+        if (!isTildeKey) return;
         // 输入框聚焦时不触发
         if (checkInputFocus()) return;
         // 已开着时不动作
