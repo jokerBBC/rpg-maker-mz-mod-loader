@@ -39,6 +39,7 @@
             btnRefresh: '刷新',
             btnRefreshing: '刷新中…',
             btnUpdateAll: '更新已安装（{n}）',
+            btnClearNew: '一键消除新增Mod通知',
             btnBack: '← 返回',
             btnSaveMax: '保存上限',
             btnAddSource: '添加来源',
@@ -75,7 +76,7 @@
             metaSize: '大小',
             metaSource: '来源',
             badgeMultiSource: '多源',
-            badgeNewTitle: '点击查看',
+            badgeNewTitle: '点击后消除绿色气泡通知计数，不再打扰',
             emptyNoSources: '尚未订阅任何来源。<br>点击「订阅管理」添加 catalog URL。',
             emptyClickRefresh: '点击「刷新」拉取订阅目录。',
             emptyAllSourcesFailed: '所有已启用来源均加载失败。',
@@ -124,7 +125,8 @@
             errFormatInvalid: '格式不正确',
             errHostNotAllowed: '下载域名不在白名单',
             errCatalogInvalid: 'catalog 无效',
-            errSha256Failed: 'sha256 校验失败'
+            errSha256Failed: 'sha256 校验失败',
+            errVersionMismatch: '本地版本与目标版本不一致。请点击「刷新」按钮或按 F5 重启游戏后重试'
         },
         zh_TW: {
             entryLabel: 'Mod 商店',
@@ -132,6 +134,7 @@
             btnRefresh: '重新整理',
             btnRefreshing: '重新整理中…',
             btnUpdateAll: '更新已安裝（{n}）',
+            btnClearNew: '一鍵消除新增Mod通知',
             btnBack: '← 返回',
             btnSaveMax: '儲存上限',
             btnAddSource: '新增來源',
@@ -168,7 +171,7 @@
             metaSize: '大小',
             metaSource: '來源',
             badgeMultiSource: '多源',
-            badgeNewTitle: '點擊查看',
+            badgeNewTitle: '點擊後消除綠色氣泡通知計數，不再打擾',
             emptyNoSources: '尚未訂閱任何來源。<br>點擊「訂閱管理」新增 catalog URL。',
             emptyClickRefresh: '點擊「重新整理」拉取訂閱目錄。',
             emptyAllSourcesFailed: '所有已啟用來源均載入失敗。',
@@ -217,7 +220,8 @@
             errFormatInvalid: '格式不正確',
             errHostNotAllowed: '下載域名不在白名單',
             errCatalogInvalid: 'catalog 無效',
-            errSha256Failed: 'sha256 校驗失敗'
+            errSha256Failed: 'sha256 校驗失敗',
+            errVersionMismatch: '本機版本與目標版本不一致。請點擊「重新整理」按鈕或按 F5 重啟遊戲後重試'
         },
         en: {
             entryLabel: 'Mod Store',
@@ -225,6 +229,7 @@
             btnRefresh: 'Refresh',
             btnRefreshing: 'Refreshing…',
             btnUpdateAll: 'Update installed ({n})',
+            btnClearNew: 'Clear new-mod notices',
             btnBack: '← Back',
             btnSaveMax: 'Save limit',
             btnAddSource: 'Add source',
@@ -261,7 +266,7 @@
             metaSize: 'Size',
             metaSource: 'Source',
             badgeMultiSource: 'Multi',
-            badgeNewTitle: 'Click to dismiss',
+            badgeNewTitle: 'Click to dismiss this new-mod notification',
             emptyNoSources: 'No sources subscribed.<br>Open Subscriptions to add a catalog URL.',
             emptyClickRefresh: 'Click Refresh to fetch catalogs.',
             emptyAllSourcesFailed: 'All enabled sources failed to load.',
@@ -310,7 +315,8 @@
             errFormatInvalid: 'Invalid package format',
             errHostNotAllowed: 'Download host not allowed',
             errCatalogInvalid: 'Invalid catalog',
-            errSha256Failed: 'SHA256 verification failed'
+            errSha256Failed: 'SHA256 verification failed',
+            errVersionMismatch: 'Local version does not match the target version. Click the “Refresh” button or press F5 to restart the game, then try again.'
         }
     };
 
@@ -1462,6 +1468,15 @@
         });
     }
 
+    /** 一键消除全部新增通知计数（按 packageName 去重；已读状态落 mod_store.json，F5 不复发） */
+    function clearAllNewNotices() {
+        let cleared = 0;
+        forEachDedupedPackage(function (info) {
+            if (info.isNew && markPackageSeen(info.row.packageName)) cleared++;
+        });
+        return cleared;
+    }
+
     /** 齿轮角标：可更新 + 未查看的新增 Mod（按 packageName 去重） */
     function countBadgeNotices() {
         let n = 0;
@@ -1642,6 +1657,12 @@
                     throw e;
                 }
                 removePathSafe(partialPath);
+                // 安装后版本校验：本地版本与目标版本不一致（如下载到旧包）时给出刷新/F5 指引
+                const installed = readLocalPackageVersion(entry.packageName);
+                const cmpInstalled = compareVersions(installed.version, entry.version);
+                if (cmpInstalled !== null && cmpInstalled !== 0) {
+                    throw new Error(storeT('errVersionMismatch'));
+                }
                 setJob(entry.sourceId, entry.packageName, {
                     status: 'done',
                     progress: 100,
@@ -1872,6 +1893,8 @@
             '.ml-store-item-title{font-weight:600;font-size:13px;margin-bottom:4px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}',
             '.ml-store-badge{font-size:10px;padding:1px 6px;border-radius:4px;background:var(--ml-warning-bg,rgba(255,167,38,.15));color:var(--ml-warning,#ffa726);font-weight:600;}',
             '.ml-store-badge-new{background:rgba(76,175,80,.2);color:var(--ml-success,#66bb6a);cursor:pointer;}',
+            '.ml-store-new-count{cursor:pointer;border-radius:4px;}',
+            '.ml-store-new-count:hover{text-decoration:underline;}',
             '.ml-store-item-has-new{cursor:pointer;}',
             '.ml-store-meta{font-size:12px;color:var(--ml-text-secondary,#9a9ab0);line-height:1.6;margin-bottom:8px;}',
             '.ml-store-summary{font-size:12px;color:var(--ml-text-muted,#666680);margin-bottom:8px;}',
@@ -1964,6 +1987,8 @@
         btn.disabled = n <= 0;
         btn.textContent = storeT('btnUpdateAll', { n: n });
         btn.title = multi > 0 ? storeT('hintMultiSourceTitle') : '';
+        const clearBtn = _panelRoot.querySelector('.ml-store-clear-new-btn');
+        if (clearBtn) clearBtn.disabled = countNew() <= 0;
     }
 
     function countMissing() {
@@ -1998,21 +2023,32 @@
         let html = '<span class="ml-store-tabs-label">' + escHtml(storeT('statusLabel')) + '</span>';
         html += buildStatusTabBtn('all', storeT('statusAll'));
         html += buildStatusTabBtn('update', storeT('statusUpdatable') + (upd > 0 ? '（' + upd + '）' : ''));
-        html += buildStatusTabBtn('new', storeT('statusNew') + (newest > 0 ? '（' + newest + '）' : ''));
+        html += buildStatusTabBtn('new', storeT('statusNew') + (newest > 0 ? '（' + newest + '）' : ''), newest > 0);
         html += buildStatusTabBtn('missing', storeT('statusMissing') + (miss > 0 ? '（' + miss + '）' : ''));
         return html;
     }
 
-    function buildStatusTabBtn(id, label) {
+    function buildStatusTabBtn(id, label, countDismissable) {
+        let inner = escHtml(label);
+        if (countDismissable) {
+            // 计数可点击消除（不切换筛选），悬停有提示
+            inner = '<span class="ml-store-new-count" title="' + escHtml(storeT('badgeNewTitle')) + '">' + inner + '</span>';
+        }
         return '<button type="button" class="ml-store-tab ml-store-status-tab' +
             (_activeStatusFilter === id ? ' is-active' : '') +
-            '" data-status="' + escHtml(id) + '">' + escHtml(label) + '</button>';
+            '" data-status="' + escHtml(id) + '">' + inner + '</button>';
     }
 
     function bindStatusTabEvents(root) {
         const tabs = root.querySelectorAll('.ml-store-status-tab');
         for (let i = 0; i < tabs.length; i++) {
             tabs[i].addEventListener('click', function (e) {
+                // 点计数span：消除全部新增通知，不切换筛选
+                if (e.target.closest && e.target.closest('.ml-store-new-count')) {
+                    clearAllNewNotices();
+                    refreshListView();
+                    return;
+                }
                 _statusFilterPinnedByUser = true;
                 _activeStatusFilter = e.currentTarget.getAttribute('data-status') || 'all';
                 _listScrollTop = 0;
@@ -2153,6 +2189,21 @@
                     updateToolbar();
                     rerenderListOnly();
                 }
+            });
+        }
+        // New 气泡可点击：消除该条新增通知计数
+        const newBadges = listEl.querySelectorAll('.ml-store-badge-new');
+        for (let b = 0; b < newBadges.length; b++) {
+            newBadges[b].addEventListener('click', function (e) {
+                e.stopPropagation();
+                const item = e.currentTarget.closest('.ml-store-item');
+                const modId = item && item.getAttribute('data-mod');
+                if (modId && isModNew(modId)) {
+                    markPackageSeen(modId);
+                }
+                syncStatusTabsUi();
+                updateToolbar();
+                rerenderListOnly();
             });
         }
         const btns = listEl.querySelectorAll('.ml-store-action-btn');
@@ -2387,7 +2438,7 @@
             container.innerHTML =
                 '<div class="ml-store">' +
                 '<div class="ml-store-toolbar">' +
-                '<button type="button" class="ml-btn ml-btn-secondary ml-store-back-btn">' + escHtml(storeT('btnBack')) + '</button>' +
+                '<button type="button" class="ml-btn ml-btn-primary ml-store-back-btn">' + escHtml(storeT('btnBack')) + '</button>' +
                 '<span style="color:var(--ml-text-secondary,#9a9ab0);font-size:12px;">' + escHtml(storeT('btnSubscribeManage')) + '</span>' +
                 '</div>' +
                 '<div class="ml-store-sources-scroll ml-list-scroll">' +
@@ -2407,12 +2458,15 @@
         container.innerHTML =
             '<div class="ml-store">' +
             '<div class="ml-store-toolbar">' +
-            '<button type="button" class="ml-btn ml-btn-secondary ml-store-sources-btn">' + escHtml(storeT('btnSubscribeManage')) + '</button>' +
+            '<button type="button" class="ml-btn ml-btn-primary ml-store-sources-btn">' + escHtml(storeT('btnSubscribeManage')) + '</button>' +
             '<button type="button" class="ml-btn ml-btn-primary ml-store-refresh-btn">' + escHtml(storeT('btnRefresh')) + '</button>' +
             '<button type="button" class="ml-btn ml-btn-primary ml-store-update-all"' +
             (countAutoUpdatable() > 0 ? '' : ' disabled') +
             (countMultiSourceUpdatable() > 0 ? ' title="' + escHtml(storeT('hintMultiSourceTitle')) + '"' : '') +
             '>' + escHtml(storeT('btnUpdateAll', { n: countAutoUpdatable() })) + '</button>' +
+            '<button type="button" class="ml-btn ml-btn-primary ml-store-clear-new-btn"' +
+            (countNew() > 0 ? '' : ' disabled') +
+            '>' + escHtml(storeT('btnClearNew')) + '</button>' +
             '</div>' +
             '<div class="ml-store-hint">' + escHtml(storeT('hintToolbar')) + '</div>' +
             '<div class="ml-store-tabs">' + buildTabsHtml() + '</div>' +
@@ -2451,6 +2505,13 @@
                         skipped: result.skippedMulti
                     }));
                 }
+                refreshListView();
+            });
+        }
+        const clearNewBtn = container.querySelector('.ml-store-clear-new-btn');
+        if (clearNewBtn) {
+            clearNewBtn.addEventListener('click', function () {
+                clearAllNewNotices();
                 refreshListView();
             });
         }
