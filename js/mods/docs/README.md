@@ -69,6 +69,38 @@
 
 <div align="center">
 
+配置预设
+
+![配置预设](img/配置预设.png)
+
+</div>
+
+<div align="center">
+
+管理器更新
+
+![管理器更新](img/管理器更新界面.png)
+
+</div>
+
+<div align="center">
+
+Mod 商店
+
+![Mod 商店](img/Mod商店界面.png)
+
+</div>
+
+<div align="center">
+
+Mod 商店订阅管理
+
+![Mod 商店订阅管理](img/Mod商店订阅管理界面.png)
+
+</div>
+
+<div align="center">
+
 参数编辑界面
 
 ![软件主界面](img/参数界面-一般.png)

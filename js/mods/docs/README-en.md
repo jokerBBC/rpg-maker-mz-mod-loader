@@ -71,6 +71,38 @@ Main screen
 
 <div align="center">
 
+Config presets
+
+![Config presets](img/配置预设.png)
+
+</div>
+
+<div align="center">
+
+Manager update
+
+![Manager update](img/管理器更新界面.png)
+
+</div>
+
+<div align="center">
+
+Mod store
+
+![Mod store](img/Mod商店界面.png)
+
+</div>
+
+<div align="center">
+
+Mod store — subscription management
+
+![Mod store subscription management](img/Mod商店订阅管理界面.png)
+
+</div>
+
+<div align="center">
+
 Parameter editor
 
 ![Parameter editor](img/参数界面-一般.png)
