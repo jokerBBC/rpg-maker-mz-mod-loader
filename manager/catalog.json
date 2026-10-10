@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "id": "modloader-manager",
-  "version": "V4.5.0",
-  "publishedAt": "2026-10-10T02:48:17Z",
+  "version": "V4.5.1",
+  "publishedAt": "2026-10-10T02:52:20Z",
   "changelogPath": "docs/modloader_CHANGELOG.md",
   "files": [
     {
       "path": "ModLoader.js",
-      "sha256": "6de950220a2f7ef7b0ab725c0dfd7892f90042aab5071a4b4de0de3b864fad00",
+      "sha256": "d35bd272e04b8baed873497029ff5380f1ba12c47fd1b035e2fc517fa4d41e73",
       "size": 241773
     },
     {
@@ -37,12 +37,12 @@
     },
     {
       "path": "docs/README-en.md",
-      "sha256": "548c7ef95e840302da1de1723fb0052af6be50e89064b49b71a5d25e9f3e2602",
+      "sha256": "13c434c5651b4f47a1693ad8aa3b58557ff01978238e98a4cc568e58e2b170a9",
       "size": 15368
     },
     {
       "path": "docs/README.md",
-      "sha256": "6bba30c8989c9d5bcccf93efc593e3086dd56b497366c44d850e8afa059769da",
+      "sha256": "cacd5561d6b6367d3a55e41e266575276515141c02d41da40b5b99a613ed7872",
       "size": 14901
     },
     {
@@ -102,8 +102,8 @@
     },
     {
       "path": "docs/modloader_CHANGELOG.md",
-      "sha256": "fd0db2c96df9127ee1a666dd424035d7ec7028c9ec3ce01800d0aa4987fe6d06",
-      "size": 56046
+      "sha256": "79ea8d9594338ea4f93b11668adfbffaa04b0ae3c8d58fc450ff25292284bc33",
+      "size": 56786
     },
     {
       "path": "docs/mod商店拓展.md",
@@ -112,7 +112,7 @@
     },
     {
       "path": "docs/使用手册.md",
-      "sha256": "ae690a241819cd5c3133ba4f8cef94ab55280ad7d1b2317f9351b469d77d0583",
+      "sha256": "1ce8d532d49db324379a0987a02e46d5948c8048872a61bd8e68500567bead86",
       "size": 26392
     },
     {
