@@ -4,11 +4,12 @@
 [![GitHub release](https://img.shields.io/github/v/release/jokerBBC/rpg-maker-mz-mod-loader)](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/releases/latest)
 [![GitHub downloads](https://img.shields.io/github/downloads/jokerBBC/rpg-maker-mz-mod-loader/total)](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/releases)
 
-> **[中文版 README](README.md)**
+**[中文版 README](README.md)**
 
 In-game mod manager **V4.5.0**
 
 A powerful RPG Maker MZ mod manager that lets you enable/disable, edit parameters, reorder, and check dependencies for **local mods** and **Steam Workshop mods** — all from inside the game. **Multilingual UI** is supported (Simplified Chinese / Traditional Chinese / English).
+The AI workflow is now complete: mod authoring — mod store setup — bundle packaging — player install — online mod updates, fully connected.
 
 > **Runtime**: RPG Maker MZ (NW.js)  
 > **Mod config**: stored in `mod_config.json`; toggles and parameters survive game updates  

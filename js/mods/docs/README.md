@@ -4,11 +4,12 @@
 [![GitHub release](https://img.shields.io/github/v/release/jokerBBC/rpg-maker-mz-mod-loader)](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/releases/latest)
 [![GitHub downloads](https://img.shields.io/github/downloads/jokerBBC/rpg-maker-mz-mod-loader/total)](https://github.com/jokerBBC/rpg-maker-mz-mod-loader/releases)
 
-> **[English README](README-en.md)**
+**[English README](README-en.md)**
 
 游戏内模组管理器 **V4.5.0**
 
 一款功能强大的 RPG Maker MZ 模组管理器，支持在游戏内管理 **本地 Mod** 与 **Steam 创意工坊 Mod** 的开启/关闭、参数编辑、排序与依赖检测。**现已支持多语言界面**（简体中文 / 繁體中文 / English）。
+现已完善AI工作流：Mod制作-Mod源搭建-整合包制作-玩家安装-Mod在线推送更新 链路打通
 
 > **运行环境**：RPG Maker MZ（NW.js）  
 > **Mod 配置**：保存在 `mod_config.json`，游戏更新后 Mod 开关与参数也不会丢失  
