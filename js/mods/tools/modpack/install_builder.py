@@ -35,15 +35,17 @@ INJECT_BAT_NAME = "Mod管理器注入工具.bat"
 # 不打包/不覆盖 index.html：安装时对游戏已有文件注入 ModLoader 引用，
 # 保住游戏作者写在 index.html 的版本号等信息。
 
-# 玩家自有状态文件（重装保护）：
+# 玩家自有状态文件（重装保护，三个场景统一逻辑：无则复制，有则保留/合并/跳过）：
 # - mod_config.json：Mod 开关/参数/顺序，载荷从不含它；若异常含则跳过不覆盖
-# - config/modloader_config.json：管理器偏好（语言/主题/工坊），玩家已有则跳过
-# - config/mod_store.json：商店订阅与已读状态，玩家已有则按源 id 合并（保留玩家订阅）
+# - config/modloader_config.json：管理器偏好种子（构筑机预置的默认偏好）——有则保留不动
+# - config/mod_store.json：商店订阅——有则按源 id 追加合并（保留玩家订阅与已读状态）
+# - _localmods/<包名>/：入包 Mod——玩家已有同名包则整包跳过（防玩家魔改被覆盖）
 PLAYER_STATE_SKIP = {
     "js/mods/mod_config.json",
     "js/mods/config/modloader_config.json",
 }
 PLAYER_STATE_MERGE = {"js/mods/config/mod_store.json"}
+LOCALMODS_PREFIX = "js/mods/_localmods/"
 # ==================== 契约结束 ====================
 
 
@@ -370,17 +372,32 @@ def merge_store_json(game_path, bundle_path):
     return True, f"已合并商店源（新增 {added} 个，你的订阅与已读状态保留）"
 
 
+def player_localmod_dir(dst):
+    """从目标文件路径反推玩家侧 _localmods/<包名> 目录；不在其下返回 (None, "")。"""
+    parts = dst.replace("\\", "/").split("/")
+    try:
+        i = parts.index("_localmods")
+    except ValueError:
+        return None, ""
+    if i + 1 >= len(parts) - 1:
+        return None, ""
+    return os.path.join(*parts[: i + 2]), parts[i + 1]
+
+
 def install_one_file(src, dst, key):
     """按玩家状态保护规则安装单个载荷文件，返回界面提示文案（默认复制返回 None）。
 
-    key 为载荷内相对路径（posix）。玩家已有 mod_config.json /
-    modloader_config.json 时跳过不覆盖；已有 mod_store.json 时按源 id 合并。
+    key 为载荷内相对路径（posix）。统一逻辑：玩家无则复制，有则保留/合并/跳过。
     """
     if key in PLAYER_STATE_SKIP and os.path.exists(dst):
         return f"已保留你的现有文件：{key}"
     if key in PLAYER_STATE_MERGE and os.path.exists(dst):
         _ok, msg = merge_store_json(dst, src)
         return msg
+    if key.startswith(LOCALMODS_PREFIX):
+        pkg_dir, pkg = player_localmod_dir(dst)
+        if pkg and pkg_dir and os.path.isdir(pkg_dir):
+            return f"已保留你的现有 Mod：{pkg}（跳过包内版本）"
     os.makedirs(os.path.dirname(dst), exist_ok=True)
     shutil.copy2(src, dst)
     return None

@@ -98,9 +98,11 @@ python build_package.py --zip --exe
 - [ ] 商店源清单与作者交代一致，`catalogUrl` 均为 https；
 - [ ] 产物文件名（exe / zip）符合作者要求；
 - [ ] `Mod文件/js/mods/docs/` 只有 `modloader_CHANGELOG.md`（游戏内「(日志)」按钮用），没有使用手册等玩家文档；
-- [ ] `Mod文件/` 里没有 `index.html`、`mod_config.json`、`modloader_config.json`、`tools/`；
+- [ ] `Mod文件/` 里没有 `index.html`、`mod_config.json`、`tools/`；`config/modloader_config.json` 入包是预期行为（首装种子，重装不覆盖玩家配置）；
 - [ ] zip 根目录含：`<exeName>.exe`、`installer_config.json`、`Mod文件/`、`使用说明、修复工具等/`；
 - [ ] 干跑输出已交给作者过目并得到明确确认。
+
+> 想预置管理器默认偏好（工坊 AppID、默认语言等）？在构筑机游戏目录的 `js/mods/config/modloader_config.json` 里配好再构筑——它会作为种子入包，首装玩家获得这些默认值；玩家改过自己的配置后重装不会覆盖。
 
 **安装器 exe 一次构筑、重复使用**：exe 内没有任何游戏数据，游戏数据全在同级的 `installer_config.json`。换游戏只需改 `bundle_config.json` 重打 zip，**不必重筑 exe**；只有 `install_builder.py` 本身改动时才需要 `--exe`。
 
@@ -115,10 +117,12 @@ python build_package.py --zip --exe
 
 1. 自动定位游戏目录：Steam 库（注册表 + libraryfolders.vdf + 各盘 SteamLibrary）、桌面、常见安装路径、各盘浅层扫描，按 `gameAliases` 匹配文件夹名；找不到可手动浏览；
 2. 可选备份 `save` → `游戏目录\存档备份\<时间戳>-安装Mod管理器备份.zip`；
-3. 复制 `Mod文件/` 内的 `js\` 与 `Mod管理器注入工具.bat` 到游戏目录（**不复制 index.html**）；玩家自有状态文件受重装保护：
-   - `mod_config.json`（Mod 开关/参数/顺序）与 `config/modloader_config.json`（语言/主题/工坊偏好）**不入包、不覆盖**——玩家已有则原样保留；
-   - 玩家已有 `config/mod_store.json`（商店订阅/已读状态）时按源 id **合并**：保留玩家订阅与已读状态、玩家源的启停状态不变，只补入包内新源；玩家没有时才落盘包内版本；
-   - 入包 Mod 同名文件按包内版本覆盖（不删玩家在该目录的额外文件）；玩家后续到商店可自升到更新版；
+3. 复制 `Mod文件/` 内的 `js\` 与 `Mod管理器注入工具.bat` 到游戏目录（**不复制 index.html**）。玩家自有状态统一按「**无则复制、有则保留**」处理，重装不冲掉玩家配置：
+   - `config/modloader_config.json`（管理器偏好种子）：玩家没有才复制构筑机预置的默认值（语言 / 主题 / 工坊 AppID 等），已有则原样不动；
+   - `config/mod_store.json`（商店订阅）：玩家没有才复制；已有则按源 id **追加**包内新源——玩家自配的源、启停状态与已读状态全部保留（补新源正是为了玩家多一种订阅渠道，所以这个文件要动）；
+   - `_localmods/<入包 Mod>`：玩家没有该包才复制；已有同名包则**整包跳过**——防止玩家自己魔改过的 Mod 被包内版覆盖；
+   - `mod_config.json`（Mod 开关 / 参数 / 顺序）：载荷从不含它，玩家配置永远不受影响；
+   - 管理器运行时文件（`ModLoader.js`、`modloader/`、`libs/`、语言包等）按包内版本正常更新；
 4. 若游戏已有 `index.html`，在其 `main.js` 脚本标签前**注入** `js/mods/ModLoader.js` 引用（已注入则幂等跳过；保留原标题 / 版本号与原有换行风格）；
 5. 可选启动游戏。
 

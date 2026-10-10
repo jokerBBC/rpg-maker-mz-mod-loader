@@ -202,11 +202,13 @@ def build_mod_files(cfg: dict) -> None:
     )
     print(f"  libs/ ×{n}")
 
-    # 4. config：语言 / CSS。
-    #    modloader_config.json 是玩家偏好（语言/主题/工坊），不打包——安装器对玩家
-    #    已有偏好跳过不覆盖；mod_store.json 在步骤 7 生成，安装器按需与玩家版合并。
+    # 4. config：语言 / CSS / 管理器配置。
+    #    modloader_config.json 作为「种子」入包：构筑机（通常是你游戏目录里的
+    #    js/mods）里的偏好会成为首装玩家的默认值（如工坊 AppID、语言）；
+    #    安装器对玩家已有配置保留不动，见 install_builder.py 重装保护。
+    #    mod_store.json 在步骤 7 生成，安装器与玩家版按源 id 合并。
     cfg_src = MODS_ROOT / "config"
-    for rel in ["language", "modloader.css"]:
+    for rel in ["language", "modloader.css", "modloader_config.json"]:
         src = cfg_src / rel
         if src.is_file():
             copy_file(src, mods_dst / "config" / rel)

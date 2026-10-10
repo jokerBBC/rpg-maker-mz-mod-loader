@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "modloader-manager",
   "version": "V4.5.0",
-  "publishedAt": "2026-10-10T00:50:41Z",
+  "publishedAt": "2026-10-10T01:32:47Z",
   "changelogPath": "docs/modloader_CHANGELOG.md",
   "files": [
     {
@@ -102,8 +102,8 @@
     },
     {
       "path": "docs/modloader_CHANGELOG.md",
-      "sha256": "4999a28b17aaa64bac2682c8b758a9564715f9037edd4a1f118b0198a448d361",
-      "size": 55360
+      "sha256": "181c8579c76159796b52a12535c26a2a25129654d7bf1e41ffd990194aaca455",
+      "size": 55707
     },
     {
       "path": "docs/mod商店拓展.md",
@@ -212,13 +212,13 @@
     },
     {
       "path": "tools/modpack/README.md",
-      "sha256": "7b6bf9f127df3fc1b8e61ebaba2ab0f53491b3e7760de5bdd73ed2b5a50f2a39",
-      "size": 10471
+      "sha256": "4277c6b44058c168b782a402e70cfa96b584ddb76e69106c3795fba96640196f",
+      "size": 11173
     },
     {
       "path": "tools/modpack/build_package.py",
-      "sha256": "3fb4b8bd71a6ca0fabe4f3145919f11f01e6b591c13b18660eaf5237a9a1d2fe",
-      "size": 19486
+      "sha256": "f67d7115a0c0a8e0ac7f4f9d1e87f4fcb36ffb3054f58ef2779ee53e881643e1",
+      "size": 19686
     },
     {
       "path": "tools/modpack/bundle_config.example.json",
@@ -232,8 +232,8 @@
     },
     {
       "path": "tools/modpack/install_builder.py",
-      "sha256": "6714a7151aeb79884f93396a396e203fc8e0cbc5cad2e1f744c0bfcbc0523e1e",
-      "size": 32034
+      "sha256": "416216d2ac2f9f4e744727c18eb15847b5714842446607ca2c2087e908f3f11b",
+      "size": 32831
     },
     {
       "path": "tools/modstore/README.md",
