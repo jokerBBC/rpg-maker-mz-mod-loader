@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "modloader-manager",
   "version": "V4.5.0",
-  "publishedAt": "2026-10-10T02:42:28Z",
+  "publishedAt": "2026-10-10T02:48:17Z",
   "changelogPath": "docs/modloader_CHANGELOG.md",
   "files": [
     {
@@ -127,8 +127,8 @@
     },
     {
       "path": "libs/modLoaderUpdater.js",
-      "sha256": "413c28d0b79feac3251200d6d67f76935733f042a72a766d8872926f07264f34",
-      "size": 67507
+      "sha256": "99d79e81c579c0b9a80a4e223c962bcc6a4b9007e0d2f2418f334be267f26610",
+      "size": 68041
     },
     {
       "path": "libs/modStore.js",
@@ -207,8 +207,8 @@
     },
     {
       "path": "tools/modpack/Mod管理器注入工具.bat",
-      "sha256": "d59f53459bd5f20bac5d4f9fea60b69046697cbcd0e0e721388811a1e991ef4b",
-      "size": 4585
+      "sha256": "3e8ff8ac427d46cd538bc13a65b7bb2730ee5f5e0a710471d41ee488ef17b028",
+      "size": 4289
     },
     {
       "path": "tools/modpack/README.md",

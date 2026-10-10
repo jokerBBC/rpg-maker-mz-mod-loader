@@ -92,7 +92,7 @@
             logDownloadOk: '下载 {path} … OK',
             logSha256Mismatch: 'sha256 不匹配：{path}（{mirror}）期望 {expectedSha} / {expectedSize} B · 下载 {actualSha} / {actualSize} B · LF归一 {lfSha} / {lfSize} B',
             logSha256Url: '  URL：{url}',
-            logSha256LfHint: '  提示：LF 归一 hash 与 catalog 一致 → catalog 可能按 CRLF 磁盘生成，需重新 sync 并打 tag',
+            logSha256LfHint: '  提示：LF 归一 hash 与 catalog 一致 → 文件含 CRLF 差异或非 UTF-8 编码（如 GBK 的 .bat）；文本文件重新 sync 并打 tag，非 UTF-8 文件需由作者按二进制入 catalog',
             logBackup: '备份将改文件…',
             logCommit: '写入新文件…',
             logRemove: '清理遗弃文件：{path}',
@@ -154,7 +154,7 @@
             logDownloadOk: '下載 {path} … OK',
             logSha256Mismatch: 'sha256 不符：{path}（{mirror}）期望 {expectedSha} / {expectedSize} B · 下載 {actualSha} / {actualSize} B · LF歸一 {lfSha} / {lfSize} B',
             logSha256Url: '  URL：{url}',
-            logSha256LfHint: '  提示：LF 歸一 hash 與 catalog 一致 → catalog 可能按 CRLF 磁碟生成，需重新 sync 並打 tag',
+            logSha256LfHint: '  提示：LF 歸一 hash 與 catalog 一致 → 檔案含 CRLF 差異或非 UTF-8 編碼（如 GBK 的 .bat）；文字檔案重新 sync 並打 tag，非 UTF-8 檔案需由作者按二進位入 catalog',
             logBackup: '備份將改檔案…',
             logCommit: '寫入新檔案…',
             logRemove: '清理遺棄檔案：{path}',
@@ -216,7 +216,7 @@
             logDownloadOk: 'Download {path} … OK',
             logSha256Mismatch: 'SHA256 mismatch: {path} ({mirror}) expected {expectedSha} / {expectedSize} B · got {actualSha} / {actualSize} B · LF-norm {lfSha} / {lfSize} B',
             logSha256Url: '  URL: {url}',
-            logSha256LfHint: '  Hint: LF-normalized hash matches catalog — catalog may use CRLF disk digests; re-sync and re-tag',
+            logSha256LfHint: '  Hint: LF-normalized hash matches catalog — the file has CRLF or non-UTF-8 bytes (e.g. a GBK .bat); re-sync and re-tag for text files; non-UTF-8 files must be cataloged as binary by the author',
             logBackup: 'Backing up files to replace…',
             logCommit: 'Writing new files…',
             logRemove: 'Remove obsolete: {path}',
@@ -467,9 +467,11 @@
         return hash.digest('hex');
     }
 
-    const CATALOG_BINARY_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico']);
+    // .bat 入二进制：GBK 编码的 bat（如 Mod管理器注入工具.bat）不是合法 UTF-8，
+    // 文本归一化（toString('utf8')）会损化字节，必须按裸字节算摘要（与发版 catalog 一致）。
+    const CATALOG_BINARY_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.bat']);
 
-    /** 与发版 sync catalog 一致：文本按 LF 归一化后算 sha256/size */
+    /** 与发版 sync catalog 一致：文本按 LF 归一化后算 sha256/size；二进制按裸字节 */
     function catalogDigestBuffer(buf, relPath) {
         const rel = normalizeRelPath(relPath || '');
         const ext = pathMod.extname(rel).toLowerCase();

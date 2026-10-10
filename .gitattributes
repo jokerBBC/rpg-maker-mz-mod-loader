@@ -1,0 +1,4 @@
+# .bat 按精确字节存（GBK+CRLF，不做 autocrlf 转换）：
+# 注入工具 bat 为 GBK 编码（防中文控制台乱码），文本归一化会损化非 UTF-8 字节，
+# 导致 catalog 摘要与 raw 下载字节不一致（在线更新 sha256 校验失败）。
+*.bat -text
