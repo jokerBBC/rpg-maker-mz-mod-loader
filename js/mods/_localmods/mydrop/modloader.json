@@ -1,0 +1,6 @@
+{
+    "name": "mydrop",
+    "version": "V1.0.0",
+    "description": "怪物额外掉落表（兼容 Yanfly 额外掉落插件）",
+    "entries": ["mydrop.js"]
+}

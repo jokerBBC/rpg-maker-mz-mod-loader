@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "modloader-manager",
   "version": "V4.5.0",
-  "publishedAt": "2026-10-10T01:48:12Z",
+  "publishedAt": "2026-10-10T02:08:09Z",
   "changelogPath": "docs/modloader_CHANGELOG.md",
   "files": [
     {
@@ -102,8 +102,8 @@
     },
     {
       "path": "docs/modloader_CHANGELOG.md",
-      "sha256": "d2909589053a54c14899a190999691301c23c3cfd6bb90d06a00e7de785a9e39",
-      "size": 55808
+      "sha256": "fd0db2c96df9127ee1a666dd424035d7ec7028c9ec3ce01800d0aa4987fe6d06",
+      "size": 56046
     },
     {
       "path": "docs/mod商店拓展.md",
@@ -112,8 +112,8 @@
     },
     {
       "path": "docs/使用手册.md",
-      "sha256": "b6565f84a28096ef5e83386a615bd819f1abbeec9de0542ebb82ea33d0874a22",
-      "size": 24585
+      "sha256": "ae690a241819cd5c3133ba4f8cef94ab55280ad7d1b2317f9351b469d77d0583",
+      "size": 26392
     },
     {
       "path": "libs/marked.min.js",
