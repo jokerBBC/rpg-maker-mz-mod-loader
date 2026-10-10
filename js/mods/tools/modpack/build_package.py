@@ -202,9 +202,11 @@ def build_mod_files(cfg: dict) -> None:
     )
     print(f"  libs/ ×{n}")
 
-    # 4. config：语言 / CSS / 管理器配置
+    # 4. config：语言 / CSS。
+    #    modloader_config.json 是玩家偏好（语言/主题/工坊），不打包——安装器对玩家
+    #    已有偏好跳过不覆盖；mod_store.json 在步骤 7 生成，安装器按需与玩家版合并。
     cfg_src = MODS_ROOT / "config"
-    for rel in ["language", "modloader.css", "modloader_config.json"]:
+    for rel in ["language", "modloader.css"]:
         src = cfg_src / rel
         if src.is_file():
             copy_file(src, mods_dst / "config" / rel)
@@ -230,6 +232,7 @@ def build_mod_files(cfg: dict) -> None:
     # 6. 不打包 mod_config.json：开关/参数一律玩家自选，重装不覆盖。
 
     # 7. 商店订阅源（只预填源，不打包第三方 Mod；玩家到商店自行下载）。
+    #    玩家端已有时由安装器按源 id 合并（保留玩家订阅与已读状态，不整文件覆盖）。
     #    seenMods 只标实际入包的 Mod，未入包的不标。
     sources = [dict(s) for s in cfg["sources"]]
     for s in sources:

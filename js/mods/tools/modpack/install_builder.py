@@ -34,6 +34,16 @@ INSTALL_ITEMS = ["js", "Mod管理器注入工具.bat"]
 INJECT_BAT_NAME = "Mod管理器注入工具.bat"
 # 不打包/不覆盖 index.html：安装时对游戏已有文件注入 ModLoader 引用，
 # 保住游戏作者写在 index.html 的版本号等信息。
+
+# 玩家自有状态文件（重装保护）：
+# - mod_config.json：Mod 开关/参数/顺序，载荷从不含它；若异常含则跳过不覆盖
+# - config/modloader_config.json：管理器偏好（语言/主题/工坊），玩家已有则跳过
+# - config/mod_store.json：商店订阅与已读状态，玩家已有则按源 id 合并（保留玩家订阅）
+PLAYER_STATE_SKIP = {
+    "js/mods/mod_config.json",
+    "js/mods/config/modloader_config.json",
+}
+PLAYER_STATE_MERGE = {"js/mods/config/mod_store.json"}
 # ==================== 契约结束 ====================
 
 
@@ -296,6 +306,84 @@ def do_backup(game_dir, status_callback):
                 zf.write(full, rel)
 
     return zip_path
+
+
+def merge_store_json(game_path, bundle_path):
+    """玩家已有 mod_store.json 时按源 id 合并：保留玩家订阅与已读状态，补入包内新源。
+
+    返回 (ok, message)。任一侧结构异常时保留玩家原文件不动（fail-safe）。
+    """
+    def load(p):
+        try:
+            with open(p, "r", encoding="utf-8-sig") as f:
+                return json.load(f)
+        except Exception:
+            return None
+
+    player = load(game_path)
+    if not isinstance(player, dict):
+        return False, "你的 mod_store.json 损坏，已保留原文件"
+    bundle = load(bundle_path)
+    if not isinstance(bundle, dict):
+        return False, "包内 mod_store.json 异常，已保留你的文件"
+    p_sources = player.get("sources")
+    b_sources = bundle.get("sources")
+    if not isinstance(p_sources, list) or not isinstance(b_sources, list):
+        return False, "mod_store.json 结构异常，已保留你的文件"
+
+    by_id = {}
+    for s in p_sources:
+        if isinstance(s, dict) and s.get("id"):
+            by_id[str(s["id"])] = s
+    added = 0
+    for s in b_sources:
+        if not isinstance(s, dict) or not s.get("id"):
+            continue
+        sid = str(s["id"])
+        if sid not in by_id:
+            by_id[sid] = dict(s)
+            added += 1
+    player["sources"] = list(by_id.values())
+
+    # seenMods 并集：玩家已读状态保留，包内精选 Mod 补标已读
+    b_seen = bundle.get("seenMods")
+    if isinstance(b_seen, dict):
+        p_seen = player.get("seenMods")
+        if not isinstance(p_seen, dict):
+            p_seen = {}
+        for k, v in b_seen.items():
+            if k not in p_seen:
+                p_seen[k] = v
+        player["seenMods"] = p_seen
+
+    # 标量设置玩家值优先，缺失才用包内值补
+    for key in ("maxDownloadBytes", "suppressInstallHint"):
+        if key not in player and key in bundle:
+            player[key] = bundle[key]
+
+    try:
+        with open(game_path, "w", encoding="utf-8") as f:
+            json.dump(player, f, ensure_ascii=False, indent=2)
+            f.write("\n")
+    except Exception as e:
+        return False, f"写入 mod_store.json 失败：{e}"
+    return True, f"已合并商店源（新增 {added} 个，你的订阅与已读状态保留）"
+
+
+def install_one_file(src, dst, key):
+    """按玩家状态保护规则安装单个载荷文件，返回界面提示文案（默认复制返回 None）。
+
+    key 为载荷内相对路径（posix）。玩家已有 mod_config.json /
+    modloader_config.json 时跳过不覆盖；已有 mod_store.json 时按源 id 合并。
+    """
+    if key in PLAYER_STATE_SKIP and os.path.exists(dst):
+        return f"已保留你的现有文件：{key}"
+    if key in PLAYER_STATE_MERGE and os.path.exists(dst):
+        _ok, msg = merge_store_json(dst, src)
+        return msg
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    shutil.copy2(src, dst)
+    return None
 
 
 def inject_modloader(game_dir):
@@ -620,10 +708,9 @@ class InstallerWizard(tk.Tk):
                 if self.install_cancelled:
                     return
                 dst = os.path.join(game_dir, rel)
-                os.makedirs(os.path.dirname(dst), exist_ok=True)
-                shutil.copy2(src, dst)
+                note = install_one_file(src, dst, rel.replace("\\", "/")) or rel
                 pct = int((i + 1) / total * 100)
-                self.after(0, lambda p=pct, f=rel, c=i+1, t=total:
+                self.after(0, lambda p=pct, f=note, c=i+1, t=total:
                            self._update_progress(p, f, c, t))
 
             self.after(0, lambda: self.install_status.config(text="正在注入 ModLoader 入口..."))

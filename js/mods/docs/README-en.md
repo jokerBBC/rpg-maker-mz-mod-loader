@@ -329,4 +329,4 @@ MIT License — see [LICENSE](LICENSE)
 
 ***
 
-**Version**: V4.5.0 | **Updated**: 2026-10-09
+**Version**: V4.5.0 | **Updated**: 2026-10-10

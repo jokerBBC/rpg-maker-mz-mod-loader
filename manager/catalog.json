@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "modloader-manager",
   "version": "V4.5.0",
-  "publishedAt": "2026-10-09T10:44:39Z",
+  "publishedAt": "2026-10-10T00:50:41Z",
   "changelogPath": "docs/modloader_CHANGELOG.md",
   "files": [
     {
@@ -37,12 +37,12 @@
     },
     {
       "path": "docs/README-en.md",
-      "sha256": "16d55cb3ec2334c0c28d1c249d28cf2f9110b7ea28ef9dd8efa1de6b0a00578f",
+      "sha256": "8f46a7fb54150d0a7acb4f475c9ee83f6d87f7e6779c2fac146ac61f436c1898",
       "size": 15222
     },
     {
       "path": "docs/README.md",
-      "sha256": "6df8cdbd88161d001d0c058ae4d10aef83973a896415b71983e25b83495e5394",
+      "sha256": "9f848a0b489ef0b41066bcd02d24472debfeed5291295826baa94a5f5bff5e9a",
       "size": 14790
     },
     {
@@ -102,8 +102,8 @@
     },
     {
       "path": "docs/modloader_CHANGELOG.md",
-      "sha256": "e51fd91191b296561b50dbdfc509ea66c74e9fe96c22cb8efc0b108489f01169",
-      "size": 54888
+      "sha256": "4999a28b17aaa64bac2682c8b758a9564715f9037edd4a1f118b0198a448d361",
+      "size": 55360
     },
     {
       "path": "docs/mod商店拓展.md",
@@ -212,13 +212,13 @@
     },
     {
       "path": "tools/modpack/README.md",
-      "sha256": "83f20af778c6169e3706686603b4fc194e2d18f3509fbd72d92115745a95df9f",
-      "size": 9849
+      "sha256": "7b6bf9f127df3fc1b8e61ebaba2ab0f53491b3e7760de5bdd73ed2b5a50f2a39",
+      "size": 10471
     },
     {
       "path": "tools/modpack/build_package.py",
-      "sha256": "c4b7b1c3163788a9658bc707b946626835a3386f9ebd0eb217aa32935aedd114",
-      "size": 19186
+      "sha256": "3fb4b8bd71a6ca0fabe4f3145919f11f01e6b591c13b18660eaf5237a9a1d2fe",
+      "size": 19486
     },
     {
       "path": "tools/modpack/bundle_config.example.json",
@@ -232,8 +232,8 @@
     },
     {
       "path": "tools/modpack/install_builder.py",
-      "sha256": "8e1e7d74cd8d5db117e15a5b66a725a71689e2193be857eeda658f6414f08b1f",
-      "size": 28580
+      "sha256": "6714a7151aeb79884f93396a396e203fc8e0cbc5cad2e1f744c0bfcbc0523e1e",
+      "size": 32034
     },
     {
       "path": "tools/modstore/README.md",
