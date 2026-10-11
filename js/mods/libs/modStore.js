@@ -1912,8 +1912,6 @@
             '.ml-store-item-title{font-weight:600;font-size:13px;margin-bottom:4px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}',
             '.ml-store-badge{font-size:10px;padding:1px 6px;border-radius:4px;background:var(--ml-warning-bg,rgba(255,167,38,.15));color:var(--ml-warning,#ffa726);font-weight:600;}',
             '.ml-store-badge-new{background:rgba(76,175,80,.2);color:var(--ml-success,#66bb6a);cursor:pointer;}',
-            '.ml-store-new-count{cursor:pointer;border-radius:4px;}',
-            '.ml-store-new-count:hover{text-decoration:underline;}',
             '.ml-store-item-has-new{cursor:pointer;}',
             '.ml-store-meta{font-size:12px;color:var(--ml-text-secondary,#9a9ab0);line-height:1.6;margin-bottom:8px;}',
             '.ml-store-summary{font-size:12px;color:var(--ml-text-muted,#666680);margin-bottom:8px;}',
@@ -2046,32 +2044,21 @@
         let html = '<span class="ml-store-tabs-label">' + escHtml(storeT('statusLabel')) + '</span>';
         html += buildStatusTabBtn('all', storeT('statusAll'));
         html += buildStatusTabBtn('update', storeT('statusUpdatable') + (upd > 0 ? '（' + upd + '）' : ''));
-        html += buildStatusTabBtn('new', storeT('statusNew') + (newest > 0 ? '（' + newest + '）' : ''), newest > 0);
+        html += buildStatusTabBtn('new', storeT('statusNew') + (newest > 0 ? '（' + newest + '）' : ''));
         html += buildStatusTabBtn('missing', storeT('statusMissing') + (miss > 0 ? '（' + miss + '）' : ''));
         return html;
     }
 
-    function buildStatusTabBtn(id, label, countDismissable) {
-        let inner = escHtml(label);
-        if (countDismissable) {
-            // 计数可点击消除（不切换筛选），悬停有提示
-            inner = '<span class="ml-store-new-count" title="' + escHtml(storeT('badgeNewTitle')) + '">' + inner + '</span>';
-        }
+    function buildStatusTabBtn(id, label) {
         return '<button type="button" class="ml-store-tab ml-store-status-tab' +
             (_activeStatusFilter === id ? ' is-active' : '') +
-            '" data-status="' + escHtml(id) + '">' + inner + '</button>';
+            '" data-status="' + escHtml(id) + '">' + escHtml(label) + '</button>';
     }
 
     function bindStatusTabEvents(root) {
         const tabs = root.querySelectorAll('.ml-store-status-tab');
         for (let i = 0; i < tabs.length; i++) {
             tabs[i].addEventListener('click', function (e) {
-                // 点计数span：消除全部新增通知，不切换筛选
-                if (e.target.closest && e.target.closest('.ml-store-new-count')) {
-                    clearAllNewNotices();
-                    refreshListView();
-                    return;
-                }
                 _statusFilterPinnedByUser = true;
                 _activeStatusFilter = e.currentTarget.getAttribute('data-status') || 'all';
                 _listScrollTop = 0;

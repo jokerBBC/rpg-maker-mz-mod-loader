@@ -372,32 +372,52 @@ def merge_store_json(game_path, bundle_path):
     return True, f"已合并商店源（新增 {added} 个，你的订阅与已读状态保留）"
 
 
-def player_localmod_dir(dst):
-    """从目标文件路径反推玩家侧 _localmods/<包名> 目录；不在其下返回 (None, "")。"""
-    parts = dst.replace("\\", "/").split("/")
+def package_of_key(key):
+    """载荷内相对路径（posix）→ _localmods 包名；不在入包 Mod 目录内返回 None。"""
+    if not key.startswith(LOCALMODS_PREFIX):
+        return None
+    parts = key[len(LOCALMODS_PREFIX):].split("/")
+    if len(parts) < 2:
+        return None  # 直接躺在 _localmods 下的文件，不属于任何包
+    return parts[0]
+
+
+def collect_player_packages(game_dir):
+    """安装前快照：玩家 _localmods 下已有内容的包目录名集合。
+
+    空目录（含玩家删掉 Mod 文件后的残留）视为未安装，包内文件可正常落入；
+    有内容的包（含只有 CHANGELOG.md 的半装包）才算玩家已有，整包跳过。
+    """
+    lm_root = os.path.join(game_dir, "js", "mods", "_localmods")
+    pkgs = set()
+    if not os.path.isdir(lm_root):
+        return pkgs
     try:
-        i = parts.index("_localmods")
-    except ValueError:
-        return None, ""
-    if i + 1 >= len(parts) - 1:
-        return None, ""
-    return os.path.join(*parts[: i + 2]), parts[i + 1]
+        for name in os.listdir(lm_root):
+            d = os.path.join(lm_root, name)
+            if os.path.isdir(d) and any(os.scandir(d)):
+                pkgs.add(name)
+    except OSError:
+        pass
+    return pkgs
 
 
-def install_one_file(src, dst, key):
+def install_one_file(src, dst, key, player_packages):
     """按玩家状态保护规则安装单个载荷文件，返回界面提示文案（默认复制返回 None）。
 
     key 为载荷内相对路径（posix）。统一逻辑：玩家无则复制，有则保留/合并/跳过。
+    player_packages 必须是安装前的快照，不能实时查文件系统：本次安装复制每包
+    第一个文件时会创建该包目录，实时判断会把同包其余文件误判为「玩家已有」
+    而跳过（曾导致每个新装包只落入 CHANGELOG.md，Mod 全部不可用）。
     """
     if key in PLAYER_STATE_SKIP and os.path.exists(dst):
         return f"已保留你的现有文件：{key}"
     if key in PLAYER_STATE_MERGE and os.path.exists(dst):
         _ok, msg = merge_store_json(dst, src)
         return msg
-    if key.startswith(LOCALMODS_PREFIX):
-        pkg_dir, pkg = player_localmod_dir(dst)
-        if pkg and pkg_dir and os.path.isdir(pkg_dir):
-            return f"已保留你的现有 Mod：{pkg}（跳过包内版本）"
+    pkg = package_of_key(key)
+    if pkg is not None and pkg in player_packages:
+        return f"已保留你的现有 Mod：{pkg}（跳过包内版本）"
     os.makedirs(os.path.dirname(dst), exist_ok=True)
     shutil.copy2(src, dst)
     return None
@@ -721,11 +741,13 @@ class InstallerWizard(tk.Tk):
 
             self.after(0, lambda: self.install_status.config(text="正在复制文件..."))
 
+            player_packages = collect_player_packages(game_dir)
+
             for i, (src, rel) in enumerate(file_list):
                 if self.install_cancelled:
                     return
                 dst = os.path.join(game_dir, rel)
-                note = install_one_file(src, dst, rel.replace("\\", "/")) or rel
+                note = install_one_file(src, dst, rel.replace("\\", "/"), player_packages) or rel
                 pct = int((i + 1) / total * 100)
                 self.after(0, lambda p=pct, f=note, c=i+1, t=total:
                            self._update_progress(p, f, c, t))
@@ -803,11 +825,20 @@ class InstallerWizard(tk.Tk):
         ttk.Button(bar, text="退出",
                    command=self.on_complete_exit).pack(side="right")
 
+    def _launch_game_if_checked(self):
+        """勾选「启动游戏」时拉起游戏进程。
+
+        退出按钮与窗口关闭按钮（X）都必须生效——此前只有退出按钮走这里，
+        玩家点 X 关闭会把勾选当作耳旁风，表现为「勾了却不启动」。
+        """
+        if not self.launch_game.get():
+            return
+        game_exe = os.path.join(self.game_dir.get(), self.cfg["gameExe"])
+        if os.path.isfile(game_exe):
+            subprocess.Popen([game_exe], cwd=self.game_dir.get())
+
     def on_complete_exit(self):
-        if self.launch_game.get():
-            game_exe = os.path.join(self.game_dir.get(), self.cfg["gameExe"])
-            if os.path.isfile(game_exe):
-                subprocess.Popen([game_exe], cwd=self.game_dir.get())
+        self._launch_game_if_checked()
         self.destroy()
 
     def on_close(self):
@@ -816,6 +847,7 @@ class InstallerWizard(tk.Tk):
                 self.install_cancelled = True
                 self.destroy()
         else:
+            self._launch_game_if_checked()
             self.destroy()
 
 
