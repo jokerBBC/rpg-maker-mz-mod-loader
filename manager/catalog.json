@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "id": "modloader-manager",
-  "version": "V4.5.1",
-  "publishedAt": "2026-10-10T02:52:20Z",
+  "version": "V4.5.2",
+  "publishedAt": "2026-10-11T02:20:22Z",
   "changelogPath": "docs/modloader_CHANGELOG.md",
   "files": [
     {
       "path": "ModLoader.js",
-      "sha256": "d35bd272e04b8baed873497029ff5380f1ba12c47fd1b035e2fc517fa4d41e73",
+      "sha256": "2acea190c83e005e55ccb558637ac4d93343305e4678e9bc37103a34ddd08f0a",
       "size": 241773
     },
     {
@@ -37,12 +37,12 @@
     },
     {
       "path": "docs/README-en.md",
-      "sha256": "13c434c5651b4f47a1693ad8aa3b58557ff01978238e98a4cc568e58e2b170a9",
+      "sha256": "f53edcb143555b87602b2099da8fa4cf721041f1df6ff9ae797faf93283bf136",
       "size": 15368
     },
     {
       "path": "docs/README.md",
-      "sha256": "cacd5561d6b6367d3a55e41e266575276515141c02d41da40b5b99a613ed7872",
+      "sha256": "476be43d58fe931d2d64307e13b4a025937152f03dd9c24464b1a57eb12ceb64",
       "size": 14901
     },
     {
@@ -102,8 +102,8 @@
     },
     {
       "path": "docs/modloader_CHANGELOG.md",
-      "sha256": "79ea8d9594338ea4f93b11668adfbffaa04b0ae3c8d58fc450ff25292284bc33",
-      "size": 56786
+      "sha256": "f0a079713ef06a6448f997a6fe54ee1782e69a56ce9714ef0d84865213f87a68",
+      "size": 58092
     },
     {
       "path": "docs/mod商店拓展.md",
@@ -112,7 +112,7 @@
     },
     {
       "path": "docs/使用手册.md",
-      "sha256": "1ce8d532d49db324379a0987a02e46d5948c8048872a61bd8e68500567bead86",
+      "sha256": "7f7ff97d111773cca9753f02a1240436e3450b74682d32f4832dfb50394b741c",
       "size": 26392
     },
     {
@@ -132,8 +132,8 @@
     },
     {
       "path": "libs/modStore.js",
-      "sha256": "dcab3fb5c72547844f0c2a0a451482426e95b7d3d8a61dcd7303f60483299b19",
-      "size": 113442
+      "sha256": "ff45d6a8d475874f0d09fa0aa637aebe08d294d5d337a5b1f098221b83bdd56e",
+      "size": 112714
     },
     {
       "path": "modloader/configCore.js",
@@ -212,8 +212,8 @@
     },
     {
       "path": "tools/modpack/README.md",
-      "sha256": "4277c6b44058c168b782a402e70cfa96b584ddb76e69106c3795fba96640196f",
-      "size": 11173
+      "sha256": "e9fab8ca3330a466f1b33a06d42d0f1c7b1e5cfae7de44e48c29f42afbf317f4",
+      "size": 11352
     },
     {
       "path": "tools/modpack/build_package.py",
@@ -232,8 +232,8 @@
     },
     {
       "path": "tools/modpack/install_builder.py",
-      "sha256": "416216d2ac2f9f4e744727c18eb15847b5714842446607ca2c2087e908f3f11b",
-      "size": 32831
+      "sha256": "35bc89f3412156333a7cc4bd4c6896e4d795e07a8a23f1fd5aeada327d0bae24",
+      "size": 34259
     },
     {
       "path": "tools/modstore/README.md",
