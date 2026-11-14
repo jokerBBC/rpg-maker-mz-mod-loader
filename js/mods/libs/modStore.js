@@ -91,6 +91,7 @@
             settingsMaxMbHint: '默认 100MB。超过此大小的 Mod 将中止下载（可调低做拦截测试）。',
             formDisplayName: '显示名',
             formDisplayNamePh: '例如：作者 Foo',
+            formSecurityHint: '只添加你信任的来源。收录审核只代表上架当时安全，不代表之后更新也安全；来源里的 Mod 会在你电脑上运行，不需要的源不要添加。',
             formCatalogUrl: 'Catalog URL（https）',
             formCatalogUrlPh: 'https://example.com/mods/catalog.json',
             installDoneTitle: '安装完成',
@@ -128,7 +129,18 @@
             errCatalogInvalid: 'catalog 无效',
             errSha256Failed: 'sha256 校验失败',
             errVersionMismatch: '远程仓库catalog版本号和zip包内的manifest版本不一致，Mod作者请检查修复后再次推送更新。',
-            errHttp404Hint: 'HTTP 404：安装包不存在（作者可能已推送新版本）。请先点界面左上角「刷新」按钮或按 F5 重启游戏后再更新。'
+            errHttp404Hint: 'HTTP 404：安装包不存在（作者可能已推送新版本）。请先点界面左上角「刷新」按钮或按 F5 重启游戏后再更新。',
+            sourceLoadFailedHost: '无法连接 {host}（连接被重置）',
+            errNetResetHint: '无法连接 {host}（连接被重置）。可以：① 换手机热点后重试；② 或使用 AI Agent 帮你排查网络问题。',
+            errDnsHint: '无法解析 {host}（域名写错或 DNS 异常），请检查源地址。',
+            sourceNotFoundHint: '找不到清单文件（HTTP 404），源地址可能写错，或作者已删除该文件。',
+            sourceForbiddenHint: '源地址拒绝访问（HTTP 403），可能是限流、仓库转私有或账号被封。',
+            errRefusedHint: '连接被拒绝（{host} 没有响应服务），请稍后再试或联系源作者。',
+            errTimeoutHint: '网络太慢或对方没响应，稍后再试；大包建议换网络；或使用 AI Agent 帮你查看网络问题。',
+            errHttp403Hint: '{host} 暂时拒绝请求（多为限流、仓库被屏蔽或封号等），等几分钟再试。',
+            errSha256Hint: '下载内容不完整或被网络改写，已丢弃；重试一次，仍失败请联系作者。',
+            errSizeLimitHint: '包超过商店上限，请手动下载安装；或在「订阅管理」里调高「单包体积上限（MB）」。',
+            emptyAllSourcesFailedHint: '无法访问 Mod 源地址（{host}）。已自动换两种连接方式仍失败，通常是宽带运营商拦截了这个下载域名（部分线路常见）。可以：① 换手机热点后点「刷新」；② 或使用 AI Agent 帮你排查网络问题。'
         },
         zh_TW: {
             entryLabel: 'Mod 商店',
@@ -188,6 +200,7 @@
             settingsMaxMbHint: '預設 100MB。超過此大小的 Mod 將中止下載（可調低做攔截測試）。',
             formDisplayName: '顯示名',
             formDisplayNamePh: '例如：作者 Foo',
+            formSecurityHint: '只新增你信任的來源。收錄審核只代表上架當時安全，不代表之後更新也安全；來源裡的 Mod 會在你電腦上執行，不需要的源不要新增。',
             formCatalogUrl: 'Catalog URL（https）',
             formCatalogUrlPh: 'https://example.com/mods/catalog.json',
             installDoneTitle: '安裝完成',
@@ -225,7 +238,18 @@
             errCatalogInvalid: 'catalog 無效',
             errSha256Failed: 'sha256 校驗失敗',
             errVersionMismatch: '遠端倉庫catalog版本號和zip包內的manifest版本號不一致，Mod作者請檢查修復後再次推送更新。',
-            errHttp404Hint: 'HTTP 404：安裝包不存在（作者可能已推送新版本）。請先點界面左上角「重新整理」按鈕或按 F5 重啟遊戲後再更新。'
+            errHttp404Hint: 'HTTP 404：安裝包不存在（作者可能已推送新版本）。請先點界面左上角「重新整理」按鈕或按 F5 重啟遊戲後再更新。',
+            sourceLoadFailedHost: '無法連線 {host}（連線被重置）',
+            errNetResetHint: '無法連線 {host}（連線被重置）。可以：① 換手機熱點後重試；② 或使用 AI Agent 幫你排查網路問題。',
+            errDnsHint: '無法解析 {host}（網域寫錯或 DNS 異常），請檢查源位址。',
+            sourceNotFoundHint: '找不到清單檔案（HTTP 404），源位址可能寫錯，或作者已刪除該檔案。',
+            sourceForbiddenHint: '源位址拒絕存取（HTTP 403），可能是限流、倉庫轉私有或帳號被封。',
+            errRefusedHint: '連線被拒絕（{host} 沒有回應服務），請稍後再試或聯絡源作者。',
+            errTimeoutHint: '網路太慢或對方無回應，稍後再試；大包建議換網路；或使用 AI Agent 幫你查看網路問題。',
+            errHttp403Hint: '{host} 暫時拒絕請求（多為限流、倉庫被屏蔽或封號等），等幾分鐘再試。',
+            errSha256Hint: '下載內容不完整或被網路改寫，已丟棄；重試一次，仍失敗請聯絡作者。',
+            errSizeLimitHint: '包超過商店上限，請手動下載安裝；或在「訂閱管理」裡調高「單包體積上限（MB）」。',
+            emptyAllSourcesFailedHint: '無法存取 Mod 源位址（{host}）。已自動換兩種連線方式仍失敗，通常是寬頻業者攔截了這個下載網域（部分線路常見）。可以：① 換手機熱點後點「重新整理」；② 或使用 AI Agent 幫你排查網路問題。'
         },
         en: {
             entryLabel: 'Mod Store',
@@ -285,6 +309,7 @@
             settingsMaxMbHint: 'Default 100MB. Downloads above this size are aborted (lower for testing).',
             formDisplayName: 'Display name',
             formDisplayNamePh: 'e.g. Author Foo',
+            formSecurityHint: 'Only add sources you trust. Listing review only covers safety at publish time, not later updates; mods from a source run on your computer, so do not add sources you do not need.',
             formCatalogUrl: 'Catalog URL (https)',
             formCatalogUrlPh: 'https://example.com/mods/catalog.json',
             installDoneTitle: 'Install complete',
@@ -322,7 +347,18 @@
             errCatalogInvalid: 'Invalid catalog',
             errSha256Failed: 'SHA256 verification failed',
             errVersionMismatch: 'The remote catalog version does not match the manifest version inside the zip. Mod author: please check, fix, and push the update again.',
-            errHttp404Hint: 'HTTP 404: package not found (the author may have published a new version). Click the “Refresh” button at the top-left or press F5 to restart the game, then update again.'
+            errHttp404Hint: 'HTTP 404: package not found (the author may have published a new version). Click the “Refresh” button at the top-left or press F5 to restart the game, then update again.',
+            sourceLoadFailedHost: 'cannot connect to {host} (connection reset)',
+            errNetResetHint: 'Cannot connect to {host} (connection reset). Try: ① switch to a phone hotspot and retry; ② ask an AI agent to help diagnose your network.',
+            errDnsHint: 'Cannot resolve {host} (wrong domain or DNS failure). Check the source URL.',
+            sourceNotFoundHint: 'Catalog not found (HTTP 404). The source URL may be wrong, or the author removed the file.',
+            sourceForbiddenHint: 'The source refused access (HTTP 403) — rate limit, private repository, or suspended account.',
+            errRefusedHint: 'Connection refused by {host}. Try again later or contact the source author.',
+            errTimeoutHint: 'The network is slow or the server is not responding. Try again later; for large packages switch networks; or ask an AI agent to check your network.',
+            errHttp403Hint: '{host} refused the request (rate limit, blocked repository or suspended account). Wait a few minutes and retry.',
+            errSha256Hint: 'The download was incomplete or modified in transit and was discarded. Retry once; if it keeps failing, contact the author.',
+            errSizeLimitHint: 'The package exceeds the store limit. Download it manually, or raise “Max package size (MB)” in Subscriptions.',
+            emptyAllSourcesFailedHint: 'Cannot reach the mod source ({host}). Two connection methods were tried and both failed — usually the broadband provider is blocking this download domain (common on some lines). Try: ① switch to a phone hotspot and tap Refresh; ② ask an AI agent to help diagnose your network.'
         }
     };
 
@@ -368,8 +404,26 @@
         return h === '127.0.0.1' || h === 'localhost' || h === '::1';
     }
 
-    function httpsTlsOptions(hostname) {
-        return isLocalHttpsHost(hostname) ? { rejectUnauthorized: false } : {};
+    // raw.giteeusercontent.com 在部分运营商线路上被按 SNI 字节精确匹配 RST（连接重置）。
+    // TLS 规范要求 SNI 大小写不敏感，服务端对大写 SNI 照常返回内容，故失败后大写重试一次。
+    const SNI_RETRY_HOST_RE = /(^|\.)giteeusercontent\.com$/i;
+
+    function isSniRetryableHost(hostname) {
+        return SNI_RETRY_HOST_RE.test(String(hostname || ''));
+    }
+
+    function isConnResetError(err) {
+        const code = String((err && err.code) || '');
+        if (code === 'ECONNRESET' || code === 'EPIPE' || code === 'ECONNABORTED') return true;
+        return /ECONNRESET|socket hang up/i.test(String((err && err.message) || ''));
+    }
+
+    function httpsTlsOptions(hostname, sniAttempt) {
+        const opts = isLocalHttpsHost(hostname) ? { rejectUnauthorized: false } : {};
+        if (sniAttempt && isSniRetryableHost(hostname)) {
+            opts.servername = String(hostname).toUpperCase();
+        }
+        return opts;
     }
 
     // ---- 运行时状态 ----
@@ -788,6 +842,7 @@
         const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null;
         const redirectLeft = options.redirectLeft != null ? options.redirectLeft : 5;
         const rangeStart = options.rangeStart != null ? options.rangeStart : 0;
+        const sniAttempt = options.sniAttempt || 0;
         const u = parseHttpsUrl(rawUrl);
 
         return new Promise(function (resolve, reject) {
@@ -823,7 +878,7 @@
                 method: 'GET',
                 headers: headers,
                 timeout: REQUEST_TIMEOUT_MS
-            }, httpsTlsOptions(u.hostname)), function (res) {
+            }, httpsTlsOptions(u.hostname, sniAttempt)), function (res) {
                 const code = res.statusCode || 0;
                 if (code >= 300 && code < 400 && res.headers.location) {
                     res.resume();
@@ -842,7 +897,8 @@
                         maxBytes: maxBytes,
                         onProgress: onProgress,
                         redirectLeft: redirectLeft - 1,
-                        rangeStart: rangeStart
+                        rangeStart: rangeStart,
+                        sniAttempt: 0
                     }).then(done, fail);
                     return;
                 }
@@ -907,7 +963,13 @@
                 req.destroy();
                 fail(new Error(storeT('errTimeout')));
             });
-            req.on('error', fail);
+            req.on('error', function (err) {
+                if (!settled && !sniAttempt && isSniRetryableHost(u.hostname) && isConnResetError(err)) {
+                    requestBuffer(rawUrl, Object.assign({}, options, { sniAttempt: 1 })).then(done, fail);
+                    return;
+                }
+                fail(err);
+            });
             req.end();
         });
     }
@@ -980,8 +1042,9 @@
             return fs.createWriteStream(destPath, { flags: append ? 'a' : 'w' });
         }
 
-        function pipeResponse(url, rangeStart, redirectLeft) {
+        function pipeResponse(url, rangeStart, redirectLeft, sniAttempt) {
             redirectLeft = redirectLeft != null ? redirectLeft : 5;
+            sniAttempt = sniAttempt || 0;
             const u = parseHttpsUrl(url);
             return new Promise(function (resolve, reject) {
                 const headers = {
@@ -998,7 +1061,7 @@
                     method: 'GET',
                     headers: headers,
                     timeout: allowResume ? 0 : REQUEST_TIMEOUT_MS
-                }, httpsTlsOptions(u.hostname)), function (res) {
+                }, httpsTlsOptions(u.hostname, sniAttempt)), function (res) {
                     const code = res.statusCode || 0;
                     if (code >= 300 && code < 400 && res.headers.location) {
                         res.resume();
@@ -1013,7 +1076,7 @@
                             reject(new Error(storeT('errRedirectInvalid')));
                             return;
                         }
-                        pipeResponse(next, rangeStart, redirectLeft - 1).then(resolve, reject);
+                        pipeResponse(next, rangeStart, redirectLeft - 1, 0).then(resolve, reject);
                         return;
                     }
 
@@ -1023,7 +1086,7 @@
                         removePathSafe(destPath);
                         baselineExisting = 0;
                         startedAt = Date.now();
-                        pipeResponse(url, 0, redirectLeft).then(resolve, reject);
+                        pipeResponse(url, 0, redirectLeft, sniAttempt).then(resolve, reject);
                         return;
                     }
 
@@ -1089,11 +1152,19 @@
                     });
                 });
 
+                let timedOut = false;
                 req.on('timeout', function () {
+                    timedOut = true;
                     req.destroy();
                     reject(new Error(storeT('errTimeout')));
                 });
-                req.on('error', reject);
+                req.on('error', function (err) {
+                    if (!timedOut && !sniAttempt && isSniRetryableHost(u.hostname) && isConnResetError(err)) {
+                        pipeResponse(url, rangeStart, redirectLeft, 1).then(resolve, reject);
+                        return;
+                    }
+                    reject(err);
+                });
                 req.end();
             });
         }
@@ -1576,17 +1647,71 @@
         }
     }
 
-    /**
-     * 安装/更新失败的行内文案：
-     * - HTTP 404（玩家拿着过期内存 catalog 点更新，包已被作者新版发布删除）→ 追加刷新/F5 指引
-     * - 其余错误原样展示
-     */
-    function formatInstallError(err) {
-        const msg = err && err.message ? err.message : String(err);
-        if (/HTTP\s*404/.test(msg)) {
-            return storeT('errHttp404Hint');
+    function hostOfUrl(rawUrl) {
+        try {
+            return new urlMod.URL(String(rawUrl || '')).hostname || '';
+        } catch (e) {
+            return '';
         }
+    }
+
+    /**
+     * 把网络层错误翻成人话：玩家要知道「出了什么事」和「我现在能做什么」。
+     * host 从实际 URL 取，不硬编码 —— 第三方源的下载域名各不相同。
+     */
+    function humanizeNetError(err, rawUrl) {
+        const msg = err && err.message ? String(err.message) : String(err || '');
+        const code = err && err.code ? String(err.code) : '';
+        const host = hostOfUrl(rawUrl) || '下载服务器';
+        if (code === 'ECONNRESET' || code === 'EPIPE' || code === 'ECONNABORTED' || /ECONNRESET|socket hang up/i.test(msg)) {
+            return storeT('errNetResetHint', { host: host });
+        }
+        if (code === 'ENOTFOUND' || code === 'EAI_AGAIN' || /getaddrinfo|ENOTFOUND/i.test(msg)) {
+            return storeT('errDnsHint', { host: host });
+        }
+        if (code === 'ECONNREFUSED' || /ECONNREFUSED/i.test(msg)) {
+            return storeT('errRefusedHint', { host: host });
+        }
+        if (code === 'ETIMEDOUT' || /超时|timeout/i.test(msg)) {
+            return storeT('errTimeoutHint');
+        }
+        if (/HTTP\s*403/.test(msg)) return storeT('errHttp403Hint', { host: host });
+        if (/HTTP\s*404/.test(msg)) return storeT('errHttp404Hint');
+        if (/sha256/i.test(msg)) return storeT('errSha256Hint');
+        if (msg === storeT('errSizeLimit')) return storeT('errSizeLimitHint');
         return msg;
+    }
+
+    /**
+     * 安装/更新失败的行内文案（统一走人话映射）
+     */
+    function formatInstallError(err, rawUrl) {
+        return humanizeNetError(err, rawUrl);
+    }
+
+    /**
+     * 单个源那一行只用短句 —— 同样的长指引重复 N 次会变噪音，
+     * 「怎么办」统一放在全源失败的空状态里。
+     */
+    function sourceErrorText(errorText, rawUrl) {
+        const msg = String(errorText || '');
+        if (/ECONNRESET|socket hang up|EPIPE|ECONNABORTED/i.test(msg)) {
+            return storeT('sourceLoadFailedHost', { host: hostOfUrl(rawUrl) || '服务器' });
+        }
+        if (/ENOTFOUND|EAI_AGAIN|getaddrinfo/i.test(msg)) {
+            return storeT('errDnsHint', { host: hostOfUrl(rawUrl) || '服务器' });
+        }
+        if (/HTTP\s*404/.test(msg)) return storeT('sourceNotFoundHint');
+        if (/HTTP\s*403/.test(msg)) return storeT('sourceForbiddenHint');
+        return msg || storeT('sourceUnknownError');
+    }
+
+    function firstSourceHost(list) {
+        for (let i = 0; i < list.length; i++) {
+            const h = hostOfUrl(list[i].catalogUrl);
+            if (h) return h;
+        }
+        return '服务器';
     }
 
     function installFromEntry(entry) {
@@ -1695,7 +1820,7 @@
                 setJob(entry.sourceId, entry.packageName, {
                     status: 'error',
                     progress: 0,
-                    error: formatInstallError(err)
+                    error: formatInstallError(err, entry.downloadUrl)
                 });
                 throw err;
             })
@@ -1908,6 +2033,7 @@
             '.ml-store-list{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:0 8px;}',
             '.ml-store-sources-scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;}',
             '.ml-store-empty{padding:28px 16px;text-align:center;color:var(--ml-text-muted,#666680);font-size:13px;line-height:1.6;}',
+            '.ml-store-form-hint{margin:2px 0 10px;padding:9px 11px;border-radius:8px;background:rgba(255,167,38,.10);border:1px solid rgba(255,167,38,.38);color:var(--ml-text-secondary,#9a9ab0);font-size:12px;line-height:1.6;}',
             '.ml-store-item{margin:0 8px 8px;padding:10px 12px;border:1px solid var(--ml-border,rgba(255,255,255,.08));border-radius:8px;background:var(--ml-bg-secondary,rgba(28,28,48,.95));cursor:default;}',
             '.ml-store-item-title{font-weight:600;font-size:13px;margin-bottom:4px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}',
             '.ml-store-badge{font-size:10px;padding:1px 6px;border-radius:4px;background:var(--ml-warning-bg,rgba(255,167,38,.15));color:var(--ml-warning,#ffa726);font-weight:600;}',
@@ -2105,7 +2231,7 @@
             if (c && !c.ok) {
                 errHtml += '<div class="ml-store-src-err">' + escHtml(storeT('sourceLoadFailed', {
                     name: enabled[i].name,
-                    error: c.error || storeT('sourceUnknownError')
+                    error: sourceErrorText(c.error, enabled[i].catalogUrl)
                 })) + '</div>';
             }
         }
@@ -2125,7 +2251,9 @@
                 return errHtml + '<div class="ml-store-empty">' + escHtml(storeT('emptyClickRefresh')) + '</div>';
             }
             if (!anyOk) {
-                return errHtml + '<div class="ml-store-empty">' + escHtml(storeT('emptyAllSourcesFailed')) + '</div>';
+                return errHtml + '<div class="ml-store-empty">' + escHtml(storeT('emptyAllSourcesFailedHint', {
+                    host: firstSourceHost(enabled)
+                })) + '</div>';
             }
             return errHtml + '<div class="ml-store-empty">' + escHtml(storeT('emptyNoMods')) + '</div>';
         }
@@ -2313,6 +2441,7 @@
             html += '</div>';
         }
         html += '<div class="ml-store-form">';
+        html += '<div class="ml-store-form-hint">' + escHtml(storeT('formSecurityHint')) + '</div>';
         html += '<label>' + escHtml(storeT('formDisplayName')) + '<input type="text" class="ml-store-add-name" placeholder="' + escHtml(storeT('formDisplayNamePh')) + '"></label>';
         html += '<label>' + escHtml(storeT('formCatalogUrl')) + '<input type="text" class="ml-store-add-url" placeholder="' + escHtml(storeT('formCatalogUrlPh')) + '"></label>';
         html += '<div class="ml-store-form-actions">';

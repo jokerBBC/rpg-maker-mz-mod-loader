@@ -723,6 +723,21 @@
     // HTTPS
     // ================================================================
 
+    // Gitee /raw/ 全站 302 到 raw.giteeusercontent.com；该 CDN 域名在部分运营商线路上
+    // 被按 SNI 小写字节精确匹配后直接 RST。TLS 规范要求 SNI 大小写不敏感，服务端对
+    // 大写 SNI 照常返回内容，故握手级错误时用大写 SNI 重试一次（与 modStore.js 同规则）。
+    const SNI_RETRY_HOST_RE = /(^|\.)giteeusercontent\.com$/i;
+
+    function isSniRetryableHost(hostname) {
+        return SNI_RETRY_HOST_RE.test(String(hostname || ''));
+    }
+
+    function isConnResetError(err) {
+        const code = String((err && err.code) || '');
+        if (code === 'ECONNRESET' || code === 'EPIPE' || code === 'ECONNABORTED') return true;
+        return /ECONNRESET|socket hang up/i.test(String((err && err.message) || ''));
+    }
+
     function parseHttpsUrl(raw) {
         let u;
         try {
@@ -738,6 +753,7 @@
         options = options || {};
         const maxBytes = options.maxBytes != null ? options.maxBytes : MAX_BYTES;
         const redirectLeft = options.redirectLeft != null ? options.redirectLeft : 5;
+        const sniAttempt = options.sniAttempt || 0;
         const u = parseHttpsUrl(rawUrl);
 
         return new Promise(function (resolve, reject) {
@@ -757,7 +773,7 @@
                 resolve(buf);
             }
 
-            const req = https.request({
+            const reqOptions = {
                 protocol: u.protocol,
                 hostname: u.hostname,
                 port: u.port || 443,
@@ -768,7 +784,11 @@
                     'Accept': '*/*'
                 },
                 timeout: REQUEST_TIMEOUT_MS
-            }, function (res) {
+            };
+            if (sniAttempt && isSniRetryableHost(u.hostname)) {
+                reqOptions.servername = String(u.hostname).toUpperCase();
+            }
+            const req = https.request(reqOptions, function (res) {
                 const code = res.statusCode || 0;
                 if (code >= 300 && code < 400 && res.headers.location) {
                     res.resume();
@@ -785,7 +805,8 @@
                     }
                     requestBuffer(next, {
                         maxBytes: maxBytes,
-                        redirectLeft: redirectLeft - 1
+                        redirectLeft: redirectLeft - 1,
+                        sniAttempt: 0
                     }).then(done, fail);
                     return;
                 }
@@ -810,7 +831,17 @@
                 req.destroy();
                 fail(new Error(t('errTimeout')));
             });
-            req.on('error', fail);
+            req.on('error', function (err) {
+                if (!settled && !sniAttempt && isSniRetryableHost(u.hostname) && isConnResetError(err)) {
+                    requestBuffer(rawUrl, {
+                        maxBytes: maxBytes,
+                        redirectLeft: redirectLeft,
+                        sniAttempt: 1
+                    }).then(done, fail);
+                    return;
+                }
+                fail(err);
+            });
             req.end();
         });
     }

@@ -327,3 +327,63 @@
 当前 `ml_language` → `STORE_I18N_PACKS[lang]` → `zh_CN` 回退 → 键名原文
 
 ---
+
+## 14. Gitee raw 走 CDN 后被 SNI 阻断（2026-11-14）
+
+### 现象
+
+- 商店所有源同时失败，报 `Error: read ECONNRESET`，面板提示「所有已启用来源均加载失败」；刷新、重开游戏都无效
+- 同一时刻 `gitee.com` 主站、仓库页面、API 全部正常，只有 raw 取源与 zip 下载失败
+- 「Mod 源发现」的远程清单同样失败（退回内置快照）
+
+### 根因
+
+- Gitee 把 `/raw/` 全站改为 `302` 跳到 `https://raw.giteeusercontent.com/<owner>/<repo>/raw/<ref>/<path>?signature=…`，任意仓库（含公共大库）行为一致——**不是仓库被限制，也不是商店链接写错**
+- 该 CDN 域名在部分运营商线路上被按 **SNI 精确小写字符串** 匹配后直接 RST（TLS 握手中断），Node 侧表现为 `ECONNRESET`
+
+### 判据（三条互证，2026-11-14 实测）
+
+1. 同一 IP **不带 SNI**、只发 `Host: raw.giteeusercontent.com` → `200`，内容与 `sha256` 正确（说明服务器与内容都没问题）
+2. SNI 换成全大写 `RAW.GITEEUSERCONTENT.COM` → 握手成功、`200`
+3. 境外 SSL Labs 对同一 IP 做完整握手 → `READY`（B 级）
+4. 反证：手机连同一 WiFi 打开同一签名 URL → `ERR_CONNECTION_RESET`；电脑换手机热点 → 正常
+
+> **切分责任**：Gitee 服务端正常、证书正常、DNS 正常；故障在「本机 → Gitee」链路上的中间设备。
+> 换 IP、换 DNS 均无效（多个承载同一证书的 CDN IP 表现一致）。
+
+### 改动
+
+- `libs/modStore.js`
+  - 新增 `SNI_RETRY_HOST_RE = /(^|\.)giteeusercontent\.com$/i`、`isSniRetryableHost()`、`isConnResetError()`
+  - `httpsTlsOptions(hostname, sniAttempt)`：`sniAttempt` 为真时把 `servername` 改为 `hostname.toUpperCase()`
+  - `requestBuffer()`（catalog / changelog）与 `pipeResponse()`（zip 下载）在 `req.on('error')` 里判断：非超时、非续传失败、首次尝试、命中域名且错误为连接重置 → 以 `sniAttempt=1` 重跑一次
+  - 重定向后 `sniAttempt` 归零（每跳各一次额度，避免签名 URL 被反复重放）
+  - `libs/modLoaderUpdater.js`：`requestBuffer()` 同规则——管理器在线更新的 `channel.json` / `catalog.json` / 各更新文件下载都经此函数，Gitee 分支 302 后的 CDN 请求同样命中；第一跳 `gitee.com` 不设 `servername`，重定向后 `sniAttempt` 归零；双镜像切换与 sha256 校验流程不变
+- `_localmods/Mod源发现/Mod源发现.js`：`httpsGetJson(rawUrl, redirectLeft, sniAttempt)` 同规则
+
+### 注意
+
+- **curl 不能用来验证尾点方案**：libcurl 会规范化 hostname 尾点，`curl https://raw.giteeusercontent.com./…` 仍走原 SNI、看起来「方案失效」。验证请用 Node（`https.request` + `servername`）
+- 大小写重试依赖「匹配方逐字节比对」这一前提；若对方改为大小写不敏感匹配，本方案立即失效，届时只能走缓存 / 镜像。属链路博弈，不是协议层修复
+- 决策（2026-11-14）：暂以该取巧方案过渡，不引入代理 / 第三方镜像；若匹配方升级或出现新屏蔽形态，再评估缓存 / 多 CDN / Releases 附件等长期方案
+- 超时不重试（避免 60s × 2 的翻倍等待）；仅在握手级错误上重试
+
+### 验证记录
+
+- 线路自检：
+  - `openssl s_client -connect raw.giteeusercontent.com:443 -servername raw.giteeusercontent.com -brief` → 连接被重置
+  - `openssl s_client -connect raw.giteeusercontent.com:443 -servername RAW.GITEEUSERCONTENT.COM -brief` → `CONNECTION ESTABLISHED`
+- 游戏内（同日，电信线路，`reload` 后）：Mod 商店 5 个源全部列出（可更新 3 / 未下载 14）；「Mod 源发现」显示 `已订阅 5 / 5`，枫叶源更新日期 `2026-11-13`（来自远程清单而非内置快照）
+- **管理器更新（同日实机通过）**：
+  - 真实链路对照（`Node vm` 抽取新旧两版 `requestBuffer`，请求同一 `channel.json`）：旧版 171 ms `read ECONNRESET`；新版 354 ms 成功取回 22 B / `tag=V4.5.2`
+  - 游戏内「检查更新」日志：`使用镜像：Gitee` → `channel 指向 tag：V4.5.2` → `catalog V4.5.2，本地 V4.5.3` → `已是最新版本，无需更新`；**全程无 `Gitee 拉取失败：… 改试 GitHub`**，即 Gitee 分支直接绕过屏蔽、未触发镜像切换（本地版本高于远端时显示「已是最新」属正常，判据看网络日志）
+  - 仓库侧另用 Node 沙箱桩覆盖 6 种请求场景（小写 SNI 被 RST → 大写成功 / 非目标域名不重试 / 非握手错误不重试 / 大写仍失败则交还镜像兜底 / `gitee.com` 302 → CDN 链路 / 超时后不重试）
+
+### 失败文案映射（同版）
+
+- `humanizeNetError(err, rawUrl)` / `sourceErrorText(errText, rawUrl)`：只在**展示层**翻译，`_catalogBySource` 与 `job.error` 里仍存原始错误，便于排查
+- 分类：`ECONNRESET/EPIPE/ECONNABORTED` → `errNetResetHint`；`ENOTFOUND/EAI_AGAIN` → `errDnsHint`；`ECONNREFUSED` → `errRefusedHint`；`HTTP 403` → 安装用 `errHttp403Hint`、源用 `sourceForbiddenHint`；`HTTP 404` → 安装用 `errHttp404Hint`、源用 `sourceNotFoundHint`；`sha256` → `errSha256Hint`；超过体积上限 → `errSizeLimitHint`；超时 → `errTimeoutHint`
+- 全源失败：`emptyAllSourcesFailedHint`，`{host}` 取第一个启用源的 `catalogUrl` 主机名
+- 单源失败：`sourceLoadFailedHost` 短句；长指引只在空状态出现一次，避免同一段话重复 5 遍变噪音
+- `{host}` 一律从实际 URL 取，不硬编码 —— 第三方源的下载域名各不相同
+- 三语同步（zh_CN / zh_TW / en）；`emptyAllSourcesFailed` 旧键保留未删，当前无引用
