@@ -10,3 +10,6 @@ releases/
 # Local-only dev assets (tracked in their own local git repos, never pushed to remote)
 /docs/
 /test/
+
+# WorkBuddy session / memory data (local only, never tracked)
+/.workbuddy/
