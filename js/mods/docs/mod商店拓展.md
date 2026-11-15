@@ -340,7 +340,7 @@
 
 ### 根因
 
-- Gitee 把 `/raw/` 全站改为 `302` 跳到 `https://raw.giteeusercontent.com/<owner>/<repo>/raw/<ref>/<path>?signature=…`，任意仓库（含公共大库）行为一致——**不是仓库被限制，也不是商店链接写错**
+- Gitee 的 `/raw/` 会 `302` 跳到 `https://raw.giteeusercontent.com/<owner>/<repo>/raw/<ref>/<path>?signature=…`，任意仓库（含公共大库）行为一致——**不是仓库被限制，也不是商店链接写错**；这是平台既有设计（见 §15.3 官方帮助文档），并非 2026-11-14 才变更
 - 该 CDN 域名在部分运营商线路上被按 **SNI 精确小写字符串** 匹配后直接 RST（TLS 握手中断），Node 侧表现为 `ECONNRESET`
 
 ### 判据（三条互证，2026-11-14 实测）
@@ -389,3 +389,58 @@
 - 单源失败：`sourceLoadFailedHost` 短句；长指引只在空状态出现一次，避免同一段话重复 5 遍变噪音
 - `{host}` 一律从实际 URL 取，不硬编码 —— 第三方源的下载域名各不相同
 - 三语同步（zh_CN / zh_TW / en）；`emptyAllSourcesFailed` 旧键保留未删，当前无引用
+
+
+## 15. 影响面与公开证据 · 同类实现对照（2026-11-15 调研）
+
+> 目的：回答「这几天是不是只有我们遇到」「同类项目的在线更新有没有同等安全」。本节是公开可检索资料的当日快照，链接可能失效，结论以 2026-11-15 为准。
+
+### 15.1 结论
+
+- **完全相同的现象**（`raw.giteeusercontent.com` 小写 SNI 被 RST、大写 SNI 可通）在 2026-11-08 之后**没有找到公开报告**：GitHub issue 搜索 `"raw.giteeusercontent.com" created:>2026-11-08` = 0；Gitee 官方反馈仓 `oschina/git-osc` 11 月新建 30 条 issue，含「下载 / 重置」关键词的 6 条逐条核对均为仓库体积 GC、Releases API 403 限流、Gitee Go 额度、内容误判；本仓 GitHub / Gitee issues 均为空。
+- **同一条 `gitee.com /raw/ → 302 → 签名 CDN` 链路并非孤例**，但别人是在 9–10 月、以「302 后下载失败 / 空文件」的症状踩到，而不是 SNI 层 RST。
+- 11 月同期确有多起 Gitee `Connection reset by peer`，但都发生在 `gitee.com` 的 git push / Release API / 附件下载通道，成因不同，不能算同一现象。
+
+### 15.2 时间线（公开证据）
+
+| 日期 | 项目 / 链接 | 现象与处理 |
+| --- | --- | --- |
+| 2026-09-12 | PicGo 系同日 4 个 issue：[PicGo-Core#202](https://github.com/PicGo/PicGo-Core/issues/202)、[flutter-picgo#62](https://github.com/PicGo/flutter-picgo/issues/62)、[picgo-plugin-gitee#16](https://github.com/zhanghuid/picgo-plugin-gitee/issues/16)、[gitee-uploader#22](https://github.com/lizhuangs/picgo-plugin-gitee-uploader/issues/22) | 「Gitee 现在有 `raw.giteeusercontent.com` 域名了」，图床插件改默认链接以避开 302 → 独立域名约在此时被社区集中感知（推断） |
+| 2026-10-09 | [taksssss/tv#9](https://github.com/taksssss/tv/issues/9) | 「十一期间某天起 Gitee EPG 下载出问题」：浏览器能下（要等跳转），Linux `wget` 拿到空文件；日志含完整 `302 → …?metadata=…&signature=…` |
+| 2026-10-27 | [haoranzheng/xingli#8](https://github.com/haoranzheng/xingli/pull/8) | PR「allow signed Gitee CDN」：v2.4.2 下载器 reject Gitee 的正常 302；原文「国内下载被拒 + GitHub raw 慢/被墙时，玩家看得到更新却下不动」，与本仓场景几乎一致 |
+| 2026-10-29 | [Air-0000/CheckMarkScanner#10](https://github.com/Air-0000/CheckMarkScanner/pull/10) | 把 Gitee raw 的 `version.json` 加为最后兜底更新源；注明 302 由 Java `HttpURLConnection` 自动跟随 |
+| 2026-11-08 ~ 11-14 | WotbTools#925 / nowen-note#919 / fm1-8p#173 / OpenLearn-Next-V2#516 / [Gitee Feedback IKVA6V](https://gitee.com/oschina/git-osc/issues/IKVA6V) | 同期 Gitee 连接重置或 Releases API 403 限流，属 git/API 通道，与 raw CDN SNI 无关 |
+| 2026-11-14 | 本仓 V4.5.3 | 大写 SNI 重试，游戏内实测绕过（§14 验证记录） |
+
+### 15.3 因果修正（重要）
+
+- Gitee 帮助文档[《获取文件原始数据》](https://help.gitee.com/repository/file-operate/raw)明确：`gitee.com` 访问公开仓库原始文件会被**强制重定向**到独立域名 `raw.giteeusercontent.com`，服务端缓存 60~300 秒，>10MB 需认证。这是**既有平台设计，不是 2026-11-14 才变更**——§14 早期「现在 Gitee 把 /raw/ 全站改成 302」的表述按此理解。
+- 更合理的因果链：既有的强制 302 → 2026-09 起独立域名 / 签名 CDN 被社区广泛感知与适配 → 各地中间设备的 SNI 规则陆续识别新域名、实现不一致（部分按小写字节精确匹配）→ 11 月在特定宽带线路上触发。
+- 因此这是**线路级局部故障**，不是 Gitee 平台故障，也不是集中爆发。
+
+### 15.4 为什么公开检索不到「这几天」的同现象
+
+- 同 WiFi 手机也 RST、换手机热点即恢复（§14 判据 4），影响面局限在个别线路；
+- 浏览器 / curl 自动跟随 302，用户只感知「图片不显示 / 下载空文件」，不会归因为 SNI；
+- 只有自行处理重定向、并把 `ECONNRESET` 直接暴露出来的客户端（本仓 `requestBuffer` / 各类 Node 下载器）才会显形；
+- 中文玩家 / Mod 社区反馈多在 QQ 群、微信群、B 站评论，不进公开索引。
+
+### 15.5 同类项目的在线更新机制与安全性对照
+
+| 项目 | 版本发现 | 完整性校验 | 写入 / 回滚 | 来源约束 |
+| --- | --- | --- | --- | --- |
+| **本仓 V4.5.3+** | `channel.json`（固定 ref=`main`）→ `catalog.json`（固定 tag），每文件 `sha256` + `size` | 逐文件校验，不符切镜像；另有 CRLF/LF 归一诊断 | 硬拒 `..` / 盘符 / 绝对路径 / 玩家配置 / `_localmods/` / `_workshop/`；`atomicWriteFile` + 会话全量备份 + 失败 `rollback()`；不覆盖玩家数据 | 仅 `https:`；双镜像 GitHub/Gitee + SNI 重试；**无 catalog 签名**；**重定向目标未做主机/路径白名单** |
+| **xingli v2.4.3**（Python，MO2 排序包） | 双 `sort/latest.json` 比 `published_at` 取较新，平手优先 Gitee | manifest 校验 size 为整数且不超上限、sha256 为 64 位 hex；下载后逐包 `len` + `sha256`，失败换镜像 | 备份目录 exclusive create，从不覆写当前文件 / 其他备份；`os.replace` 原子写 | URL 主机白名单；**只允许 `gitee.com → raw.giteeusercontent.com` 且同路径的 302**，其它跳转 fail-closed；4 个重定向回归测试 |
+| **CheckMarkScanner**（Android APK） | 多源 `version.json`（custom → LAN → frp → Funnel → Gitee），超时 / grace 择源 | `version.json` 带 `sha256`，下载时用 `MessageDigest` 校验（**字段为空则不校验**）；另有 Android 系统 APK 签名校验 | 系统安装器接管，无自定义回滚 | 允许自定义源、设置 hint 含明文 `http://`；302 由 `HttpURLConnection` 自动跟随、不校验目标；`apkUrl` 与 `sha256` 同源自证 |
+| PicGo 系 / taksssss/tv | 不是在线更新器：只生成 raw 链接 / `wget` 拉 EPG 数据 | 无 | — | — |
+| 11 月那批 CI 镜像同步 PR | 发布侧重试，不是客户端更新 | — | — | — |
+
+**共同短板**：三方都**没有非对称签名（公钥验签）**。`sha256` 只证明「下载内容与清单一致」，而清单与文件同源于一个信任根；若该源被整体替换，哈希无法识别。缓解方式各异：本仓靠固定 ref/tag + 双镜像交叉，xingli 靠双清单比时间戳，CheckMarkScanner 靠 Android 系统签名兜底。
+
+**可借鉴**：xingli 的「重定向目标主机白名单 + 同路径校验 + GitHub 不得跳到 Gitee CDN」是本仓目前没有的一层——`requestBuffer` / `pipeResponse` 现在只检查 `https:`，不限制 `Location` 目标。内容 hash 会兜住篡改，但主动 fail-closed 更干净，可列为后续加固项。
+
+### 15.6 链路状态补记
+
+- 2026-11-14 13:47：小写 SNI `ECONNRESET`、大写 SNI 握手成功；Gitee `/raw/` 第一跳 302 到 CDN。
+- 2026-11-15 14:29（V4.5.4 发版验证）：Gitee raw 在 curl 层仍被 RST → **屏蔽并未消失**，玩家无感是修复 + 双镜像兜底在起作用。
+- 2026-11-15 17:1x：两种 SNI 均超时；本机电信 DNS 把该域名解析为 `1.1.1.1` + `180.76.199.86`（hosts 无条目），Node 取首条致超时，`gitee.com` 正常 200。注意**大写 SNI 重试不能解决 DNS 异常解析**；玩家若报「全超时」而非「连接被重置」，属另一类问题。
