@@ -32,6 +32,16 @@
     const MAX_BYTES = Number.MAX_SAFE_INTEGER;
 
     const MIRRORS = {
+        atomgit: {
+            id: 'atomgit',
+            label: 'AtomGit',
+            // 官方 raw 为 API 路径：无 302、不经过 raw.giteeusercontent.com，
+            // 因此不受「小写 SNI 被 RST / 该域名 DNS 劫持」影响；ref 走 query 而非路径段。
+            rawUrl: function (ref, repoRelPath) {
+                return 'https://api.atomgit.com/api/v5/repos/jokerBBC/rpg-maker-mz-mod-loader/raw/' +
+                    repoRelPath + '?ref=' + encodeURIComponent(ref).replace(/%2F/gi, '/');
+            }
+        },
         github: {
             id: 'github',
             label: 'GitHub',
@@ -99,7 +109,8 @@
             logRemoveSkip: '清理跳过（已不存在）：{path}',
             logDone: '完成。请按 F5 刷新游戏。',
             logFail: '失败：{error}',
-            logFailSummary: '更新失败，已终止。请从 GitHub / Gitee Release 下载整包覆盖安装，或点击「复制升级过程日志」向作者反馈。',
+            logAllSourcesFailed: '三个更新源（AtomGit / Gitee / GitHub）均无法连接。请切换网络（如手机热点）后重试，或稍后再试；仍失败可从 GitHub / Gitee / AtomGit 的 Release 下载整包覆盖安装，或点击「复制升级过程日志」向作者反馈。',
+            logFailSummary: '更新失败，已终止。请切换网络（如手机热点）后重试，或稍后再试；仍失败可从 GitHub / Gitee / AtomGit 的 Release 下载整包覆盖安装，或点击「复制升级过程日志」向作者反馈。',
             logRollback: '已从备份还原。',
             logMinVersion: '本地版本过旧（建议 ≥ {min}），若更新异常请整包重装。',
             logTagMissing: '无法拉取 tag「{tag}」下的 catalog。请确认作者已打同名 tag（勿静默用 main）。',
@@ -161,7 +172,8 @@
             logRemoveSkip: '清理跳過（已不存在）：{path}',
             logDone: '完成。請按 F5 重新整理遊戲。',
             logFail: '失敗：{error}',
-            logFailSummary: '更新失敗，已終止。請從 GitHub / Gitee Release 下載整包覆蓋安裝，或點擊「複製升級過程日誌」向作者回報。',
+            logAllSourcesFailed: '三個更新來源（AtomGit / Gitee / GitHub）皆無法連線。請切換網路（如手機熱點）後重試，或稍後再試；仍失敗可從 GitHub / Gitee / AtomGit 的 Release 下載整包覆蓋安裝，或點擊「複製升級過程日誌」向作者回報。',
+            logFailSummary: '更新失敗，已終止。請切換網路（如手機熱點）後重試，或稍後再試；仍失敗可從 GitHub / Gitee / AtomGit 的 Release 下載整包覆蓋安裝，或點擊「複製升級過程日誌」向作者回報。',
             logRollback: '已從備份還原。',
             logMinVersion: '本機版本過舊（建議 ≥ {min}），若更新異常請整包重裝。',
             logTagMissing: '無法拉取 tag「{tag}」下的 catalog。請確認作者已打同名 tag（勿靜默用 main）。',
@@ -223,7 +235,8 @@
             logRemoveSkip: 'Remove skipped (missing): {path}',
             logDone: 'Done. Press F5 to reload the game.',
             logFail: 'Failed: {error}',
-            logFailSummary: 'Update failed and has been aborted. Download the full release from GitHub / Gitee, or click “Copy update log” to report to the author.',
+            logAllSourcesFailed: 'All three update sources (AtomGit / Gitee / GitHub) are unreachable. Try another network (e.g. a mobile hotspot) or retry later; if it still fails, download the full release from GitHub / Gitee / AtomGit, or click “Copy update log” to report to the author.',
+            logFailSummary: 'Update failed and has been aborted. Try another network (e.g. a mobile hotspot) or retry later; if it still fails, download the full release from GitHub / Gitee / AtomGit, or click “Copy update log” to report to the author.',
             logRollback: 'Restored from backup.',
             logMinVersion: 'Local version is old (recommended ≥ {min}). Reinstall the full package if update fails.',
             logTagMissing: 'Cannot fetch catalog for tag “{tag}”. Author must create a matching tag (do not fall back to main).',
@@ -849,13 +862,15 @@
     function mirrorOrder() {
         const lang = readManagerLanguage();
         if (lang === 'zh_CN' || lang === 'zh_TW') {
-            return [MIRRORS.gitee, MIRRORS.github];
+            return [MIRRORS.atomgit, MIRRORS.gitee, MIRRORS.github];
         }
-        return [MIRRORS.github, MIRRORS.gitee];
+        return [MIRRORS.github, MIRRORS.gitee, MIRRORS.atomgit];
     }
 
     function buildRawUrl(mirror, ref, repoRelPath) {
-        return mirror.rawBase(ref) + String(repoRelPath).replace(/^\/+/, '');
+        const rel = String(repoRelPath).replace(/^\/+/, '');
+        if (mirror.rawUrl) return mirror.rawUrl(ref, rel);
+        return mirror.rawBase(ref) + rel;
     }
 
     /**
@@ -868,7 +883,9 @@
 
         function tryAt(idx) {
             if (idx >= order.length) {
-                return Promise.reject(lastErr || new Error(t('errHttp', { code: '?' })));
+                const finalErr = lastErr || new Error(t('errHttp', { code: '?' }));
+                finalErr.allSourcesFailed = true;
+                return Promise.reject(finalErr);
             }
             const m = order[idx];
             const url = buildRawUrl(m, ref, repoRelPath);
@@ -1161,7 +1178,10 @@
                 cfg2.lastError = msg;
                 cfg2.lastCheckedAt = new Date().toISOString();
                 saveConfig();
-                if (doLog) appendLog(t('logFail', { error: msg }));
+                if (doLog) {
+                    appendLog(t('logFail', { error: msg }));
+                    if (err && err.allSourcesFailed) appendLog(t('logAllSourcesFailed'));
+                }
                 notifyBadges();
                 refreshChrome();
                 throw err;
