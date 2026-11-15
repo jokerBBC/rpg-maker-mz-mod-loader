@@ -1522,27 +1522,22 @@
         };
     }
 
-    /** 按当前来源 tab 统计状态行数，与列表展示保持一致 */
-    function countRowsMatchingStatus(matchFn) {
+    /**
+     * 一次遍历算出当前来源 Tab 下各状态的数量，供状态 Tab 计数与默认筛选共用。
+     * 口径与列表一致：多源标记基于全部来源，条目按 sourceId + packageName 去重后再按当前来源过滤。
+     * all = 当前来源下不套状态筛选时的条目总数；每个数字都等于点开对应 Tab 后列表的行数。
+     */
+    function getStatusCounts() {
         rebuildMultiSourceMap(dedupePackageRows(collectStoreRows('all')));
         const rows = dedupePackageRows(collectStoreRows(_activeTab));
-        let n = 0;
+        const counts = { all: rows.length, update: 0, new: 0, missing: 0 };
         for (let i = 0; i < rows.length; i++) {
-            if (matchFn(enrichRow(rows[i]))) n++;
+            const info = enrichRow(rows[i]);
+            if (info.status === 'update') counts.update++;
+            if (info.status === 'missing') counts.missing++;
+            if (info.isNew) counts.new++;
         }
-        return n;
-    }
-
-    function countUpdatable() {
-        return countRowsMatchingStatus(function (info) {
-            return info.status === 'update';
-        });
-    }
-
-    function countNew() {
-        return countRowsMatchingStatus(function (info) {
-            return info.isNew;
-        });
+        return counts;
     }
 
     /** 一键消除全部新增通知计数（按 packageName 去重；已读状态落 mod_store.json，F5 不复发） */
@@ -2030,6 +2025,9 @@
             '.ml-store-status-tabs{padding-top:0;margin-top:-4px;}',
             '.ml-store-tab{border:1px solid var(--ml-border,rgba(255,255,255,.08));background:transparent;color:var(--ml-text-secondary,#9a9ab0);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;}',
             '.ml-store-tab.is-active{background:var(--ml-bg-active,rgba(74,158,255,.12));border-color:var(--ml-accent,#4a9eff);color:var(--ml-accent,#4a9eff);}',
+            '.ml-store-tab-count{margin-left:2px;font-size:11px;opacity:.75;font-variant-numeric:tabular-nums;}',
+            '.ml-store-tab-count.is-zero{opacity:.4;}',
+            '.ml-store-status-tab.is-active .ml-store-tab-count:not(.is-zero){opacity:1;}',
             '.ml-store-list{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:0 8px;}',
             '.ml-store-sources-scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;}',
             '.ml-store-empty{padding:28px 16px;text-align:center;color:var(--ml-text-muted,#666680);font-size:13px;line-height:1.6;}',
@@ -2133,23 +2131,19 @@
         btn.title = multi > 0 ? storeT('hintMultiSourceTitle') : '';
         const clearBtn = _panelRoot.querySelector('.ml-store-clear-new-btn');
         if (clearBtn) {
-            clearBtn.textContent = storeT('btnClearNew', { n: countNew() });
-            clearBtn.disabled = countNew() <= 0;
+            const newCount = getStatusCounts().new;
+            clearBtn.textContent = storeT('btnClearNew', { n: newCount });
+            clearBtn.disabled = newCount <= 0;
         }
     }
 
-    function countMissing() {
-        return countRowsMatchingStatus(function (info) {
-            return info.status === 'missing';
-        });
-    }
-
     function applyDefaultStatusFilter() {
-        if (countUpdatable() > 0) {
+        const counts = getStatusCounts();
+        if (counts.update > 0) {
             _activeStatusFilter = 'update';
-        } else if (countNew() > 0) {
+        } else if (counts.new > 0) {
             _activeStatusFilter = 'new';
-        } else if (countMissing() > 0) {
+        } else if (counts.missing > 0) {
             _activeStatusFilter = 'missing';
         } else {
             _activeStatusFilter = 'all';
@@ -2163,22 +2157,24 @@
         return true;
     }
 
-    function buildStatusTabsHtml() {
-        const upd = countUpdatable();
-        const newest = countNew();
-        const miss = countMissing();
+    function buildStatusTabsHtml(counts) {
+        counts = counts || getStatusCounts();
         let html = '<span class="ml-store-tabs-label">' + escHtml(storeT('statusLabel')) + '</span>';
-        html += buildStatusTabBtn('all', storeT('statusAll'));
-        html += buildStatusTabBtn('update', storeT('statusUpdatable') + (upd > 0 ? '（' + upd + '）' : ''));
-        html += buildStatusTabBtn('new', storeT('statusNew') + (newest > 0 ? '（' + newest + '）' : ''));
-        html += buildStatusTabBtn('missing', storeT('statusMissing') + (miss > 0 ? '（' + miss + '）' : ''));
+        html += buildStatusTabBtn('all', storeT('statusAll'), counts.all);
+        html += buildStatusTabBtn('update', storeT('statusUpdatable'), counts.update);
+        html += buildStatusTabBtn('new', storeT('statusNew'), counts.new);
+        html += buildStatusTabBtn('missing', storeT('statusMissing'), counts.missing);
         return html;
     }
 
-    function buildStatusTabBtn(id, label) {
+    /** 计数恒显示（含 0，弱化样式）；切换来源 Tab 时由 renderPanel 重建并按当前来源重算 */
+    function buildStatusTabBtn(id, label, count) {
+        const n = Number(count) || 0;
         return '<button type="button" class="ml-store-tab ml-store-status-tab' +
             (_activeStatusFilter === id ? ' is-active' : '') +
-            '" data-status="' + escHtml(id) + '">' + escHtml(label) + '</button>';
+            '" data-status="' + escHtml(id) + '">' + escHtml(label) +
+            '<span class="ml-store-tab-count' + (n > 0 ? '' : ' is-zero') + '">（' + n + '）</span>' +
+            '</button>';
     }
 
     function bindStatusTabEvents(root) {
@@ -2594,6 +2590,8 @@
             return;
         }
 
+        // 工具栏与状态 Tab 共用同一份当前来源统计，避免对每个条目重复读本地 manifest
+        const statusCounts = getStatusCounts();
         container.innerHTML =
             '<div class="ml-store">' +
             '<div class="ml-store-toolbar">' +
@@ -2604,12 +2602,12 @@
             (countMultiSourceUpdatable() > 0 ? ' title="' + escHtml(storeT('hintMultiSourceTitle')) + '"' : '') +
             '>' + escHtml(storeT('btnUpdateAll', { n: countAutoUpdatable() })) + '</button>' +
             '<button type="button" class="ml-btn ml-btn-primary ml-store-clear-new-btn"' +
-            (countNew() > 0 ? '' : ' disabled') +
-            '>' + escHtml(storeT('btnClearNew', { n: countNew() })) + '</button>' +
+            (statusCounts.new > 0 ? '' : ' disabled') +
+            '>' + escHtml(storeT('btnClearNew', { n: statusCounts.new })) + '</button>' +
             '</div>' +
             '<div class="ml-store-hint">' + escHtml(storeT('hintToolbar')) + '</div>' +
             '<div class="ml-store-tabs">' + buildTabsHtml() + '</div>' +
-            '<div class="ml-store-tabs ml-store-status-tabs">' + buildStatusTabsHtml() + '</div>' +
+            '<div class="ml-store-tabs ml-store-status-tabs">' + buildStatusTabsHtml(statusCounts) + '</div>' +
             '<div class="ml-store-list ml-list-scroll">' + buildListHtml() + '</div>' +
             '</div>';
 
