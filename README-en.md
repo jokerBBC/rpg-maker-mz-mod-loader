@@ -10,8 +10,9 @@
 
 In-game mod manager **V4.5.4**
 
-An in-game mod manager for RPG Maker MZ: **local mods / Steam Workshop / Mod Store** multi-channel distribution, with toggles, parameter editing, load order and dependency checks in one place. **Multilingual UI** is supported (Simplified Chinese / Traditional Chinese / English).
-The AI workflow is complete: mod authoring — mod store setup — bundle packaging — player install — online mod updates, fully connected.
+An in-game mod management & distribution platform for RPG Maker MZ: **local mods / Steam Workshop / Mod Store** multi-channel distribution and online updates, with toggles, parameter editing, load order and dependency checks in one place. **Multilingual UI** is supported (Simplified Chinese / Traditional Chinese / English).
+In the AI era, writing mod code and producing in-game assets is no longer a problem. The mod manager's bottleneck has shifted from "how players conveniently manage mods through a UI" and "how mod authors conveniently build mods" to: **mod standardization (compatibility) → initial distribution → ongoing mod maintenance & updates → painless mod updates for players**. When production becomes easy, distribution and maintenance are the new pain points.
+Now introducing a complete AI workflow: mod authoring — mod store setup — bundle packaging — player install — online mod updates, fully connected.
 
 **Why not a file-replacement mod manager**:
 
@@ -32,13 +33,13 @@ The AI workflow is complete: mod authoring — mod store setup — bundle packag
 - Guide/wiki for the game *Idle Level Up & Fight Monsters* using RMMZ ModLoader V4.1.2 (includes mod manager tutorial · [Feishu link](https://qcnhq5e2tphh.feishu.cn/wiki/XH1jwdX5uil2ookoEF8cpN1AnJf))
 - Fine-tuning examples for *Crimson Moon Immortal Journey* based on RMMZ ModLoader V4 ([Baidu Tieba post 1](https://tieba.baidu.com/p/10810499585?fr=personpage) · [Baidu Tieba post 2](https://tieba.baidu.com/p/10813947286?fr=personpage))
 - Mod manager usage demo for *Dark Abyss Rises* (暗源崛起) built on RMMZ ModLoader (Bilibili video · [BV1twYY6dEMv](https://www.bilibili.com/video/BV1twYY6dEMv/?spm_id_from=333.788.videopod.sections&vd_source=3ef6190ccbaf3b82c0dd3ef57cd79cc8&p=7))
-- **One game · six mod sources side by side**: players of *Grind, Level Up, Loot Galore* (打怪升级爆装备) subscribe to 6 different authors' sources in the Mod Store at once — install, update and ordering all happen inside one manager:
-  - Joker · <https://gitee.com/Jokerbbc/daguaishengjibaozhuangbeimod>
-  - 枫叶（阿凉）· <https://gitee.com/FYDream/daguai-mods>
-  - 天空遗落之物 · <https://gitee.com/nimi_sora/daguaishengjibaozhuangbeimod>
+- **One game · six mod sources side by side**: players of *Grind, Level Up, Loot Galore* (打怪升级爆装备) subscribe to 6 different authors' sources in the Mod Store at once — install, update and ordering all happen inside one manager. Many of these mod authors are beginners who, with AI coding assistance, produced mods and mod sources including complex content like new dungeons and characters, for reference:
+  - Joker · convenience · <https://gitee.com/Jokerbbc/daguaishengjibaozhuangbeimod>
+  - 枫叶（阿凉）· dungeons / new characters · <https://gitee.com/FYDream/daguai-mods>
+  - 天空遗落之物 · dungeons · <https://gitee.com/nimi_sora/daguaishengjibaozhuangbeimod>
   - 天意 · <https://gitee.com/ty821251394/snow-of-nanzhao>
   - sky（白白）· <https://gitee.com/yhxxy/yhxxy>
-  - 🐶作者2.0 · <https://atomgit.com/dalapian/dog_author-2.0>
+  - 🐶作者2.0 · convenience · <https://atomgit.com/dalapian/dog_author-2.0>
 - **New characters & dungeons in pure .js**: without any prerequisite mod, players let AI write add/replace logic for data and assets directly into `.js` — new characters like *Character Collection* (角色合集: a character framework + 23 character packs behind a single entry), new dungeons like *Underground Alchemy Lab* (地下炼金实验室), *Mod Dungeon Portal* (mod副本传送门) and the *Calamity Dungeon* (灾厄副本) series
 - **Continuous manager updates, no adaptation issues**: this game followed many manager online updates from the V4.4.6 kernel to V4.5.4 and keeps working in-game all along
 - Example Mod store repositories (reference catalog publishing pipelines built with AI assistance; compatibility verified):

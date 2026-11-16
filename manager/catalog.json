@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "modloader-manager",
   "version": "V4.5.4",
-  "publishedAt": "2026-11-16T07:47:53Z",
+  "publishedAt": "2026-11-16T08:04:41Z",
   "changelogPath": "docs/modloader_CHANGELOG.md",
   "files": [
     {
@@ -37,13 +37,13 @@
     },
     {
       "path": "docs/README-en.md",
-      "sha256": "7a3f83ab3fbd7ce22dd6c7df24f179ddcafa738c1372d08edc048585d932cbac",
-      "size": 17668
+      "sha256": "c86351a1601e5f0ac1c45449b420a0f06bd6c7a1e0e3585db1764af6a0641ac5",
+      "size": 18431
     },
     {
       "path": "docs/README.md",
-      "sha256": "07bc5156706d4665dbc98094bc4ac093bc4436cd3746ddf4889192fcc9ee810e",
-      "size": 16890
+      "sha256": "763ee152ac6668d3ec980ec897cb13b42d2bd33c1c91d9deffef66966ab95e48",
+      "size": 17429
     },
     {
       "path": "docs/img/Mod商店界面.png",
