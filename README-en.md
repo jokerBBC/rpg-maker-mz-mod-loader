@@ -32,7 +32,13 @@ The AI workflow is complete: mod authoring — mod store setup — bundle packag
 - Guide/wiki for the game *Idle Level Up & Fight Monsters* using RMMZ ModLoader V4.1.2 (includes mod manager tutorial · [Feishu link](https://qcnhq5e2tphh.feishu.cn/wiki/XH1jwdX5uil2ookoEF8cpN1AnJf))
 - Fine-tuning examples for *Crimson Moon Immortal Journey* based on RMMZ ModLoader V4 ([Baidu Tieba post 1](https://tieba.baidu.com/p/10810499585?fr=personpage) · [Baidu Tieba post 2](https://tieba.baidu.com/p/10813947286?fr=personpage))
 - Mod manager usage demo for *Dark Abyss Rises* (暗源崛起) built on RMMZ ModLoader (Bilibili video · [BV1twYY6dEMv](https://www.bilibili.com/video/BV1twYY6dEMv/?spm_id_from=333.788.videopod.sections&vd_source=3ef6190ccbaf3b82c0dd3ef57cd79cc8&p=7))
-- **One game · six mod sources side by side**: players of *Grind, Level Up, Loot Galore* (打怪升级爆装备) subscribe to 6 different authors' sources in the Mod Store at once (Joker / 枫叶 / 天空遗落之物 / 天意 / sky / 🐶作者2.0) — install, update and ordering all happen inside one manager
+- **One game · six mod sources side by side**: players of *Grind, Level Up, Loot Galore* (打怪升级爆装备) subscribe to 6 different authors' sources in the Mod Store at once — install, update and ordering all happen inside one manager:
+  - Joker · <https://gitee.com/Jokerbbc/daguaishengjibaozhuangbeimod>
+  - 枫叶（阿凉）· <https://gitee.com/FYDream/daguai-mods>
+  - 天空遗落之物 · <https://gitee.com/nimi_sora/daguaishengjibaozhuangbeimod>
+  - 天意 · <https://gitee.com/ty821251394/snow-of-nanzhao>
+  - sky（白白）· <https://gitee.com/yhxxy/yhxxy>
+  - 🐶作者2.0 · <https://atomgit.com/dalapian/dog_author-2.0>
 - **New characters & dungeons in pure .js**: without any prerequisite mod, players let AI write add/replace logic for data and assets directly into `.js` — new characters like *Character Collection* (角色合集: a character framework + 23 character packs behind a single entry), new dungeons like *Underground Alchemy Lab* (地下炼金实验室), *Mod Dungeon Portal* (mod副本传送门) and the *Calamity Dungeon* (灾厄副本) series
 - **Continuous manager updates, no adaptation issues**: this game followed many manager online updates from the V4.4.6 kernel to V4.5.4 and keeps working in-game all along
 - Example Mod store repositories (reference catalog publishing pipelines built with AI assistance; compatibility verified):

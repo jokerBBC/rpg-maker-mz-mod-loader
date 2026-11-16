@@ -30,7 +30,13 @@ RPG Maker MZ 游戏内 Mod 管理器：**本地 Mod / Steam 创意工坊 / Mod �
 - 使用 RMMZ ModLoader V4.1.2 做 Mod 的游戏「挂机升级打怪兽」攻略站（含 Mod 管理器使用教程 · [飞书链接](https://qcnhq5e2tphh.feishu.cn/wiki/XH1jwdX5uil2ookoEF8cpN1AnJf)）
 - 基于 RMMZ ModLoader V4 的「绯月仙行录」游戏微调版运用实例（[百度贴吧 1](https://tieba.baidu.com/p/10810499585?fr=personpage) · [百度贴吧 2](https://tieba.baidu.com/p/10813947286?fr=personpage)）
 - 基于 RMMZ ModLoader 的「暗源崛起」Mod 管理器使用演示（B 站视频 · [BV1twYY6dEMv](https://www.bilibili.com/video/BV1twYY6dEMv/?spm_id_from=333.788.videopod.sections&vd_source=3ef6190ccbaf3b82c0dd3ef57cd79cc8&p=7)）
-- **同一游戏 · 六个 Mod 源并存**：「打怪升级爆装备」玩家在 Mod 商店同时订阅 6 个不同作者的源（Joker / 枫叶 / 天空遗落之物 / 天意 / sky / 🐶作者2.0），安装、更新、排序在同一个管理器内完成
+- **同一游戏 · 六个 Mod 源并存**：「打怪升级爆装备」玩家在 Mod 商店同时订阅 6 个不同作者的源，安装、更新、排序在同一个管理器内完成：
+  - Joker · <https://gitee.com/Jokerbbc/daguaishengjibaozhuangbeimod>
+  - 枫叶（阿凉）· <https://gitee.com/FYDream/daguai-mods>
+  - 天空遗落之物 · <https://gitee.com/nimi_sora/daguaishengjibaozhuangbeimod>
+  - 天意 · <https://gitee.com/ty821251394/snow-of-nanzhao>
+  - sky（白白）· <https://gitee.com/yhxxy/yhxxy>
+  - 🐶作者2.0 · <https://atomgit.com/dalapian/dog_author-2.0>
 - **玩家纯 .js 做新角色 / 新副本**：该游戏玩家作者不依赖前置 Mod，用 AI 把新增 / 替换数据与资源的逻辑直接写进 `.js`——新角色如「角色合集」（角色框架 + 23 个角色分包，单入口一键启用），新副本如「地下炼金实验室」「mod副本传送门」「灾厄副本」系列等大型内容 Mod
 - **管理器持续更新无适配问题**：该游戏从 V4.4.6 内核适配验证起，跟随管理器多次在线更新至 V4.5.4，游戏内一直正常使用
 - Mod 商店仓库实例（AI 搭建 Mod 源的 catalog 发布链路参考，兼容性已实测）：
