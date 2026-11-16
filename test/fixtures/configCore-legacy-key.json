@@ -1,0 +1,8 @@
+{
+  "plugins": { "ignored": true },
+  "../mods/OldScript": {
+    "status": true,
+    "params": { "speed": "5" },
+    "order": 2
+  }
+}

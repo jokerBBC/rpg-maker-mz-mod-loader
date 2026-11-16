@@ -1,0 +1,12 @@
+{
+  "../mods/DupScript": {
+    "status": false,
+    "params": {},
+    "order": 1
+  },
+  "local:MyPkg:DupScript": {
+    "status": true,
+    "params": { "flag": "yes" },
+    "order": 9
+  }
+}

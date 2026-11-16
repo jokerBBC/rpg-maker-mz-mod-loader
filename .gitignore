@@ -7,9 +7,8 @@ releases/
 # Local release automation (not tracked)
 /tools/
 
-# Local-only dev assets (tracked in their own local git repos, never pushed to remote)
+# Local-only dev asset (tracked in its own local git repo, never pushed to remote)
 /docs/
-/test/
 
 # WorkBuddy session / memory data (local only, never tracked)
 /.workbuddy/

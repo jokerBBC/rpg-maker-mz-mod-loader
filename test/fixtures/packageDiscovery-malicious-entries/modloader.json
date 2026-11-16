@@ -1,0 +1,11 @@
+{
+  "name": "FixtureMalicious",
+  "entries": [
+    "../outside.js",
+    "sub/Inner.js",
+    "ModLoader.js",
+    "readme.txt",
+    "Ghost.js",
+    "Valid.js"
+  ]
+}

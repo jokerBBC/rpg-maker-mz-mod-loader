@@ -1,0 +1,66 @@
+[
+  {
+    "id": "local:pkg:BaseMod",
+    "fileName": "BaseMod.js",
+    "displayName": "BaseMod",
+    "status": true,
+    "baseList": ["CorePlugin"],
+    "orderAfterList": []
+  },
+  {
+    "id": "local:pkg:FirstHelper",
+    "fileName": "FirstHelper.js",
+    "displayName": "FirstHelper",
+    "status": true,
+    "baseList": [],
+    "orderAfterList": []
+  },
+  {
+    "id": "local:pkg:WrongOrder",
+    "fileName": "WrongOrder.js",
+    "displayName": "WrongOrder",
+    "status": true,
+    "baseList": [],
+    "orderAfterList": ["ChildMod"]
+  },
+  {
+    "id": "local:pkg:ChildMod",
+    "fileName": "ChildMod.js",
+    "displayName": "ChildMod",
+    "status": true,
+    "baseList": ["BaseMod"],
+    "orderAfterList": ["FirstHelper"]
+  },
+  {
+    "id": "local:pkg:DisabledDep",
+    "fileName": "DisabledDep.js",
+    "displayName": "DisabledDep",
+    "status": false,
+    "baseList": [],
+    "orderAfterList": []
+  },
+  {
+    "id": "local:pkg:NeedsDisabled",
+    "fileName": "NeedsDisabled.js",
+    "displayName": "NeedsDisabled",
+    "status": true,
+    "baseList": ["DisabledDep"],
+    "orderAfterList": []
+  },
+  {
+    "id": "local:pkg:MissingBase",
+    "fileName": "MissingBase.js",
+    "displayName": "MissingBase",
+    "status": true,
+    "baseList": ["NotExistPlugin"],
+    "orderAfterList": []
+  },
+  {
+    "id": "local:pkg:GameDisabled",
+    "fileName": "GameDisabled.js",
+    "displayName": "GameDisabled",
+    "status": true,
+    "baseList": ["DisabledPlugin"],
+    "orderAfterList": []
+  }
+]
