@@ -10,8 +10,16 @@
 
 游戏内模组管理器 **V4.5.4**
 
-一款功能强大的 RPG Maker MZ 模组管理器，支持在游戏内管理 **本地 Mod** 与 **Steam 创意工坊 Mod** 的开启/关闭、参数编辑、排序与依赖检测。**现已支持多语言界面**（简体中文 / 繁體中文 / English）。
+RPG Maker MZ 游戏内 Mod 管理器：**本地 Mod / Steam 创意工坊 / Mod 商店**多路分发，开关、参数编辑、排序与依赖检测一站完成。**现已支持多语言界面**（简体中文 / 繁體中文 / English）。
 现已完善AI工作流：Mod制作-Mod源搭建-整合包制作-玩家安装-Mod在线推送更新 链路打通
+
+**为什么不用替换文件式 Mod 管理器**：
+
+- **对游戏 0 污染**：只往 `index.html` 注入一行启动顺序，全部 Mod 文件都在 `js/mods/` 文件夹内——代码、数据、资源都不碰游戏原文件
+- **不用重复打包**：游戏更新、Mod 更新后，不需要重新打包「带 Mod 文件的游戏副本」，覆盖更新即还原
+- **不用打开其他程序**：游戏内直接管理 Mod 的开关、参数与排序
+- **分发更方便**：Steam 创意工坊订阅 + Mod 商店 + 本地拖放 / 浏览安装，玩家多渠道获取
+- **参数标准化**：`@param` / `@type` / `@default` 规范统一，AI 抄作业做 Mod 更方便
 
 > **运行环境**：RPG Maker MZ（NW.js）  
 > **Mod 配置**：保存在 `mod_config.json`，游戏更新后 Mod 开关与参数也不会丢失  
@@ -43,7 +51,7 @@
 | ⚙️ **参数编辑** | 数值、开关、文本、单选、颜色、长文本、数据库引用、struct、table |
 | 🔀 **排序与依赖** | 拖拽/序号排序；`@base` / `@orderAfter` 依赖检测；缺失 `@base` 时自动跳过加载（依赖守卫） |
 | ⚠️ **脚本同名冲突** | 与游戏插件或多 Mod 脚本基名重复时列表/详情提示；开启无效项时确认（V4.4.2） |
-| ⚠️ **冲突日志面板** | 设置齿轮菜单底部入口 + 管理器内空壳面板（内容由前置 Mod `render`）；有冲突时齿轮旁红叹号 |
+| ⚠️ **冲突日志面板** | 设置齿轮菜单底部入口 + 管理器内空壳面板（内容由 Mod `render` 填充）；有冲突时齿轮旁红叹号 |
 | 📥 **拖放 / 浏览安装** | 拖放或浏览 `.js`；拖放 / 浏览整个 `mods` 文件夹（仅本地 Mod；V4.4.1 统一管线） |
 | 🖼️ **预览图** | 包根 `preview.png`；详情缩略 + 点击弹窗大图 |
 | 🛡️ **配置兼容** | V4.1.1 读取 V3.x `../mods/` 旧键；保存一次自动升级为新键 |
@@ -184,8 +192,8 @@ js/mods/
 │   └── language/                   # 管理器 UI 多语言（zh_CN / zh_TW / en）
 ├── modloader/                      # 管理器纯逻辑（配置、扫描、安装、参数、依赖等）
 ├── _localmods/                     # 本地 Mod 包
-│   ├── ModDataLoader/              # 数据前置（merge/replace/add）
-│   ├── ModResourceLoader/          # 资源前置（替换/新增）
+│   ├── ModDataLoader/              # 数据前置 · 参考实现（已停更）
+│   ├── ModResourceLoader/          # 资源前置 · 参考实现（已停更）
 │   └── <包名>/
 │       ├── <脚本>.js
 │       ├── CHANGELOG.md            # 可选；Mod 更新日志
@@ -238,7 +246,11 @@ Steam 工坊订阅包（与 `_localmods` 同布局，脚本在包根）：
 
 ### 前置 Mod
 
-ModLoader 仅管理 `.js` 插件的开关、排序与参数；**数据库与游戏资源的替换 / 新增**由独立前置 Mod 承担。功能 Mod 通过 `@base ModDataLoader` / `@base ModResourceLoader` 声明依赖；换游戏时主要增删 **GameAdapter** 兼容层，核心 API 保持通用。
+鉴于 AI 代码能力大幅提高，**前置 Mod 不再更新**。数据库与游戏资源的替换 / 新增不必依赖前置 Mod——AI 直接写进 `.js` 文件即可：一个 Mod 内置新增 / 替换数据与资源的逻辑，就能做新角色、新副本等内容。
+
+只有当多个 Mod 之间需要统一数据合并 / 资源替换口径（更容易兼容）时，才需要考虑前置 Mod：可以参考仓库内既有实现（`_localmods/ModDataLoader`、`_localmods/ModResourceLoader`），用 AI 制作适配自己游戏的前置；RMMZ 游戏一般没那么多 Mod，Mod 作者做个简易版本也能用。
+
+以下为既有实现的能力概要（仅供参考，不再更新）：
 
 | 前置 Mod | 能力概要 |
 | --- | --- |
@@ -246,8 +258,6 @@ ModLoader 仅管理 `.js` 插件的开关、排序与参数；**数据库与游�
 | **ModResourceLoader** | `modloader.json` 的 `resources` 声明式替换；`loadBitmap(modId, path)` 加载 Mod 自带图片；modId 别名（本地 / 工坊包名变化时仍可用）；可选加密绕过 |
 
 示例包：`_localmods/TestMDL-V2`（数据）、`_localmods/TestMRL-V2`（资源）。
-
-**更新日志**：ModDataLoader、ModResourceLoader 与各功能 Mod 相同，维护于包根 `CHANGELOG.md`（如 `_localmods/ModDataLoader/CHANGELOG.md`），便于管理器详情展示与 Mod 商店在线更新。
 
 | 资源 | 说明 |
 | --- | --- |
@@ -330,4 +340,4 @@ MIT License — 详见 [LICENSE](LICENSE)
 
 ***
 
-**版本**: V4.5.4 | **更新日期**: 2026-11-15
+**版本**: V4.5.4 | **更新日期**: 2026-11-16

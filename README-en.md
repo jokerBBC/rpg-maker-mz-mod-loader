@@ -10,8 +10,16 @@
 
 In-game mod manager **V4.5.4**
 
-A powerful RPG Maker MZ mod manager that lets you enable/disable, edit parameters, reorder, and check dependencies for **local mods** and **Steam Workshop mods** — all from inside the game. **Multilingual UI** is supported (Simplified Chinese / Traditional Chinese / English).
+An in-game mod manager for RPG Maker MZ: **local mods / Steam Workshop / Mod Store** multi-channel distribution, with toggles, parameter editing, load order and dependency checks in one place. **Multilingual UI** is supported (Simplified Chinese / Traditional Chinese / English).
 The AI workflow is now complete: mod authoring — mod store setup — bundle packaging — player install — online mod updates, fully connected.
+
+**Why not a file-replacement mod manager**:
+
+- **Zero pollution to the game**: only one line injected into `index.html` for load order; all mod files stay inside `js/mods/` — code, data and assets never touch original game files
+- **No repackaging**: after a game or mod update you don't need to rebuild a "game copy bundled with mod files"; overwriting updates restore cleanly
+- **No extra programs**: manage mod toggles, parameters and order from inside the game
+- **Easier distribution**: Steam Workshop subscriptions + Mod Store + local drag-and-drop / browse install
+- **Standardized parameters**: the unified `@param` / `@type` / `@default` spec makes it easier for AI to copy the pattern and build mods
 
 > **Runtime**: RPG Maker MZ (NW.js)  
 > **Mod config**: stored in `mod_config.json`; toggles and parameters survive game updates  
@@ -45,7 +53,7 @@ The AI workflow is now complete: mod authoring — mod store setup — bundle pa
 | ⚙️ **Parameter editor** | number, boolean, string, select, color, note, database refs, struct, table |
 | 🔀 **Order & dependencies** | Drag/index reordering; `@base` / `@orderAfter` checks; skips loading when `@base` is missing (dependency guard) |
 | ⚠️ **Duplicate script basenames** | Warns when a mod collides with a game plugin or another mod; confirm before enabling an ineffective entry (V4.4.2) |
-| ⚠️ **Conflict log panel** | Settings gear menu entry + empty shell panel (content from prerequisite mod `render`); red bang beside gear when conflicts exist |
+| ⚠️ **Conflict log panel** | Settings gear menu entry + empty shell panel (content filled in by mod `render`); red bang beside gear when conflicts exist |
 | 📥 **Drag / browse install** | Drop or browse `.js`; drop / browse an entire `mods` folder (local mods only; unified pipeline in V4.4.1) |
 | 🖼️ **Preview images** | `preview.png` at package root; thumbnail in details + click for full-size popup |
 | 🛡️ **Config compatibility** | V4.1.1 reads legacy V3.x `../mods/` keys; saving once auto-migrates to new keys |
@@ -186,8 +194,8 @@ js/mods/
 │   └── language/                   # Manager UI i18n (zh_CN / zh_TW / en)
 ├── modloader/                      # Pure manager logic (config, scan, install, params, deps, …)
 ├── _localmods/                     # Local mod packages
-│   ├── ModDataLoader/              # Data prerequisite (merge/replace/add)
-│   ├── ModResourceLoader/          # Resource prerequisite (replace/add)
+│   ├── ModDataLoader/              # Data prerequisite · reference impl. (frozen)
+│   ├── ModResourceLoader/          # Resource prerequisite · reference impl. (frozen)
 │   └── <package>/
 │       ├── <script>.js
 │       ├── CHANGELOG.md            # optional; mod changelog
@@ -240,7 +248,11 @@ Steam Workshop subscription package (same layout as `_localmods`, scripts at pac
 
 ### Prerequisite mods
 
-ModLoader manages only `.js` plugin toggles, load order, and parameters. **Database and asset replace/add** are provided by separate prerequisite mods. Feature mods declare `@base ModDataLoader` / `@base ModResourceLoader`; when porting to another game, you mainly add or remove **GameAdapter** compatibility layers while keeping the core APIs shared.
+With AI coding capabilities greatly improved, **prerequisite mods are no longer updated**. Database and asset replace/add no longer depend on prerequisite mods — just let AI write it into the `.js` file: one mod with built-in add/replace logic for data and assets is enough to create new characters, new dungeons, and more.
+
+Only when multiple mods need a unified data-merge / asset-replace convention (for easier compatibility) do prerequisite mods become relevant: reference the existing implementations (`_localmods/ModDataLoader`, `_localmods/ModResourceLoader`) and use AI to build a prerequisite adapted to your own game; RMMZ games usually don't have that many mods, so a simple version by the mod author works too.
+
+Capabilities of the existing implementations (reference only, no longer updated):
 
 | Prerequisite mod | Capabilities |
 | --- | --- |
@@ -248,8 +260,6 @@ ModLoader manages only `.js` plugin toggles, load order, and parameters. **Datab
 | **ModResourceLoader** | Declarative replace via `modloader.json` `resources`; `loadBitmap(modId, path)` for mod-owned images; modId aliases (stable across local / Workshop package names); optional encryption bypass |
 
 Sample packages: `_localmods/TestMDL-V2` (data), `_localmods/TestMRL-V2` (resources).
-
-**Changelogs**: Like feature mods, ModDataLoader and ModResourceLoader maintain package-root `CHANGELOG.md` (e.g. `_localmods/ModDataLoader/CHANGELOG.md`) for manager detail UI and Mod Store online updates.
 
 | Resource | Description |
 | --- | --- |
@@ -332,4 +342,4 @@ MIT License — see [LICENSE](LICENSE)
 
 ***
 
-**Version**: V4.5.4 | **Updated**: 2026-11-15
+**Version**: V4.5.4 | **Updated**: 2026-11-16

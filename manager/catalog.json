@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "modloader-manager",
   "version": "V4.5.4",
-  "publishedAt": "2026-11-15T06:32:12Z",
+  "publishedAt": "2026-11-16T07:25:19Z",
   "changelogPath": "docs/modloader_CHANGELOG.md",
   "files": [
     {
@@ -37,13 +37,13 @@
     },
     {
       "path": "docs/README-en.md",
-      "sha256": "c4ea29eb22f42ffe15ee38014aa542e5b8abd4d8568f93d3674825c8a0a53185",
-      "size": 15368
+      "sha256": "b273e4e7b9130f648ae15fbfa25ae0db3c548f77c81b578e431009a5361dcda7",
+      "size": 16347
     },
     {
       "path": "docs/README.md",
-      "sha256": "e5d53bc9531d5e1f0ea878d4f4fbf9ab78a0c084383d733a0a8a6be28d26cdff",
-      "size": 14901
+      "sha256": "4e7a72730574913fc6dad77dc7c0d66adb921a87a45d7d19eacf31b3e1bf2d6f",
+      "size": 15754
     },
     {
       "path": "docs/img/Mod商店界面.png",
@@ -102,13 +102,13 @@
     },
     {
       "path": "docs/modloader_CHANGELOG.md",
-      "sha256": "299dda0a88793ab4ee5a7ac8c5664db140aa5e8bf8e2cd72c6f51a74a39a08d3",
-      "size": 59870
+      "sha256": "6c6b7d206fbee169e58b509fe33569cabb1018562018fd3191e8cab57b97d9b0",
+      "size": 61067
     },
     {
       "path": "docs/mod商店拓展.md",
-      "sha256": "9d173d3b5183445a16e3da93c880aad8032c9a41e46df00482d0e5f0d629a31f",
-      "size": 22227
+      "sha256": "2cc8e4b92d94c22eae1f1b5de53438d8f3ff02b451ddebedc821f11724dac49b",
+      "size": 34300
     },
     {
       "path": "docs/使用手册.md",
@@ -127,13 +127,13 @@
     },
     {
       "path": "libs/modLoaderUpdater.js",
-      "sha256": "c3a717b07293e4d5c49e545cb053640e5d20944c1dd41b4f898b4b180a87e822",
-      "size": 69545
+      "sha256": "9f3bc4653c891c0a880b1470d7468f7ed393e418841539dea192068fdf7d4a35",
+      "size": 75442
     },
     {
       "path": "libs/modStore.js",
-      "sha256": "e706929b53288ee7056fb5a8313bb21733edbce39ec230fa6191ce994d9e11a3",
-      "size": 123489
+      "sha256": "6b2b5d9a8e022d636053b842b8f7b73cd4c42ee905b2307e0dc801c097f1b0aa",
+      "size": 130806
     },
     {
       "path": "modloader/configCore.js",
