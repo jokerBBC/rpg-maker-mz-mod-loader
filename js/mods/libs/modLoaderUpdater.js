@@ -762,6 +762,74 @@
         return u;
     }
 
+    /**
+     * Gitee raw 的备用通道。
+     *
+     * gitee.com/<owner>/<repo>/raw/<ref>/<path> 会 302 到 raw.giteeusercontent.com，
+     * 该域名在部分国内线路被按 SNI 字节重置，或被 DNS 污染成 1.1.1.1 这类黑洞地址
+     * （表现为 connect ETIMEDOUT 1.1.1.1:443，且时好时坏）。
+     * gitee.com 自己的 API 是同一站点、不受影响，所以拿不到 raw 时改从 API 取同一个文件。
+     */
+    function giteeApiFallbackUrl(rawUrl) {
+        let u;
+        try {
+            u = new urlMod.URL(String(rawUrl || ''));
+        } catch (e) {
+            return '';
+        }
+        if (!/^gitee\.com$/i.test(u.hostname)) return '';
+        const m = u.pathname.match(/^\/([^/]+)\/([^/]+)\/raw\/([^/]+)\/(.+)$/);
+        if (!m) return '';
+        const owner = m[1], repo = m[2], ref = m[3], filePath = m[4];
+        if (!owner || !repo || !ref || !filePath) return '';
+        return 'https://gitee.com/api/v5/repos/' + owner + '/' + repo + '/contents/' + filePath +
+            '?ref=' + encodeURIComponent(ref);
+    }
+
+    /** contents 接口只对 1MB 以内的文件返回正文，超限时改用同一个 blob sha 走 blob 接口。 */
+    function giteeApiBlobUrl(contentsUrl, sha) {
+        const m = String(contentsUrl || '').match(/^(https:\/\/gitee\.com\/api\/v5\/repos\/[^/]+\/[^/]+)\/contents\//i);
+        if (!m || !sha) return '';
+        return m[1] + '/git/blobs/' + encodeURIComponent(sha);
+    }
+
+    /** 走 Gitee API 取文件正文（base64 解码后返回 Buffer）。 */
+    function giteeApiFetchBytes(apiUrl, maxBytes) {
+        const apiMax = Math.min(Math.ceil((maxBytes != null ? maxBytes : MAX_BYTES) * 1.5) + 1024 * 1024,
+            48 * 1024 * 1024);
+        function decode(obj) {
+            const content = String((obj && obj.content) || '');
+            if (!content) return null;
+            const enc = (obj && obj.encoding === 'base64') ? 'base64' : 'utf-8';
+            const buf = Buffer.from(content, enc);
+            if (maxBytes != null && buf.length > maxBytes) throw new Error(t('errHttp', { code: 'size' }));
+            return buf;
+        }
+        return requestBuffer(apiUrl, { maxBytes: apiMax, apiFallbackUrl: '' }).then(function (buf) {
+            let obj;
+            try {
+                obj = JSON.parse(buf.toString('utf-8'));
+            } catch (e) {
+                throw new Error(t('errUrlInvalid'));
+            }
+            const direct = decode(obj);
+            if (direct) return direct;
+            const blobUrl = giteeApiBlobUrl(apiUrl, String((obj && obj.sha) || ''));
+            if (!blobUrl) throw new Error(t('errHttp', { code: '404' }));
+            return requestBuffer(blobUrl, { maxBytes: apiMax, apiFallbackUrl: '' }).then(function (blobBuf) {
+                let bObj;
+                try {
+                    bObj = JSON.parse(blobBuf.toString('utf-8'));
+                } catch (e) {
+                    throw new Error(t('errUrlInvalid'));
+                }
+                const buf2 = decode(bObj);
+                if (!buf2) throw new Error(t('errHttp', { code: '404' }));
+                return buf2;
+            });
+        });
+    }
+
     function requestBuffer(rawUrl, options) {
         options = options || {};
         const maxBytes = options.maxBytes != null ? options.maxBytes : MAX_BYTES;
@@ -816,11 +884,18 @@
                         fail(new Error(t('errUrlInvalid')));
                         return;
                     }
+                    // gitee.com/raw 会 302 到 raw.giteeusercontent.com，该域名可能被 SNI 重置或 DNS 污染；
+                    // 失败时改走 Gitee 官方 API 取同一个文件（GitHub 镜像不受影响，无需兜底）。
+                    const fbUrl = options.apiFallbackUrl || giteeApiFallbackUrl(rawUrl);
                     requestBuffer(next, {
                         maxBytes: maxBytes,
                         redirectLeft: redirectLeft - 1,
-                        sniAttempt: 0
-                    }).then(done, fail);
+                        sniAttempt: 0,
+                        apiFallbackUrl: fbUrl
+                    }).then(done, function (err) {
+                        if (!fbUrl) { fail(err); return; }
+                        giteeApiFetchBytes(fbUrl, maxBytes).then(done, function () { fail(err); });
+                    });
                     return;
                 }
                 if (code !== 200) {
@@ -849,7 +924,8 @@
                     requestBuffer(rawUrl, {
                         maxBytes: maxBytes,
                         redirectLeft: redirectLeft,
-                        sniAttempt: 1
+                        sniAttempt: 1,
+                        apiFallbackUrl: options.apiFallbackUrl
                     }).then(done, fail);
                     return;
                 }

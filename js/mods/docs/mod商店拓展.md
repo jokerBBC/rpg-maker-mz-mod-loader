@@ -444,3 +444,52 @@
 - 2026-11-14 13:47：小写 SNI `ECONNRESET`、大写 SNI 握手成功；Gitee `/raw/` 第一跳 302 到 CDN。
 - 2026-11-15 14:29（V4.5.4 发版验证）：Gitee raw 在 curl 层仍被 RST → **屏蔽并未消失**，玩家无感是修复 + 双镜像兜底在起作用。
 - 2026-11-15 17:1x：两种 SNI 均超时；本机电信 DNS 把该域名解析为 `1.1.1.1` + `180.76.199.86`（hosts 无条目），Node 取首条致超时，`gitee.com` 正常 200。注意**大写 SNI 重试不能解决 DNS 异常解析**；玩家若报「全超时」而非「连接被重置」，属另一类问题。
+
+---
+
+## 16. Gitee raw 的 DNS 污染与 API 兜底（2026-11-16）
+
+### 现象
+
+- §14 同链路的新故障形态：商店所有源**间歇性**一起失败，报错形如 `Error: connect ETIMEDOUT 1.1.1.1:443`，时好时坏、刷新几次能蒙对一次；「Mod 源发现」远程清单同样间歇性失败（退回内置快照）
+
+### 根因（三层独立发生，逐层实测）
+
+| 层 | 表现 | 实测方式与结果（游戏仓排查记录，2026-11-16） | 处理 |
+|---|---|---|---|
+| DNS 污染 | `raw.giteeusercontent.com` 被解析到 `1.1.1.1` | `nslookup` 连查 12 次：5 次返回 `1.1.1.1`（约 40%），其余返回真实 CDN IP `180.76.199.86`；`1.1.1.1:443` 本机直连 8s 超时 | 走 Gitee 官方 API 兜底 |
+| SNI 按字节拦截 | 小写 SNI 被 RST | 游戏运行时内直连该域名 6/6 次 `ECONNRESET` | 大写 SNI 重试（§14 已有） |
+| raw 缓存 | push 后远程清单不立刻生效 | push 后约 1 分钟 raw 仍返回旧文件；`?t=` 随机参数绕不过（缓存按文件路径键控） | 工具对账改用 API contents 端点 |
+
+结论：不是网络波动，是线路层拦截 + DNS 污染的组合，两者独立发生，所以表现为间歇性。
+
+### 兜底通道（Gitee API）
+
+- 映射：`https://gitee.com/<owner>/<repo>/raw/<ref>/<path>` → `https://gitee.com/api/v5/repos/<owner>/<repo>/contents/<path>?ref=<ref>`——同一站点、不受影响，返回 base64 正文
+- 仅当**重定向目标**失败时启用；原始 URL 自身的 403/404 不兜底，避免掩盖仓库被封的真实原因
+- contents 接口只对 1MB 以内的文件返回正文，超限时用同一个 blob sha 走 `git/blobs/<sha>` 取完整正文
+- base64 约膨胀 1.37 倍：兜底请求上限 = `min(1.5×maxBytes + 1MB, 48MB)`，再大的包不走兜底（不在内存里堆几十 MB base64）
+- 续传请求（`rangeStart > 0`）不兜底——API 无 Range，整包重下才对
+- 非 Gitee 域名（AtomGit / GitHub）不映射，行为不变
+
+### 改动
+
+- `libs/modStore.js`
+  - 新增 `giteeApiFallbackUrl()` / `giteeApiBlobUrl()` / `giteeApiFetchFileBytes()` / `giteeApiFetchBuffer()` / `downloadViaGiteeApi()`
+  - `requestBuffer()`（catalog / changelog）重定向分支：`fbUrl = options.apiFallbackUrl || giteeApiFallbackUrl(rawUrl)`，随重定向逐跳透传；子请求失败先试 `giteeApiFetchBuffer()`，成功即 `done`
+  - `pipeResponse()`（zip 下载）新增 `apiFallbackUrl` 形参：重定向失败走 `downloadViaGiteeApi()` 整包落盘，`emitProgress` 后 resolve；401 整包重下与 SNI 重试均透传该参数
+  - `sourceErrorText()` 升级：提取报错里的 IP，`1.1.1.1 / 0.0.0.0 / 8.8.8.8 / 8.8.4.4` 等黑洞地址 →「DNS 被劫持到了 {ip}，不是源挂了」；补 `ETIMEDOUT/EHOSTUNREACH/ENETUNREACH/ENETDOWN/ECONNREFUSED` 与 connect/socket 通用分支，系统原文不再原样甩给玩家（i18n 新增 `sourceLoadFailedTimeout` / `sourceLoadFailedDnsHijack`，三语）
+- `libs/modLoaderUpdater.js`：同款 `giteeApiFallbackUrl()` / `giteeApiBlobUrl()` / `giteeApiFetchBytes()`（直接返回 Buffer 的变体）；`requestBuffer()` 重定向分支与 SNI 重试透传 `apiFallbackUrl`——`channel.json` / `catalog.json` / 各更新文件都经此函数，Gitee 分支 302 后的 CDN 请求同样命中
+- 与 AtomGit 三源链（`6fd4135`）叠加：AtomGit 的 raw 本身就是 API 路径、无 302、不经过被污染域名，无需兜底；三源顺序不变
+
+### 注意
+
+- 兜底只在「302 之后的目标域名失败」时触发；`gitee.com` 第一跳本身被污染时仍走镜像切换（更新器）或人话报错（商店）——第一跳与 API 同站点，实测未见第一跳被污染
+- 48MB 封顶意味着 ≈35MB 以上的安装包不走兜底，交还镜像 / 重试
+- 决策延续 §14：仍属链路博弈式缓解，不是协议层修复；若匹配方升级屏蔽形态需重新评估。§15.5 列出的「重定向目标主机白名单」仍是待办加固项
+
+### 验证记录
+
+- 游戏仓实机（2026-11-16，污染线路）：API 通道取回 851,600 字节安装包，sha256 与本地文件完全一致；商店的源清单 / 安装包 / 更新日志与管理器在线更新四链路覆盖（见 CHANGELOG V4.5.4 条目）
+- 本仓合并（2026-11-16）：`modStore.js` 与游戏仓实机版本逐字节一致；`modLoaderUpdater.js` 差异仅剩 AtomGit 三源链（发布仓已有、游戏仓没有），API 兜底部分一致
+- 发版后的实机回归待随 V4.5.5 进行

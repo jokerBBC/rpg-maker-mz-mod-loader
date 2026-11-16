@@ -131,6 +131,8 @@
             errVersionMismatch: '远程仓库catalog版本号和zip包内的manifest版本不一致，Mod作者请检查修复后再次推送更新。',
             errHttp404Hint: 'HTTP 404：安装包不存在（作者可能已推送新版本）。请先点界面左上角「刷新」按钮或按 F5 重启游戏后再更新。',
             sourceLoadFailedHost: '无法连接 {host}（连接被重置）',
+            sourceLoadFailedTimeout: '无法连接 {host}（网络超时或被拦截）',
+            sourceLoadFailedDnsHijack: '无法连接 {host}（DNS 被劫持到了 {ip}，不是源挂了）',
             errNetResetHint: '无法连接 {host}（连接被重置）。可以：① 换手机热点后重试；② 或使用 AI Agent 帮你排查网络问题。',
             errDnsHint: '无法解析 {host}（域名写错或 DNS 异常），请检查源地址。',
             sourceNotFoundHint: '找不到清单文件（HTTP 404），源地址可能写错，或作者已删除该文件。',
@@ -240,6 +242,8 @@
             errVersionMismatch: '遠端倉庫catalog版本號和zip包內的manifest版本號不一致，Mod作者請檢查修復後再次推送更新。',
             errHttp404Hint: 'HTTP 404：安裝包不存在（作者可能已推送新版本）。請先點界面左上角「重新整理」按鈕或按 F5 重啟遊戲後再更新。',
             sourceLoadFailedHost: '無法連線 {host}（連線被重置）',
+            sourceLoadFailedTimeout: '無法連線 {host}（網路逾時或被攔截）',
+            sourceLoadFailedDnsHijack: '無法連線 {host}（DNS 被劫持到了 {ip}，不是源掛了）',
             errNetResetHint: '無法連線 {host}（連線被重置）。可以：① 換手機熱點後重試；② 或使用 AI Agent 幫你排查網路問題。',
             errDnsHint: '無法解析 {host}（網域寫錯或 DNS 異常），請檢查源位址。',
             sourceNotFoundHint: '找不到清單檔案（HTTP 404），源位址可能寫錯，或作者已刪除該檔案。',
@@ -349,6 +353,8 @@
             errVersionMismatch: 'The remote catalog version does not match the manifest version inside the zip. Mod author: please check, fix, and push the update again.',
             errHttp404Hint: 'HTTP 404: package not found (the author may have published a new version). Click the “Refresh” button at the top-left or press F5 to restart the game, then update again.',
             sourceLoadFailedHost: 'cannot connect to {host} (connection reset)',
+            sourceLoadFailedTimeout: 'cannot connect to {host} (timeout or blocked)',
+            sourceLoadFailedDnsHijack: 'cannot connect to {host} (DNS was hijacked to {ip}; the source itself is fine)',
             errNetResetHint: 'Cannot connect to {host} (connection reset). Try: ① switch to a phone hotspot and retry; ② ask an AI agent to help diagnose your network.',
             errDnsHint: 'Cannot resolve {host} (wrong domain or DNS failure). Check the source URL.',
             sourceNotFoundHint: 'Catalog not found (HTTP 404). The source URL may be wrong, or the author removed the file.',
@@ -836,6 +842,103 @@
         return u;
     }
 
+    /**
+     * Gitee raw 的备用通道。
+     *
+     * https://gitee.com/<owner>/<repo>/raw/<ref>/<path> 会 302 到 raw.giteeusercontent.com，
+     * 该域名在部分国内线路会被按 SNI 字节精确匹配重置，或被 DNS 污染成 1.1.1.1 这类黑洞地址
+     * （表现是一整批源同时报 connect ETIMEDOUT 1.1.1.1:443）。
+     * gitee.com 自己的 API 是同一站点、不受影响，所以拿不到 raw 时改从 API 取同一个文件。
+     */
+    function giteeApiFallbackUrl(rawUrl) {
+        let u;
+        try {
+            u = new urlMod.URL(String(rawUrl || ''));
+        } catch (e) {
+            return '';
+        }
+        if (!/^gitee\.com$/i.test(u.hostname)) return '';
+        const m = u.pathname.match(/^\/([^/]+)\/([^/]+)\/raw\/([^/]+)\/(.+)$/);
+        if (!m) return '';
+        const owner = m[1], repo = m[2], ref = m[3], filePath = m[4];
+        if (!owner || !repo || !ref || !filePath) return '';
+        return 'https://gitee.com/api/v5/repos/' + owner + '/' + repo + '/contents/' + filePath +
+            '?ref=' + encodeURIComponent(ref);
+    }
+
+    /**
+     * Gitee contents 接口只对 1MB 以内的文件返回正文，超限时只给一个 blob sha。
+     * 同一个 sha 可以走 blob 接口拿到完整正文（git/blobs/<sha>），用它兜住大包。
+     */
+    function giteeApiBlobUrl(contentsUrl, sha) {
+        const m = String(contentsUrl || '').match(/^(https:\/\/gitee\.com\/api\/v5\/repos\/[^/]+\/[^/]+)\/contents\//i);
+        if (!m || !sha) return '';
+        return m[1] + '/git/blobs/' + encodeURIComponent(sha);
+    }
+
+    /**
+     * 走 Gitee API 取文件正文（base64 解码后返回 Buffer）。
+     * contents 拿不到正文时自动切 blob 接口。
+     */
+    function giteeApiFetchFileBytes(apiUrl, maxBytes) {
+        // 接口正文是 base64，约是原文件的 1.37 倍；留够余量后封顶 48MB（≈35MB 的包），
+        // 再大的包不再走兜底，避免一次性在内存里堆几十 MB。
+        const apiMax = Math.min(
+            Math.ceil((maxBytes != null ? maxBytes : DEFAULT_MAX_BYTES) * 1.5) + 1024 * 1024,
+            48 * 1024 * 1024
+        );
+        function decode(obj) {
+            const content = String((obj && obj.content) || '');
+            if (!content) return null;
+            const enc = (obj && obj.encoding === 'base64') ? 'base64' : 'utf-8';
+            const buf = Buffer.from(content, enc);
+            if (maxBytes != null && buf.length > maxBytes) throw new Error(storeT('errSizeLimit'));
+            return buf;
+        }
+        return requestBuffer(apiUrl, { maxBytes: apiMax, apiFallbackUrl: '' }).then(function (result) {
+            let obj;
+            try {
+                obj = JSON.parse(result.buffer.toString('utf-8'));
+            } catch (e) {
+                throw new Error('备用下载通道返回了无法解析的内容');
+            }
+            const direct = decode(obj);
+            if (direct) return direct;
+            const blobUrl = giteeApiBlobUrl(apiUrl, String((obj && obj.sha) || ''));
+            if (!blobUrl) throw new Error('备用下载通道没拿到文件内容');
+            return requestBuffer(blobUrl, { maxBytes: apiMax, apiFallbackUrl: '' }).then(function (blobRes) {
+                let bObj;
+                try {
+                    bObj = JSON.parse(blobRes.buffer.toString('utf-8'));
+                } catch (e) {
+                    throw new Error('备用下载通道返回了无法解析的内容');
+                }
+                const buf = decode(bObj);
+                if (!buf) throw new Error('备用下载通道没拿到文件内容');
+                return buf;
+            });
+        });
+    }
+
+    /** 走 Gitee API 取文件：接口给 base64 正文，这里解回原始字节。 */
+    function giteeApiFetchBuffer(apiUrl, maxBytes) {
+        return giteeApiFetchFileBytes(apiUrl, maxBytes).then(function (buf) {
+            return { buffer: buf, statusCode: 200, total: buf.length, rangeStart: 0 };
+        });
+    }
+
+    /**
+     * Gitee API 兜底下载：接口给 base64 正文，解码后整包落盘。
+     * 安装包走的是流式管道（pipeResponse），没有 requestBuffer 可复用，所以单独走这条。
+     */
+    function downloadViaGiteeApi(apiUrl, destPath, maxBytes) {
+        return giteeApiFetchFileBytes(apiUrl, maxBytes).then(function (buf) {
+            ensureDir(pathMod.dirname(destPath));
+            fs.writeFileSync(destPath, buf);
+            return { bytes: buf.length, total: buf.length };
+        });
+    }
+
     function requestBuffer(rawUrl, options) {
         options = options || {};
         const maxBytes = options.maxBytes != null ? options.maxBytes : DEFAULT_MAX_BYTES;
@@ -893,13 +996,20 @@
                         fail(new Error(storeT('errRedirectInvalid')));
                         return;
                     }
+                    // gitee.com/raw 会 302 到 raw.giteeusercontent.com，该域名可能被 SNI 重置或 DNS 污染；
+                    // 失败时改走 Gitee 官方 API 取同一个文件（清单 / 安装包 / 更新日志都走这里）。
+                    const fbUrl = options.apiFallbackUrl || giteeApiFallbackUrl(rawUrl);
                     requestBuffer(next, {
                         maxBytes: maxBytes,
                         onProgress: onProgress,
                         redirectLeft: redirectLeft - 1,
                         rangeStart: rangeStart,
-                        sniAttempt: 0
-                    }).then(done, fail);
+                        sniAttempt: 0,
+                        apiFallbackUrl: fbUrl
+                    }).then(done, function (err) {
+                        if (!fbUrl || rangeStart > 0) { fail(err); return; }
+                        giteeApiFetchBuffer(fbUrl, maxBytes).then(done, function () { fail(err); });
+                    });
                     return;
                 }
 
@@ -1042,7 +1152,7 @@
             return fs.createWriteStream(destPath, { flags: append ? 'a' : 'w' });
         }
 
-        function pipeResponse(url, rangeStart, redirectLeft, sniAttempt) {
+        function pipeResponse(url, rangeStart, redirectLeft, sniAttempt, apiFallbackUrl) {
             redirectLeft = redirectLeft != null ? redirectLeft : 5;
             sniAttempt = sniAttempt || 0;
             const u = parseHttpsUrl(url);
@@ -1076,7 +1186,16 @@
                             reject(new Error(storeT('errRedirectInvalid')));
                             return;
                         }
-                        pipeResponse(next, rangeStart, redirectLeft - 1, 0).then(resolve, reject);
+                        // gitee.com/raw 会 302 到 raw.giteeusercontent.com，该域名可能被 SNI 重置或 DNS 污染；
+                        // 失败时改走 Gitee 官方 API 取同一个文件（安装包走这条路径，不能像清单那样只读小 JSON）。
+                        const fbUrl = apiFallbackUrl || giteeApiFallbackUrl(url);
+                        pipeResponse(next, rangeStart, redirectLeft - 1, 0, fbUrl).then(resolve, function (err) {
+                            if (!fbUrl || rangeStart > 0) { reject(err); return; }
+                            downloadViaGiteeApi(fbUrl, destPath, maxBytes).then(function (r) {
+                                emitProgress(r.bytes, r.total);
+                                resolve(r);
+                            }, function () { reject(err); });
+                        });
                         return;
                     }
 
@@ -1086,7 +1205,7 @@
                         removePathSafe(destPath);
                         baselineExisting = 0;
                         startedAt = Date.now();
-                        pipeResponse(url, 0, redirectLeft, sniAttempt).then(resolve, reject);
+                        pipeResponse(url, 0, redirectLeft, sniAttempt, apiFallbackUrl).then(resolve, reject);
                         return;
                     }
 
@@ -1160,7 +1279,7 @@
                 });
                 req.on('error', function (err) {
                     if (!timedOut && !sniAttempt && isSniRetryableHost(u.hostname) && isConnResetError(err)) {
-                        pipeResponse(url, rangeStart, redirectLeft, 1).then(resolve, reject);
+                        pipeResponse(url, rangeStart, redirectLeft, 1, apiFallbackUrl).then(resolve, reject);
                         return;
                     }
                     reject(err);
@@ -1169,7 +1288,7 @@
             });
         }
 
-        return pipeResponse(rawUrl, existing, 5).then(function () {
+        return pipeResponse(rawUrl, existing, 5, 0, '').then(function () {
             return hashFile(destPath).then(function (sha) {
                 const st = fs.statSync(destPath);
                 return { path: destPath, sha256: sha, bytes: st.size };
@@ -1690,14 +1809,27 @@
      */
     function sourceErrorText(errorText, rawUrl) {
         const msg = String(errorText || '');
+        const host = hostOfUrl(rawUrl) || '服务器';
+        // 连接类报错里带的是「被解析到的那个 IP」。1.1.1.1 这类地址说明 DNS 被劫持/污染，不是源挂了。
+        const ipM = msg.match(/((?:\d{1,3}\.){3}\d{1,3})(?::(\d{1,5}))?/);
+        const ip = ipM ? ipM[0] : '';
         if (/ECONNRESET|socket hang up|EPIPE|ECONNABORTED/i.test(msg)) {
-            return storeT('sourceLoadFailedHost', { host: hostOfUrl(rawUrl) || '服务器' });
+            return storeT('sourceLoadFailedHost', { host: host });
         }
         if (/ENOTFOUND|EAI_AGAIN|getaddrinfo/i.test(msg)) {
-            return storeT('errDnsHint', { host: hostOfUrl(rawUrl) || '服务器' });
+            return storeT('errDnsHint', { host: host });
+        }
+        if (/^(1\.1\.1\.1|0\.0\.0\.0|8\.8\.8\.8|8\.8\.4\.4)$/.test(ip)) {
+            return storeT('sourceLoadFailedDnsHijack', { host: host, ip: ip });
+        }
+        if (/ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|ENETDOWN|ECONNREFUSED/i.test(msg)) {
+            return storeT('sourceLoadFailedTimeout', { host: host });
         }
         if (/HTTP\s*404/.test(msg)) return storeT('sourceNotFoundHint');
         if (/HTTP\s*403/.test(msg)) return storeT('sourceForbiddenHint');
+        if (/connect|socket|ECONN|EHOST|ENET/i.test(msg)) {
+            return storeT('sourceLoadFailedTimeout', { host: host });
+        }
         return msg || storeT('sourceUnknownError');
     }
 
