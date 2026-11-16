@@ -6,7 +6,7 @@
 
 **[中文版 README](README.md)**
 
-In-game mod manager **V4.5.4**
+In-game mod manager **V4.5.5**
 
 An in-game mod management & distribution platform for RPG Maker MZ: **local mods / Steam Workshop / Mod Store** multi-channel distribution and online updates, with toggles, parameter editing, load order and dependency checks in one place. **Multilingual UI** is supported (Simplified Chinese / Traditional Chinese / English).
 In the AI era, writing mod code and producing in-game assets is no longer a problem. The mod manager's bottleneck has shifted from "how players conveniently manage mods through a UI" and "how mod authors conveniently build mods" to: **mod standardization (compatibility) → initial distribution → ongoing mod maintenance & updates → painless mod updates for players**. When production becomes easy, distribution and maintenance are the new pain points.
@@ -39,7 +39,7 @@ Now introducing a complete AI workflow: mod authoring — mod store setup — bu
   - sky（白白）· <https://gitee.com/yhxxy/yhxxy>
   - 🐶作者2.0 · convenience · <https://atomgit.com/dalapian/dog_author-2.0>
 - **New characters & dungeons in pure .js**: without any prerequisite mod, players let AI write add/replace logic for data and assets directly into `.js` — new characters like *Character Collection* (角色合集: a character framework + 23 character packs behind a single entry), new dungeons like *Underground Alchemy Lab* (地下炼金实验室), *Mod Dungeon Portal* (mod副本传送门) and the *Calamity Dungeon* (灾厄副本) series
-- **Continuous manager updates, no adaptation issues**: this game followed many manager online updates from the V4.4.6 kernel to V4.5.4 and keeps working in-game all along
+- **Continuous manager updates, no adaptation issues**: this game followed many manager online updates from the V4.4.6 kernel to V4.5.5 and keeps working in-game all along
 - Example Mod store repositories (reference catalog publishing pipelines built with AI assistance; compatibility verified):
   - 打怪升级爆装备 mod store — validated on the legacy V4.4.6 manager kernel · <https://gitee.com/Jokerbbc/daguaishengjibaozhuangbeimod>
   - 暗源崛起 (Dark Abyss Rises) mod store · <https://gitee.com/Jokerbbc/dark-abyss-rises-mod>
@@ -350,4 +350,4 @@ MIT License — see [LICENSE](LICENSE)
 
 ***
 
-**Version**: V4.5.4 | **Updated**: 2026-11-16
+**Version**: V4.5.5 | **Updated**: 2026-11-16
