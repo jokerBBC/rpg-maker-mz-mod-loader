@@ -11,12 +11,12 @@
 In-game mod manager **V4.5.4**
 
 An in-game mod manager for RPG Maker MZ: **local mods / Steam Workshop / Mod Store** multi-channel distribution, with toggles, parameter editing, load order and dependency checks in one place. **Multilingual UI** is supported (Simplified Chinese / Traditional Chinese / English).
-The AI workflow is now complete: mod authoring — mod store setup — bundle packaging — player install — online mod updates, fully connected.
+The AI workflow is complete: mod authoring — mod store setup — bundle packaging — player install — online mod updates, fully connected.
 
 **Why not a file-replacement mod manager**:
 
 - **Zero pollution to the game**: only one line injected into `index.html` for load order; all mod files stay inside `js/mods/` — code, data and assets never touch original game files
-- **No repackaging**: after a game or mod update you don't need to rebuild a "game copy bundled with mod files"; overwriting updates restore cleanly
+- **No repackaging**: after a game or mod update you don't need to rebuild a "game copy bundled with mod files"; overwriting updates restore cleanly — mod updates take effect right after F5
 - **No extra programs**: manage mod toggles, parameters and order from inside the game
 - **Easier distribution**: Steam Workshop subscriptions + Mod Store + local drag-and-drop / browse install
 - **Standardized parameters**: the unified `@param` / `@type` / `@default` spec makes it easier for AI to copy the pattern and build mods
@@ -32,6 +32,9 @@ The AI workflow is now complete: mod authoring — mod store setup — bundle pa
 - Guide/wiki for the game *Idle Level Up & Fight Monsters* using RMMZ ModLoader V4.1.2 (includes mod manager tutorial · [Feishu link](https://qcnhq5e2tphh.feishu.cn/wiki/XH1jwdX5uil2ookoEF8cpN1AnJf))
 - Fine-tuning examples for *Crimson Moon Immortal Journey* based on RMMZ ModLoader V4 ([Baidu Tieba post 1](https://tieba.baidu.com/p/10810499585?fr=personpage) · [Baidu Tieba post 2](https://tieba.baidu.com/p/10813947286?fr=personpage))
 - Mod manager usage demo for *Dark Abyss Rises* (暗源崛起) built on RMMZ ModLoader (Bilibili video · [BV1twYY6dEMv](https://www.bilibili.com/video/BV1twYY6dEMv/?spm_id_from=333.788.videopod.sections&vd_source=3ef6190ccbaf3b82c0dd3ef57cd79cc8&p=7))
+- **One game · six mod sources side by side**: players of *Grind, Level Up, Loot Galore* (打怪升级爆装备) subscribe to 6 different authors' sources in the Mod Store at once (Joker / 枫叶 / 天空遗落之物 / 天意 / sky / 🐶作者2.0) — install, update and ordering all happen inside one manager
+- **New characters & dungeons in pure .js**: without any prerequisite mod, players let AI write add/replace logic for data and assets directly into `.js` — new characters like *Character Collection* (角色合集: a character framework + 23 character packs behind a single entry), new dungeons like *Underground Alchemy Lab* (地下炼金实验室), *Mod Dungeon Portal* (mod副本传送门) and the *Calamity Dungeon* (灾厄副本) series
+- **Continuous manager updates, no adaptation issues**: this game followed many manager online updates from the V4.4.6 kernel to V4.5.4 and keeps working in-game all along
 - Example Mod store repositories (reference catalog publishing pipelines built with AI assistance; compatibility verified):
   - 打怪升级爆装备 mod store — validated on the legacy V4.4.6 manager kernel · <https://gitee.com/Jokerbbc/daguaishengjibaozhuangbeimod>
   - 暗源崛起 (Dark Abyss Rises) mod store · <https://gitee.com/Jokerbbc/dark-abyss-rises-mod>
@@ -170,7 +173,7 @@ Edit `index.html` and inject ModLoader **before** `main.js`:
 
 **Prefer not to hand-edit / one-click restore after game updates**: use the ready-made 「Mod管理器注入工具.bat」 — copy it to the game directory and double-click: **1** inject manager / **2** remove injection (restore vanilla game) / 3 exit. Integration bundles already ship this tool in the game directory; manual installs can copy it from `js/mods/tools/modpack/` in this repo. When a game update overwrites `index.html` and the manager entry disappears, run it and pick 1 to restore. Mod authors: the bundle build script includes it automatically — players never need to hand-edit.
 
-### Mode 2: Plugin mode
+### Mode 2: Plugin mode (not recommended)
 
 Add `ModLoader.js` to the RMMZ Plugin Manager list.
 
